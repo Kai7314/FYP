@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
-import 'presentationLayer/dashboardUI.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'presentation/screens/auth/auth_gate.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(url: 'YOUR_URL', anonKey: 'YOUR_ANON_KEY');
+
   runApp(const MyApp());
 }
 
@@ -10,13 +15,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false, // remove debug banner
-      title: 'EthernaCare',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const DashboardUI(), // set your dashboard as home
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: AuthGate(),
     );
   }
 }
