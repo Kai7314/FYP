@@ -1,3 +1,5 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 class CheckinRepository {
   final supabase = Supabase.instance.client;
 
