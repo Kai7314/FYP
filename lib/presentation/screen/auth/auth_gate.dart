@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../services/auth_service.dart';
 import '../home/home_screen.dart';
 import 'login_screen.dart';
@@ -9,15 +10,20 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = Supabase.instance.client.auth.currentSession;
+    final auth = Supabase.instance.client.auth;
 
-    if (session != null) {
-      // 🔥 THIS RUNS AFTER GOOGLE LOGIN
-      AuthService().handleUserProfile();
+    return StreamBuilder<AuthState>(
+      stream: auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        final session = snapshot.data?.session ?? auth.currentSession;
 
-      return const HomeScreen();
-    } else {
-      return const LoginScreen();
-    }
+        if (session != null) {
+          Future.microtask(() => AuthService().handleUserProfile());
+          return const HomeScreen();
+        }
+
+        return const LoginScreen();
+      },
+    );
   }
 }

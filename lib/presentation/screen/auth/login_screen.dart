@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,50 +13,85 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final supabase = Supabase.instance.client;
-
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
   bool isLogin = true;
   bool loading = false;
 
-  // 🔐 Email Auth
   Future<void> authenticate() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your email and password.')),
+      );
+      return;
+    }
+
     setState(() => loading = true);
 
     try {
       if (isLogin) {
         await supabase.auth.signInWithPassword(
-          email: emailController.text,
-          password: passwordController.text,
+          email: email,
+          password: password,
         );
       } else {
         final res = await supabase.auth.signUp(
-          email: emailController.text,
-          password: passwordController.text,
+          email: email,
+          password: password,
         );
 
-        // create user profile
-        await supabase.from('users').insert({
-          'id': res.user!.id,
-          'name': 'New User',
-        });
+        if (res.user != null) {
+          await supabase.from('users').upsert({
+            'id': res.user!.id,
+            'name': 'New User',
+          });
+        }
+      }
+
+      if (!mounted) return;
+
+      if (supabase.auth.currentSession != null) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else if (!isLogin) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Account created. Please confirm your email, then log in.',
+            ),
+          ),
+        );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
 
+    if (!mounted) return;
     setState(() => loading = false);
   }
 
-  // 🔵 Google Login
   Future<void> signInWithGoogle() async {
     await supabase.auth.signInWithOAuth(
       OAuthProvider.google,
-      redirectTo: 'io.supabase.flutter://login-callback/',
+      redirectTo: kIsWeb
+          ? Uri.base.origin
+          : 'io.supabase.flutter://login-callback/',
     );
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -76,17 +114,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Icon(Icons.shield, size: 80, color: Colors.white),
                 const SizedBox(height: 10),
                 const Text(
-                  "SafeGuard",
+                  'EthernaCare',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-
                 const SizedBox(height: 30),
-
-                // 🧾 Card
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -96,37 +131,36 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     children: [
                       Text(
-                        isLogin ? "Welcome Back" : "Create Account",
+                        isLogin ? 'Welcome Back' : 'Create Account',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-
                       const SizedBox(height: 20),
-
                       TextField(
                         controller: emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
-                          labelText: "Email",
+                          labelText: 'Email',
                           prefixIcon: Icon(Icons.email),
                         ),
                       ),
-
                       const SizedBox(height: 10),
-
                       TextField(
                         controller: passwordController,
                         obscureText: true,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) {
+                          if (!loading) authenticate();
+                        },
                         decoration: const InputDecoration(
-                          labelText: "Password",
+                          labelText: 'Password',
                           prefixIcon: Icon(Icons.lock),
                         ),
                       ),
-
                       const SizedBox(height: 20),
-
-                      // 🔐 Login/Register Button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -141,37 +175,31 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? const CircularProgressIndicator(
                                   color: Colors.white,
                                 )
-                              : Text(isLogin ? "Login" : "Register"),
+                              : Text(isLogin ? 'Login' : 'Register'),
                         ),
                       ),
-
                       const SizedBox(height: 10),
-
-                      // 🔁 Switch Mode
                       TextButton(
-                        onPressed: () {
-                          setState(() => isLogin = !isLogin);
-                        },
+                        onPressed: loading
+                            ? null
+                            : () {
+                                setState(() => isLogin = !isLogin);
+                              },
                         child: Text(
                           isLogin
                               ? "Don't have an account? Register"
-                              : "Already have an account? Login",
+                              : 'Already have an account? Login',
                         ),
                       ),
-
                       const SizedBox(height: 10),
-
-                      const Text("OR"),
-
+                      const Text('OR'),
                       const SizedBox(height: 10),
-
-                      // 🔵 Google Button
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: signInWithGoogle,
+                          onPressed: loading ? null : signInWithGoogle,
                           icon: const Icon(Icons.login),
-                          label: const Text("Continue with Google"),
+                          label: const Text('Continue with Google'),
                         ),
                       ),
                     ],

@@ -8,10 +8,14 @@ class AuthService {
 
     if (user == null) return;
 
-    final existing = await supabase.from('users').select().eq('id', user.id);
-
-    if (existing.isEmpty) {
-      await supabase.from('users').insert({'id': user.id, 'name': user.email});
+    try {
+      await supabase.from('users').upsert({
+        'id': user.id,
+        'name': user.email ?? 'EthernaCare User',
+      });
+    } catch (_) {
+      // Authentication should still succeed even if the optional profile row
+      // cannot be created because of database policy/schema setup.
     }
   }
 }

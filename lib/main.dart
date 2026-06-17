@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/constants/strings.dart';
+import 'core/theme/app_theme.dart';
 import 'presentation/screen/auth/auth_gate.dart';
 
 void main() async {
@@ -19,9 +21,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
+      title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
-      home: AuthGate(),
+      theme: AppTheme.light,
+      home: const AuthGate(),
     );
   }
 }
