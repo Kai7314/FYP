@@ -14,43 +14,70 @@ class VirtualPetWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final asset = hasCheckedInToday
+    final catAsset = hasCheckedInToday
         ? 'lib/assets/images/smile.png'
         : 'lib/assets/images/oren.png';
 
-    return Column(
-      children: [
-        Container(
-          width: 220,
-          height: 220,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF6DF),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
+    return Container(
+      height: 255,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x16000000),
+            blurRadius: 12,
+            offset: Offset(0, 5),
           ),
-          child: Image.asset(asset, fit: BoxFit.contain),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          hasCheckedInToday
-              ? 'Cat status: Happy and cared for'
-              : 'Cat status: Waiting for today',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.ink,
+        ],
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset('lib/assets/images/day.jpg', fit: BoxFit.cover),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0x05000000), Color(0x28000000)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '$streak day streak',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppColors.primaryDark,
-            fontWeight: FontWeight.w700,
+          Align(
+            alignment: const Alignment(0, .35),
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 350),
+              scale: hasCheckedInToday ? 1.08 : 1,
+              child: Image.asset(catAsset, height: 145, fit: BoxFit.contain),
+            ),
           ),
-        ),
-      ],
+          Positioned(
+            bottom: 12,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .92),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  hasCheckedInToday ? 'Oren 💚' : 'Oren 🐱',
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

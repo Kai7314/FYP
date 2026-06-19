@@ -8,16 +8,27 @@ class PetButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: loading ? null : onPressed,
-      icon: loading
-          ? const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            )
-          : const Icon(Icons.pets, size: 28),
-      label: Text(loading ? 'Checking in...' : 'Pet the Cat'),
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: loading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFF3E7F),
+          shadowColor: const Color(0x55FF3E7F),
+          elevation: 4,
+        ),
+        icon: loading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.pets, size: 28),
+        label: Text(loading ? 'Checking in...' : 'Pet Oren & Check In'),
+      ),
     );
   }
 }

@@ -12,7 +12,6 @@ class ContactsScreen extends StatefulWidget {
 }
 
 class _ContactsScreenState extends State<ContactsScreen> {
-  final supabase = Supabase.instance.client;
   late Future<List<Map<String, dynamic>>> contactsFuture;
 
   @override
@@ -22,54 +21,90 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _loadContacts() async {
-    final user = supabase.auth.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return [];
-
-    final rows = await supabase
+    final rows = await Supabase.instance.client
         .from('contacts')
         .select()
         .eq('user_id', user.id)
         .order('name', ascending: true);
-
     return List<Map<String, dynamic>>.from(rows);
   }
 
   Future<void> _addContact() async {
-    final user = supabase.auth.currentUser;
-    if (user == null) return;
-
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (_) => const AddContactDialog(),
     );
-
     if (result == null) return;
 
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
     final payload = {
       'user_id': user.id,
       'name': result['name'],
       'relationship': result['relationship'],
       'phone': result['phone'],
     };
-
     try {
-      await supabase.from('contacts').insert({
-        ...payload,
-        'address': result['address'],
-      });
-    } catch (_) {
-      await supabase.from('contacts').insert(payload);
+      try {
+        await Supabase.instance.client.from('contacts').insert({
+          ...payload,
+          'address': result['address'],
+        });
+      } catch (_) {
+        await Supabase.instance.client.from('contacts').insert(payload);
+      }
+      if (mounted) {
+        setState(() => contactsFuture = _loadContacts());
+        _showMessage('Emergency contact added.');
+      }
+    } catch (error) {
+      if (mounted) _showMessage('Could not add contact: $error');
     }
-
-    setState(() => contactsFuture = _loadContacts());
   }
 
   Future<void> _deleteContact(Map<String, dynamic> row) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete emergency contact?'),
+        content: Text(
+          '${row['name'] ?? 'This contact'} will no longer receive emergency alerts.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
     final id = row['id'] ?? row['contact_id'];
     if (id == null) return;
     final idColumn = row.containsKey('id') ? 'id' : 'contact_id';
-    await supabase.from('contacts').delete().eq(idColumn, id);
-    setState(() => contactsFuture = _loadContacts());
+    try {
+      await Supabase.instance.client.from('contacts').delete().eq(idColumn, id);
+      if (mounted) {
+        setState(() => contactsFuture = _loadContacts());
+        _showMessage('Emergency contact deleted.');
+      }
+    } catch (error) {
+      if (mounted) _showMessage('Could not delete contact: $error');
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
@@ -78,39 +113,78 @@ class _ContactsScreenState extends State<ContactsScreen> {
       future: contactsFuture,
       builder: (context, snapshot) {
         final rows = snapshot.data ?? [];
-
         return ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    'Emergency Contacts',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Emergency Contacts',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'People notified in emergencies',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                    ],
                   ),
                 ),
                 IconButton.filled(
                   onPressed: _addContact,
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(Icons.person_add_alt_1),
                   tooltip: 'Add contact',
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'These trusted people can receive emergency alerts and location updates.',
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: .22),
                 ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.shield_outlined, color: AppColors.primary),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'These are the trusted contacts linked to your emergency records and location updates.',
+                      style: TextStyle(
+                        color: AppColors.primaryDark,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
             if (snapshot.connectionState == ConnectionState.waiting)
               const Center(child: CircularProgressIndicator())
+            else if (snapshot.hasError)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'Unable to load contacts. Check your connection and try again.',
+                    style: TextStyle(color: AppColors.danger),
+                  ),
+                ),
+              )
             else if (rows.isEmpty)
               const Card(
                 child: Padding(
@@ -122,41 +196,122 @@ class _ContactsScreenState extends State<ContactsScreen> {
               )
             else
               ...rows.map(
-                (row) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Card(
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Color(0xFFE5F4EF),
-                        child: Icon(Icons.person, color: AppColors.primary),
-                      ),
-                      title: Text(
-                        row['name']?.toString() ?? 'Unnamed',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      subtitle: Text(
-                        [
-                              row['relationship']?.toString(),
-                              row['phone']?.toString(),
-                              row['address']?.toString(),
-                            ]
-                            .where((value) => value != null && value.isNotEmpty)
-                            .join('\n'),
-                      ),
-                      isThreeLine: true,
-                      trailing: IconButton(
-                        onPressed: () => _deleteContact(row),
-                        icon: const Icon(Icons.delete_outline),
-                        color: AppColors.danger,
-                        tooltip: 'Delete contact',
-                      ),
-                    ),
-                  ),
-                ),
+                (row) =>
+                    _ContactCard(row: row, onDelete: () => _deleteContact(row)),
               ),
           ],
         );
       },
+    );
+  }
+}
+
+class _ContactCard extends StatelessWidget {
+  const _ContactCard({required this.row, required this.onDelete});
+
+  final Map<String, dynamic> row;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = row['name']?.toString() ?? 'Unnamed';
+    final color = row['color'] is Color
+        ? row['color'] as Color
+        : AppColors.primary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 25,
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+                child: Text(
+                  name.substring(0, 1).toUpperCase(),
+                  style: const TextStyle(fontSize: 18),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      row['relationship']?.toString() ?? 'Trusted contact',
+                      style: const TextStyle(color: AppColors.muted),
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.phone_outlined,
+                          size: 14,
+                          color: AppColors.muted,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            row['phone']?.toString() ?? 'No phone',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 14,
+                            color: AppColors.muted,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              row['address']?.toString() ?? 'No address',
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline),
+                color: AppColors.muted,
+                tooltip: 'Delete contact',
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

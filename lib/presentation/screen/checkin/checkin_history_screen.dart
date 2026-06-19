@@ -10,13 +10,11 @@ class CheckinHistoryScreen extends StatelessWidget {
   Future<List<Map<String, dynamic>>> _loadCheckins() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return [];
-
     final rows = await Supabase.instance.client
         .from('checkins')
         .select()
         .eq('user_id', user.id)
         .order('checkin_time', ascending: false);
-
     return List<Map<String, dynamic>>.from(rows);
   }
 
@@ -26,28 +24,324 @@ class CheckinHistoryScreen extends StatelessWidget {
       future: _loadCheckins(),
       builder: (context, snapshot) {
         final rows = snapshot.data ?? [];
+        final checkedDates = rows
+            .map((row) => DateTime.tryParse(row['checkin_time'].toString()))
+            .whereType<DateTime>()
+            .toList();
+        final thisMonth = checkedDates
+            .where(
+              (date) =>
+                  date.month == DateTime.now().month &&
+                  date.year == DateTime.now().year,
+            )
+            .length;
+        final rate = checkedDates.isEmpty
+            ? 0
+            : ((thisMonth / DateTime.now().day) * 100).clamp(0, 100).round();
+        final checkedToday = checkedDates.any(
+          (date) => DateUtils.isSameDay(date, DateTime.now()),
+        );
 
         return ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
-            Text(
+            const Text(
               'Check-In History',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                color: AppColors.ink,
+              ),
             ),
-            const SizedBox(height: 6),
-            const Text('A clear record of every daily heartbeat signal.'),
+            const SizedBox(height: 3),
+            const Text(
+              'Your safety activity log',
+              style: TextStyle(color: AppColors.muted),
+            ),
             const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: _SummaryCard(
+                    color: AppColors.primary,
+                    icon: Icons.local_fire_department_outlined,
+                    value: '${_streak(checkedDates)}',
+                    label: 'Day Streak',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _SummaryCard(
+                    iconColor: AppColors.accent,
+                    icon: Icons.workspace_premium_outlined,
+                    value: '$thisMonth',
+                    label: 'This Month',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _SummaryCard(
+                    iconColor: AppColors.blue,
+                    icon: Icons.trending_up,
+                    value: '$rate%',
+                    label: 'Rate',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (snapshot.hasError)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Unable to load check-in history. Please try again later.',
+                    style: TextStyle(color: AppColors.danger),
+                  ),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: checkedToday
+                      ? AppColors.primarySoft
+                      : AppColors.warningSoft,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: (checkedToday ? AppColors.primary : AppColors.accent)
+                        .withValues(alpha: .4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: checkedToday
+                          ? AppColors.primary
+                          : AppColors.accent,
+                      foregroundColor: Colors.white,
+                      child: const Icon(Icons.check_circle_outline),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            checkedToday
+                                ? 'Checked in today'
+                                : 'Not checked in yet',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            checkedToday
+                                ? 'Your daily safety heartbeat is complete.'
+                                : 'Go home and pet Oren to check in!',
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 16),
+            _WeekCard(checkedDates: checkedDates),
+            const SizedBox(height: 18),
+            const _SectionLabel(
+              icon: Icons.calendar_month_outlined,
+              label: 'RECENT ACTIVITY',
+            ),
+            const SizedBox(height: 9),
             if (snapshot.connectionState == ConnectionState.waiting)
               const Center(child: CircularProgressIndicator())
             else if (rows.isEmpty)
-              const _EmptyState()
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'No check-ins yet. Pet Oren from Home to begin your history.',
+                  ),
+                ),
+              )
             else
               ...rows.map((row) => _CheckinTile(row: row)),
           ],
         );
       },
+    );
+  }
+
+  int _streak(List<DateTime> times) {
+    final days =
+        times
+            .map((date) => DateTime(date.year, date.month, date.day))
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
+    if (days.isEmpty) return 0;
+    var cursor = DateTime.now();
+    cursor = DateTime(cursor.year, cursor.month, cursor.day);
+    var result = 0;
+    for (final day in days) {
+      if (day == cursor ||
+          (result == 0 && day == cursor.subtract(const Duration(days: 1)))) {
+        result++;
+        cursor = day.subtract(const Duration(days: 1));
+      }
+    }
+    return result;
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.icon,
+    required this.value,
+    required this.label,
+    this.color,
+    this.iconColor,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color? color;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = color == null ? AppColors.ink : Colors.white;
+    return Container(
+      height: 112,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color ?? Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: color == null ? Border.all(color: AppColors.border) : null,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color == null ? iconColor : Colors.white, size: 21),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 24,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: color == null ? AppColors.muted : Colors.white,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeekCard extends StatelessWidget {
+  const _WeekCard({required this.checkedDates});
+
+  final List<DateTime> checkedDates;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final start = today.subtract(Duration(days: today.weekday - 1));
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionLabel(icon: Icons.trending_up, label: 'THIS WEEK'),
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(7, (index) {
+                final date = start.add(Duration(days: index));
+                final checked = checkedDates.any(
+                  (value) => DateUtils.isSameDay(value, date),
+                );
+                final isToday = DateUtils.isSameDay(date, today);
+                return Column(
+                  children: [
+                    Text(
+                      DateFormat('E').format(date).substring(0, 1),
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: checked
+                          ? AppColors.primary
+                          : isToday
+                          ? AppColors.warningSoft
+                          : AppColors.surface,
+                      foregroundColor: checked
+                          ? Colors.white
+                          : isToday
+                          ? AppColors.accent
+                          : AppColors.muted,
+                      child: Text(
+                        '${date.day}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.muted),
+        const SizedBox(width: 7),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.muted,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: .6,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -60,44 +354,38 @@ class _CheckinTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final time = DateTime.tryParse(row['checkin_time'].toString());
-    final title = time == null
-        ? 'Recorded check-in'
-        : DateFormat('EEEE, dd MMM yyyy').format(time);
-    final subtitle = time == null
-        ? 'Time unavailable'
-        : DateFormat('h:mm a').format(time);
-    final status = row['status']?.toString() ?? 'active';
-
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 9),
       child: Card(
         child: ListTile(
           leading: const CircleAvatar(
-            backgroundColor: Color(0xFFE5F4EF),
-            child: Icon(Icons.pets, color: AppColors.primary),
+            backgroundColor: AppColors.primarySoft,
+            child: Icon(Icons.check_circle_outline, color: AppColors.primary),
           ),
           title: Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w800),
+            time == null
+                ? 'Recorded check-in'
+                : DateFormat('EEE, MMM d').format(time),
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          subtitle: Text('$subtitle - $status'),
-          trailing: const Icon(Icons.check_circle, color: AppColors.primary),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Text(
-          'No check-ins yet. Pet the cat from the Home tab to begin your history.',
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.schedule, color: AppColors.muted, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  time == null ? '--' : DateFormat('h:mm a').format(time),
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
