@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../models/location_model.dart';
+import '../../../models/reward_model.dart';
 import '../../../services/checkin_service.dart';
+import '../../../services/dashboard_service.dart';
 import '../../../services/emergency_service.dart';
 import '../../../services/inactivity_service.dart';
 import '../../../services/reward_service.dart';
+import '../../../services/weather_service.dart';
 import '../checkin/checkin_history_screen.dart';
 import '../contacts/contacts_screen.dart';
 import '../profile/profile_screen.dart';
@@ -22,17 +25,32 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final dashboardService = DashboardService();
+  final rewardService = RewardService();
+  final weatherService = WeatherService();
+
   int selectedIndex = 0;
   bool loading = false;
   int streak = 0;
   int totalCheckins = 0;
   DateTime? lastCheckin;
   String userName = 'EthernaCare User';
+  String emergencyStatus = 'safe';
   String? loadError;
+  RewardSnapshot? rewardSnapshot;
+  WeatherSnapshot? weather;
+  late final List<Widget> persistentPages;
 
   @override
   void initState() {
     super.initState();
+    persistentPages = [
+      const SizedBox.shrink(),
+      CheckinHistoryScreen(),
+      const ContactsScreen(),
+      const RewardsScreen(),
+      const ProfileScreen(),
+    ];
     _loadDashboard();
     InactivityService().checkInactivity().catchError((_) {});
   }
@@ -57,42 +75,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadDashboard() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
+    final cachedResults = await Future.wait([
+      dashboardService.loadCached(),
+      rewardService.loadCached(),
+      weatherService.loadCached(),
+    ]);
+    if (!mounted) return;
+    final cachedDashboard = cachedResults[0] as DashboardSnapshot?;
+    if (cachedDashboard != null) _applyDashboard(cachedDashboard);
+    setState(() {
+      rewardSnapshot = cachedResults[1] as RewardSnapshot?;
+      weather = cachedResults[2] as WeatherSnapshot?;
+    });
 
     try {
       final results = await Future.wait([
-        Supabase.instance.client
-            .from('checkins')
-            .select()
-            .eq('user_id', user.id)
-            .order('checkin_time', ascending: false),
-        Supabase.instance.client
-            .from('users')
-            .select()
-            .eq('id', user.id)
-            .limit(1),
+        dashboardService.refresh(),
+        rewardService.synchronize(),
+        weatherService.getCurrentWeather(),
       ]);
-      final rows = results[0];
-      final profiles = results[1];
-      final times = rows
-          .map<DateTime?>(
-            (row) => DateTime.tryParse(row['checkin_time'].toString()),
-          )
-          .whereType<DateTime>()
-          .toList();
-      final profileName = profiles.isNotEmpty
-          ? profiles.first['name']?.toString()
-          : null;
-
       if (!mounted) return;
+      _applyDashboard(results[0] as DashboardSnapshot);
       setState(() {
-        userName = profileName == null || profileName.trim().isEmpty
-            ? (user.email?.split('@').first ?? 'EthernaCare User')
-            : profileName;
-        totalCheckins = times.length;
-        lastCheckin = times.isEmpty ? null : times.first;
-        streak = RewardService.calculateStreak(times);
+        rewardSnapshot = results[1] as RewardSnapshot;
+        weather = results[2] as WeatherSnapshot?;
         loadError = null;
       });
     } catch (_) {
@@ -100,6 +106,17 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => loadError = 'Unable to refresh dashboard data.');
       }
     }
+  }
+
+  void _applyDashboard(DashboardSnapshot snapshot) {
+    if (!mounted) return;
+    setState(() {
+      userName = snapshot.userName;
+      totalCheckins = snapshot.totalCheckins;
+      lastCheckin = snapshot.lastCheckin;
+      streak = snapshot.streak;
+      emergencyStatus = snapshot.emergencyStatus;
+    });
   }
 
   Future<void> _triggerSos() async {
@@ -148,26 +165,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      _HomeDashboard(
-        loading: loading,
-        streak: streak,
-        totalCheckins: totalCheckins,
-        lastCheckin: lastCheckin,
-        userName: userName,
-        loadError: loadError,
-        onPet: petCat,
-        onSos: _triggerSos,
-        onRefresh: _loadDashboard,
-      ),
-      const CheckinHistoryScreen(),
-      const ContactsScreen(),
-      const RewardsScreen(),
-      const ProfileScreen(),
-    ];
+    final pages = List<Widget>.of(persistentPages);
+    pages[0] = _HomeDashboard(
+      loading: loading,
+      streak: streak,
+      totalCheckins: totalCheckins,
+      lastCheckin: lastCheckin,
+      userName: userName,
+      loadError: loadError,
+      emergencyStatus: emergencyStatus,
+      rewardSnapshot: rewardSnapshot,
+      weather: weather,
+      onPet: petCat,
+      onSos: _triggerSos,
+      onRefresh: _loadDashboard,
+    );
 
     return Scaffold(
-      body: SafeArea(child: pages[selectedIndex]),
+      body: SafeArea(
+        child: IndexedStack(index: selectedIndex, children: pages),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (value) {
@@ -214,6 +231,9 @@ class _HomeDashboard extends StatelessWidget {
     required this.lastCheckin,
     required this.userName,
     required this.loadError,
+    required this.emergencyStatus,
+    required this.rewardSnapshot,
+    required this.weather,
     required this.onPet,
     required this.onSos,
     required this.onRefresh,
@@ -225,6 +245,9 @@ class _HomeDashboard extends StatelessWidget {
   final DateTime? lastCheckin;
   final String userName;
   final String? loadError;
+  final String emergencyStatus;
+  final RewardSnapshot? rewardSnapshot;
+  final WeatherSnapshot? weather;
   final VoidCallback onPet;
   final VoidCallback onSos;
   final Future<void> Function() onRefresh;
@@ -238,7 +261,11 @@ class _HomeDashboard extends StatelessWidget {
         : DateTime.now().hour < 18
         ? 'Good Afternoon'
         : 'Good Evening';
-    final nextReward = streak.clamp(0, 7);
+    final nextReward = rewardSnapshot?.nextReward(streak);
+    final rewardTarget = nextReward?.milestoneDays ?? streak.clamp(1, 30);
+    final rewardProgress = rewardTarget == 0
+        ? 1.0
+        : (streak.clamp(0, rewardTarget) / rewardTarget).toDouble();
 
     return RefreshIndicator(
       onRefresh: onRefresh,
@@ -316,6 +343,26 @@ class _HomeDashboard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Card(
+            child: ListTile(
+              leading: Icon(
+                emergencyStatus.toLowerCase() == 'triggered'
+                    ? Icons.warning_amber_rounded
+                    : Icons.shield_outlined,
+                color: emergencyStatus.toLowerCase() == 'triggered'
+                    ? AppColors.danger
+                    : AppColors.primary,
+              ),
+              title: const Text('Emergency status'),
+              subtitle: Text(
+                emergencyStatus.toLowerCase() == 'triggered'
+                    ? 'Alert triggered - contact follow-up pending'
+                    : 'No active emergency alert',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
           const SizedBox(height: 12),
           Card(
             child: Padding(
@@ -334,14 +381,20 @@ class _HomeDashboard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Text(
-                                'Next Reward',
-                                style: TextStyle(fontWeight: FontWeight.w800),
+                                nextReward?.title ?? 'All rewards earned',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ),
                             Text(
-                              '$nextReward/7 days',
+                              nextReward == null
+                                  ? '$streak days'
+                                  : '$streak/${nextReward.milestoneDays} days',
                               style: const TextStyle(
                                 color: AppColors.muted,
                                 fontSize: 12,
@@ -351,12 +404,24 @@ class _HomeDashboard extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         LinearProgressIndicator(
-                          value: nextReward / 7,
+                          value: rewardProgress,
                           minHeight: 8,
                           borderRadius: BorderRadius.circular(8),
                           backgroundColor: AppColors.surface,
                           color: AppColors.primary,
                         ),
+                        if (nextReward != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            nextReward.rewardKind == 'voucher'
+                                ? '${nextReward.sponsor} virtual voucher'
+                                : 'Sponsored by ${nextReward.sponsor}',
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -365,7 +430,11 @@ class _HomeDashboard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          VirtualPetWidget(streak: streak, hasCheckedInToday: checkedToday),
+          VirtualPetWidget(
+            streak: streak,
+            hasCheckedInToday: checkedToday,
+            weather: weather,
+          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(14),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../services/contact_service.dart';
 import 'add_contact_dialog.dart';
 
 class ContactsScreen extends StatefulWidget {
@@ -12,6 +12,7 @@ class ContactsScreen extends StatefulWidget {
 }
 
 class _ContactsScreenState extends State<ContactsScreen> {
+  final contactService = ContactService();
   late Future<List<Map<String, dynamic>>> contactsFuture;
 
   @override
@@ -21,14 +22,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _loadContacts() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return [];
-    final rows = await Supabase.instance.client
-        .from('contacts')
-        .select()
-        .eq('user_id', user.id)
-        .order('name', ascending: true);
-    return List<Map<String, dynamic>>.from(rows);
+    return contactService.getContacts();
   }
 
   Future<void> _addContact() async {
@@ -38,23 +32,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
     if (result == null) return;
 
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
-    final payload = {
-      'user_id': user.id,
-      'name': result['name'],
-      'relationship': result['relationship'],
-      'phone': result['phone'],
-    };
     try {
-      try {
-        await Supabase.instance.client.from('contacts').insert({
-          ...payload,
-          'address': result['address'],
-        });
-      } catch (_) {
-        await Supabase.instance.client.from('contacts').insert(payload);
-      }
+      await contactService.addContact(
+        name: result['name']!,
+        relationship: result['relationship']!,
+        phone: result['phone']!,
+        address: result['address'],
+      );
       if (mounted) {
         setState(() => contactsFuture = _loadContacts());
         _showMessage('Emergency contact added.');
@@ -87,11 +71,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
     if (confirmed != true) return;
 
-    final id = row['id'] ?? row['contact_id'];
-    if (id == null) return;
-    final idColumn = row.containsKey('id') ? 'id' : 'contact_id';
     try {
-      await Supabase.instance.client.from('contacts').delete().eq(idColumn, id);
+      await contactService.deleteContact(row);
       if (mounted) {
         setState(() => contactsFuture = _loadContacts());
         _showMessage('Emergency contact deleted.');

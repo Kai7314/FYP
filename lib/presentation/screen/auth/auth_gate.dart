@@ -5,23 +5,36 @@ import '../../../services/auth_service.dart';
 import '../home/home_screen.dart';
 import 'login_screen.dart';
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final auth = Supabase.instance.client.auth;
+  State<AuthGate> createState() => _AuthGateState();
+}
 
+class _AuthGateState extends State<AuthGate> {
+  final authService = AuthService();
+  String? initializedProfileUserId;
+
+  void _initializeProfile(String userId) {
+    if (initializedProfileUserId == userId) return;
+    initializedProfileUserId = userId;
+    Future.microtask(() => AuthService().handleUserProfile());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
-      stream: auth.onAuthStateChange,
+      stream: authService.authStateChanges,
       builder: (context, snapshot) {
-        final session = snapshot.data?.session ?? auth.currentSession;
+        final session = snapshot.data?.session ?? authService.currentSession;
 
         if (session != null) {
-          Future.microtask(() => AuthService().handleUserProfile());
+          _initializeProfile(session.user.id);
           return const HomeScreen();
         }
 
+        initializedProfileUserId = null;
         return const LoginScreen();
       },
     );

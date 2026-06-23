@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../models/location_model.dart';
 
 class VirtualPetWidget extends StatelessWidget {
   const VirtualPetWidget({
     super.key,
     required this.streak,
     required this.hasCheckedInToday,
+    this.weather,
   });
 
   final int streak;
   final bool hasCheckedInToday;
+  final WeatherSnapshot? weather;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +37,14 @@ class VirtualPetWidget extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('lib/assets/images/day.jpg', fit: BoxFit.cover),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 500),
+            child: Image.asset(
+              weather?.backgroundAsset ?? 'lib/assets/images/day.jpg',
+              key: ValueKey(weather?.backgroundAsset ?? 'day'),
+              fit: BoxFit.cover,
+            ),
+          ),
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -50,6 +60,27 @@ class VirtualPetWidget extends StatelessWidget {
               duration: const Duration(milliseconds: 350),
               scale: hasCheckedInToday ? 1.08 : 1,
               child: Image.asset(catAsset, height: 145, fit: BoxFit.contain),
+            ),
+          ),
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .9),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                weather == null
+                    ? 'Weather unavailable'
+                    : '${weather!.description}  ${weather!.temperatureCelsius.round()} C',
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ),
           Positioned(

@@ -1,32 +1,72 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../dataAccessLayer/repositories/auth_repository.dart';
+import '../dataAccessLayer/repositories/user_repository.dart';
+
 class AuthService {
-  final supabase = Supabase.instance.client;
+  AuthService({AuthRepository? authRepository, UserRepository? userRepository})
+    : authRepository = authRepository ?? AuthRepository(),
+      userRepository = userRepository ?? UserRepository();
+
+  final AuthRepository authRepository;
+  final UserRepository userRepository;
+
+  User? get currentUser => authRepository.currentUser;
+  Session? get currentSession => authRepository.currentSession;
+  Stream<AuthState> get authStateChanges => authRepository.authStateChanges;
+
+  Future<AuthResponse> signIn({
+    required String email,
+    required String password,
+  }) {
+    return authRepository.signIn(email: email, password: password);
+  }
+
+  Future<AuthResponse> register({
+    required String email,
+    required String password,
+    required String fullName,
+    required String emailRedirectTo,
+  }) {
+    return authRepository.register(
+      email: email,
+      password: password,
+      fullName: fullName,
+      emailRedirectTo: emailRedirectTo,
+    );
+  }
+
+  Future<void> resendVerification({
+    required String email,
+    required String emailRedirectTo,
+  }) {
+    return authRepository.resendVerification(
+      email: email,
+      emailRedirectTo: emailRedirectTo,
+    );
+  }
+
+  Future<bool> signInWithGoogle({required String redirectTo}) {
+    return authRepository.signInWithGoogle(redirectTo: redirectTo);
+  }
+
+  Future<void> signOut() => authRepository.signOut();
 
   Future<void> handleUserProfile() async {
-    final user = supabase.auth.currentUser;
-
+    final user = currentUser;
     if (user == null) return;
 
     try {
-      final rows = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', user.id)
-          .limit(1);
-      if (rows.isEmpty) {
-        await supabase.from('users').insert({
-          'id': user.id,
-          'name':
-              user.userMetadata?['full_name']?.toString().trim().isNotEmpty ==
-                  true
-              ? user.userMetadata!['full_name'].toString()
-              : (user.email?.split('@').first ?? 'EthernaCare User'),
-        });
-      }
+      await userRepository.createProfileIfMissing(
+        userId: user.id,
+        name:
+            user.userMetadata?['full_name']?.toString().trim().isNotEmpty ==
+                true
+            ? user.userMetadata!['full_name'].toString()
+            : (user.email?.split('@').first ?? 'EthernaCare User'),
+      );
     } catch (_) {
-      // Authentication should still succeed even if the optional profile row
-      // cannot be created because of database policy/schema setup.
+      // Authentication remains valid if optional profile setup fails.
     }
   }
 }

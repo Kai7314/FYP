@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../services/user_service.dart';
+import '../../../utils/validators.dart';
+import '../planning/ai_guidance_screen.dart';
+import '../planning/legacy_planning_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -11,6 +14,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final userService = UserService();
   late Future<Map<String, dynamic>> profileFuture;
 
   @override
@@ -20,34 +24,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<Map<String, dynamic>> _loadProfile() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return {};
-    final rows = await Supabase.instance.client
-        .from('users')
-        .select()
-        .eq('id', user.id)
-        .limit(1);
-    final profile = rows.isEmpty
-        ? <String, dynamic>{}
-        : Map<String, dynamic>.from(rows.first);
-    profile['email'] ??= user.email;
-    return profile;
+    return userService.getCurrentProfile();
   }
 
   Future<void> _editProfile(Map<String, dynamic> profile) async {
     final updates = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => _EditProfileDialog(profile: profile),
+      builder: (_) => EditProfileDialog(profile: profile),
     );
     if (updates == null) return;
 
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
     try {
-      await Supabase.instance.client.from('users').upsert({
-        'id': user.id,
-        ...updates,
-      });
+      await userService.updateCurrentProfile(updates);
       if (!mounted) return;
       setState(() => profileFuture = _loadProfile());
       ScaffoldMessenger.of(context).showSnackBar(
@@ -70,7 +58,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
-      future: _loadProfile(),
+      future: profileFuture,
       builder: (context, snapshot) {
         final profile = snapshot.data ?? {};
         final name = profile['name']?.toString() ?? 'EthernaCare User';
@@ -230,8 +218,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             const SizedBox(height: 18),
+            _ProfileAction(
+              icon: Icons.description_outlined,
+              title: 'Legacy Planning',
+              subtitle: 'Funeral preferences and secure will documents',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LegacyPlanningScreen()),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _ProfileAction(
+              icon: Icons.chat_outlined,
+              title: 'AI Guidance',
+              subtitle: 'General emergency and planning information',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AiGuidanceScreen()),
+              ),
+            ),
+            const SizedBox(height: 18),
             OutlinedButton.icon(
-              onPressed: () => Supabase.instance.client.auth.signOut(),
+              onPressed: userService.signOut,
               icon: const Icon(Icons.logout),
               label: const Text('Sign Out'),
               style: OutlinedButton.styleFrom(
@@ -244,6 +250,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+class _ProfileAction extends StatelessWidget {
+  const _ProfileAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        onTap: onTap,
+        leading: Icon(icon, color: AppColors.primary),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right),
+      ),
     );
   }
 }
@@ -323,16 +356,17 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-class _EditProfileDialog extends StatefulWidget {
-  const _EditProfileDialog({required this.profile});
+class EditProfileDialog extends StatefulWidget {
+  const EditProfileDialog({super.key, required this.profile});
 
   final Map<String, dynamic> profile;
 
   @override
-  State<_EditProfileDialog> createState() => _EditProfileDialogState();
+  State<EditProfileDialog> createState() => _EditProfileDialogState();
 }
 
-class _EditProfileDialogState extends State<_EditProfileDialog> {
+class _EditProfileDialogState extends State<EditProfileDialog> {
+  final formKey = GlobalKey<FormState>();
   late final TextEditingController nameController;
   late final TextEditingController phoneController;
   late final TextEditingController addressController;
@@ -375,24 +409,18 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
   }
 
   void _save() {
-    final name = nameController.text.trim();
+    if (!(formKey.currentState?.validate() ?? false)) return;
+
+    final name = AppValidators.normalizeSpaces(nameController.text);
     final age = int.tryParse(ageController.text.trim());
     final threshold = int.tryParse(thresholdController.text.trim());
-    if (name.isEmpty || threshold == null || threshold < 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a name and a valid inactivity threshold.'),
-        ),
-      );
-      return;
-    }
 
     Navigator.pop(context, {
       'name': name,
-      'phone': phoneController.text.trim(),
-      'address': addressController.text.trim(),
+      'phone': AppValidators.normalizePhone(phoneController.text),
+      'address': AppValidators.normalizeSpaces(addressController.text),
       'age': age,
-      'blood_type': bloodTypeController.text.trim(),
+      'blood_type': bloodTypeController.text.trim().toUpperCase(),
       'inactivity_threshold': threshold,
     });
   }
@@ -402,45 +430,59 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
     return AlertDialog(
       title: const Text('Edit Profile'),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Phone'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: addressController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Home address'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: ageController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Age'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: bloodTypeController,
-              decoration: const InputDecoration(labelText: 'Blood type'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: thresholdController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Inactivity threshold (hours)',
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameController,
+                maxLength: AppValidators.maxDisplayNameLength,
+                validator: (value) => AppValidators.displayName(value ?? ''),
+                decoration: const InputDecoration(labelText: 'Name'),
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                validator: (value) =>
+                    AppValidators.phone(value ?? '', required: false),
+                decoration: const InputDecoration(labelText: 'Phone'),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: addressController,
+                maxLength: AppValidators.maxAddressLength,
+                maxLines: 2,
+                validator: (value) => AppValidators.address(value ?? ''),
+                decoration: const InputDecoration(labelText: 'Home address'),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: ageController,
+                keyboardType: TextInputType.number,
+                validator: (value) => AppValidators.age(value ?? ''),
+                decoration: const InputDecoration(labelText: 'Age'),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: bloodTypeController,
+                validator: (value) => AppValidators.bloodType(value ?? ''),
+                decoration: const InputDecoration(labelText: 'Blood type'),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: thresholdController,
+                keyboardType: TextInputType.number,
+                validator: (value) =>
+                    AppValidators.inactivityThreshold(value ?? ''),
+                decoration: const InputDecoration(
+                  labelText: 'Inactivity threshold (hours)',
+                  helperText: 'Between 1 and 168 hours',
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [

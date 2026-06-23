@@ -1,16 +1,61 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../dataAccessLayer/repositories/auth_repository.dart';
+import '../dataAccessLayer/repositories/contact_repository.dart';
+import 'local_cache_service.dart';
 
 class ContactService {
-  final supabase = Supabase.instance.client;
+  ContactService({
+    AuthRepository? authRepository,
+    ContactRepository? contactRepository,
+    LocalCacheService? cache,
+  }) : authRepository = authRepository ?? AuthRepository(),
+       contactRepository = contactRepository ?? ContactRepository(),
+       cache = cache ?? LocalCacheService();
 
-  Future<void> addContact(String name, String phone) async {
-    final user = supabase.auth.currentUser;
+  final AuthRepository authRepository;
+  final ContactRepository contactRepository;
+  final LocalCacheService cache;
 
-    await supabase.from('contacts').insert({
-      'user_id': user!.id,
-      'name': name,
-      'phone': phone,
-      'relationship': 'family',
-    });
+  String _cacheKey(String userId) => 'contacts_snapshot_v1_$userId';
+
+  Future<List<Map<String, dynamic>>> getContacts({
+    bool forceRefresh = false,
+  }) async {
+    final user = authRepository.currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    if (!forceRefresh) {
+      final cached = await cache.readMap(_cacheKey(user.id));
+      final rows = cached?['rows'] as List?;
+      if (rows != null) {
+        return rows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+      }
+    }
+    final rows = await contactRepository.getContacts(user.id);
+    await cache.writeMap(_cacheKey(user.id), {'rows': rows});
+    return rows;
+  }
+
+  Future<void> addContact({
+    required String name,
+    required String relationship,
+    required String phone,
+    String? address,
+  }) async {
+    final user = authRepository.currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    await contactRepository.addContact(
+      userId: user.id,
+      name: name,
+      phone: phone,
+      relationship: relationship,
+      address: address,
+    );
+    await getContacts(forceRefresh: true);
+  }
+
+  Future<void> deleteContact(Map<String, dynamic> row) async {
+    await contactRepository.deleteContact(row);
+    await getContacts(forceRefresh: true);
   }
 }

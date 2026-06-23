@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/colors.dart';
-import '../home/home_screen.dart';
+import '../../../services/auth_service.dart';
+import '../../../utils/validators.dart';
 
 enum _AuthView { login, register, verifyEmail }
 
@@ -18,34 +19,35 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   static const mobileAuthCallback = 'io.supabase.flutter://login-callback/';
+  static const configuredAuthRedirect = String.fromEnvironment(
+    'AUTH_REDIRECT_URL',
+  );
 
   // Enable this only after configuring Google OAuth in both Google Cloud and
   // Supabase Authentication > Providers > Google.
   static const googleOAuthEnabled = false;
 
-  final supabase = Supabase.instance.client;
+  final authService = AuthService();
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  StreamSubscription<AuthState>? authSubscription;
   Timer? resendTimer;
   _AuthView view = _AuthView.login;
   bool loading = false;
   bool passwordVisible = false;
-  bool navigating = false;
   int resendSeconds = 0;
   String? fieldError;
 
   @override
   void initState() {
     super.initState();
-    authSubscription = supabase.auth.onAuthStateChange.listen((state) {
-      if (state.session != null && mounted) _openHome();
-    });
   }
 
-  String get redirectUrl => kIsWeb ? Uri.base.origin : mobileAuthCallback;
+  String get redirectUrl {
+    if (configuredAuthRedirect.isNotEmpty) return configuredAuthRedirect;
+    return kIsWeb ? Uri.base.origin : mobileAuthCallback;
+  }
 
   Future<void> authenticate() async {
     final email = emailController.text.trim();
@@ -65,23 +67,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       if (view == _AuthView.login) {
-        await supabase.auth.signInWithPassword(
-          email: email,
-          password: password,
-        );
-        if (supabase.auth.currentSession != null && mounted) _openHome();
+        await authService.signIn(email: email, password: password);
       } else {
-        final response = await supabase.auth.signUp(
+        final response = await authService.register(
           email: email,
           password: password,
-          data: {'full_name': name},
+          fullName: AppValidators.normalizeSpaces(name),
           emailRedirectTo: redirectUrl,
         );
 
         if (!mounted) return;
-        if (response.session != null) {
-          _openHome();
-        } else {
+        if (response.session == null) {
           setState(() => view = _AuthView.verifyEmail);
           _startResendCooldown();
         }
@@ -96,11 +92,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> checkVerification() async {
     setState(() => loading = true);
     try {
-      await supabase.auth.signInWithPassword(
+      await authService.signIn(
         email: emailController.text.trim(),
         password: passwordController.text,
       );
-      if (supabase.auth.currentSession != null && mounted) _openHome();
     } on AuthException catch (error) {
       if (!mounted) return;
       if (error.code == 'email_not_confirmed') {
@@ -121,8 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (resendSeconds > 0) return;
     setState(() => loading = true);
     try {
-      await supabase.auth.resend(
-        type: OtpType.signup,
+      await authService.resendVerification(
         email: emailController.text.trim(),
         emailRedirectTo: redirectUrl,
       );
@@ -144,10 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     try {
-      await supabase.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: redirectUrl,
-      );
+      await authService.signInWithGoogle(redirectTo: redirectUrl);
     } catch (error) {
       if (mounted) _showError(error);
     }
@@ -158,16 +149,15 @@ class _LoginScreenState extends State<LoginScreen> {
     required String password,
     required String name,
   }) {
-    if (view == _AuthView.register && name.isEmpty) {
-      return 'Please enter your name.';
+    if (view == _AuthView.register) {
+      final nameError = AppValidators.displayName(name);
+      if (nameError != null) return nameError;
     }
-    if (email.isEmpty || !email.contains('@')) {
-      return 'Please enter a valid email address.';
-    }
-    if (password.length < 6) {
-      return 'Password must contain at least 6 characters.';
-    }
-    return null;
+    final emailError = AppValidators.email(email);
+    if (emailError != null) return emailError;
+    return view == _AuthView.register
+        ? AppValidators.registrationPassword(password, email: email, name: name)
+        : AppValidators.loginPassword(password);
   }
 
   void _startResendCooldown() {
@@ -189,11 +179,12 @@ class _LoginScreenState extends State<LoginScreen> {
         error is AuthException &&
             (error.code == 'over_email_send_rate_limit' ||
                 error.statusCode == '429')
-        ? 'Supabase has reached its email limit. Wait about one hour, then resend once.'
+        ? 'The built-in Supabase email service reached its limit. Wait about one hour or configure custom SMTP in Supabase.'
         : error is AuthException && error.code == 'email_not_confirmed'
         ? 'Confirm your email before logging in.'
-        : errorText.contains('Failed host lookup')
-        ? 'Cannot connect to Supabase. Check your internet connection.'
+        : errorText.contains('Failed host lookup') ||
+              errorText.contains('Failed to fetch')
+        ? 'Cannot reach Supabase. Check the device internet connection, then try again.'
         : errorText;
     _showMessage(message);
   }
@@ -202,14 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
-  }
-
-  void _openHome() {
-    if (!mounted || navigating) return;
-    navigating = true;
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
   }
 
   void _changeView(_AuthView next) {
@@ -222,7 +205,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    authSubscription?.cancel();
     resendTimer?.cancel();
     nameController.dispose();
     emailController.dispose();
@@ -304,11 +286,14 @@ class _LoginScreenState extends State<LoginScreen> {
               if (registering) ...[
                 TextField(
                   controller: nameController,
+                  maxLength: AppValidators.maxDisplayNameLength,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.name],
                   decoration: const InputDecoration(
                     labelText: 'Full name',
                     prefixIcon: Icon(Icons.person_outline),
+                    helperText:
+                        '2-50 letters; spaces, apostrophes, and hyphens allowed',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -336,6 +321,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
                 decoration: InputDecoration(
                   labelText: 'Password',
+                  helperText: registering
+                      ? '8+ chars with upper, lower, number, and symbol'
+                      : null,
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
                     onPressed: () =>

@@ -1,32 +1,52 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../dataAccessLayer/repositories/auth_repository.dart';
+import '../dataAccessLayer/repositories/checkin_repository.dart';
+import 'local_cache_service.dart';
 
 class CheckinService {
-  final supabase = Supabase.instance.client;
+  CheckinService({
+    AuthRepository? authRepository,
+    CheckinRepository? checkinRepository,
+    LocalCacheService? cache,
+  }) : authRepository = authRepository ?? AuthRepository(),
+       checkinRepository = checkinRepository ?? CheckinRepository(),
+       cache = cache ?? LocalCacheService();
+
+  final AuthRepository authRepository;
+  final CheckinRepository checkinRepository;
+  final LocalCacheService cache;
+
+  String _cacheKey(String userId) => 'checkins_snapshot_v1_$userId';
+
+  Future<List<Map<String, dynamic>>> getCheckins({
+    bool forceRefresh = false,
+  }) async {
+    final user = authRepository.currentUser;
+    if (user == null) return [];
+    if (!forceRefresh) {
+      final cached = await cache.readMap(_cacheKey(user.id));
+      final rows = cached?['rows'] as List?;
+      if (rows != null) {
+        return rows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+      }
+    }
+    final rows = await checkinRepository.getCheckins(user.id);
+    await cache.writeMap(_cacheKey(user.id), {'rows': rows});
+    return rows;
+  }
 
   Future<bool> addCheckin() async {
-    final user = supabase.auth.currentUser;
+    final user = authRepository.currentUser;
     if (user == null) {
       throw StateError('You must be signed in to check in.');
     }
 
-    final startOfDay = DateTime.now();
-    final today = DateTime(startOfDay.year, startOfDay.month, startOfDay.day);
-    final tomorrow = today.add(const Duration(days: 1));
-    final existing = await supabase
-        .from('checkins')
-        .select('checkin_time')
-        .eq('user_id', user.id)
-        .gte('checkin_time', today.toUtc().toIso8601String())
-        .lt('checkin_time', tomorrow.toUtc().toIso8601String())
-        .limit(1);
-
-    if (existing.isNotEmpty) return false;
-
-    await supabase.from('checkins').insert({
-      'user_id': user.id,
-      'checkin_time': DateTime.now().toIso8601String(),
-      'status': 'active',
-    });
-    return true;
+    final created = await checkinRepository.addDailyCheckin(
+      user.id,
+      DateTime.now(),
+    );
+    if (created) await getCheckins(forceRefresh: true);
+    return created;
   }
 }

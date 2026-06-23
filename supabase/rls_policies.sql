@@ -75,6 +75,13 @@ on public.rewards for insert
 to authenticated
 with check ((select auth.uid()) = user_id);
 
+drop policy if exists "rewards_update_own" on public.rewards;
+create policy "rewards_update_own"
+on public.rewards for update
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
 drop policy if exists "alerts_select_own" on public.emergency_alerts;
 create policy "alerts_select_own"
 on public.emergency_alerts for select

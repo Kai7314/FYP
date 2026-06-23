@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../services/checkin_service.dart';
 
 class CheckinHistoryScreen extends StatelessWidget {
-  const CheckinHistoryScreen({super.key});
+  CheckinHistoryScreen({super.key});
+
+  final checkinService = CheckinService();
 
   Future<List<Map<String, dynamic>>> _loadCheckins() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return [];
-    final rows = await Supabase.instance.client
-        .from('checkins')
-        .select()
-        .eq('user_id', user.id)
-        .order('checkin_time', ascending: false);
-    return List<Map<String, dynamic>>.from(rows);
+    return checkinService.getCheckins();
   }
 
   @override

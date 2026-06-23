@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/strings.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/screen/auth/auth_gate.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +13,8 @@ void main() async {
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1la2lkdXhwbnJvcmtmcGhqZ3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjExMzYsImV4cCI6MjA5MTgzNzEzNn0.5DEkGIghSMVXVQWj3WBCNQFXUSYCPbtSWyVHlrRDd4A',
   );
+  await NotificationService.instance.initialize();
+  await NotificationService.instance.scheduleDailyCheckInReminder();
 
   runApp(const MyApp());
 }
