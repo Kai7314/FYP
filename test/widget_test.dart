@@ -4,6 +4,7 @@ import 'package:fyp/models/location_model.dart';
 import 'package:fyp/models/document_model.dart';
 import 'package:fyp/models/reward_model.dart';
 import 'package:fyp/presentation/screen/auth/login_screen.dart';
+import 'package:fyp/presentation/screen/auth/tutorial_screen.dart';
 import 'package:fyp/presentation/screen/contacts/add_contact_dialog.dart';
 import 'package:fyp/presentation/screen/home/pet_button.dart';
 import 'package:fyp/presentation/screen/home/virtual_pet_widget.dart';
@@ -17,6 +18,10 @@ import 'package:fyp/utils/validators.dart';
 void main() {
   test('auth screen remains available for email and OAuth flows', () {
     expect(LoginScreen, isNotNull);
+  });
+
+  test('tutorial screen is available for first login guidance', () {
+    expect(TutorialScreen, isNotNull);
   });
 
   testWidgets('pet button exposes the real daily check-in action', (

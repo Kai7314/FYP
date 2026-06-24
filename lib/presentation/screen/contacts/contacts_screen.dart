@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../widgets/error_dialog.dart';
 import '../../../services/contact_service.dart';
 import 'add_contact_dialog.dart';
 
@@ -45,7 +46,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
         _showMessage('Emergency contact added.');
       }
     } catch (error) {
-      if (mounted) _showMessage('Could not add contact: $error');
+      if (mounted) {
+        AppErrorDialog.show(
+          context,
+          title: 'Could not add contact',
+          error: error,
+        );
+      }
     }
   }
 
@@ -57,7 +64,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
         _showMessage('${row['name'] ?? 'Contact'} set as primary.');
       }
     } catch (error) {
-      if (mounted) _showMessage('Could not set primary contact: $error');
+      if (mounted) {
+        AppErrorDialog.show(
+          context,
+          title: 'Could not set primary contact',
+          error: error,
+        );
+      }
     }
   }
 
@@ -91,7 +104,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
         _showMessage('Emergency contact deleted.');
       }
     } catch (error) {
-      if (mounted) _showMessage('Could not delete contact: $error');
+      if (mounted) {
+        AppErrorDialog.show(
+          context,
+          title: 'Could not delete contact',
+          error: error,
+        );
+      }
     }
   }
 

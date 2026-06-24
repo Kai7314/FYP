@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../services/auth_service.dart';
+import '../../../services/onboarding_service.dart';
 import '../../../services/user_service.dart';
 import '../home/home_screen.dart';
 import 'first_login_setup_screen.dart';
 import 'login_screen.dart';
+import 'tutorial_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -17,10 +19,14 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   final authService = AuthService();
   final userService = UserService();
+  final onboardingService = OnboardingService();
   String? initializedProfileUserId;
   String? activeProfileUserId;
   Future<Map<String, dynamic>>? activeProfileFuture;
+  String? activeTutorialUserId;
+  Future<bool>? activeTutorialFuture;
   int setupRefresh = 0;
+  int tutorialRefresh = 0;
 
   Future<Map<String, dynamic>> _profileFutureFor(String userId) {
     if (activeProfileUserId != userId || activeProfileFuture == null) {
@@ -28,6 +34,14 @@ class _AuthGateState extends State<AuthGate> {
       activeProfileFuture = _loadProfile(userId);
     }
     return activeProfileFuture!;
+  }
+
+  Future<bool> _tutorialFutureFor(String userId) {
+    if (activeTutorialUserId != userId || activeTutorialFuture == null) {
+      activeTutorialUserId = userId;
+      activeTutorialFuture = onboardingService.hasCompletedTutorial();
+    }
+    return activeTutorialFuture!;
   }
 
   Future<Map<String, dynamic>> _loadProfile(String userId) async {
@@ -103,7 +117,29 @@ class _AuthGateState extends State<AuthGate> {
                 );
               }
 
-              return const HomeScreen();
+              return FutureBuilder<bool>(
+                key: ValueKey('tutorial-${session.user.id}-$tutorialRefresh'),
+                future: _tutorialFutureFor(session.user.id),
+                builder: (context, tutorialSnapshot) {
+                  if (tutorialSnapshot.connectionState !=
+                      ConnectionState.done) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  if (tutorialSnapshot.data != true) {
+                    return TutorialScreen(
+                      onComplete: () => setState(() {
+                        activeTutorialFuture = null;
+                        tutorialRefresh += 1;
+                      }),
+                    );
+                  }
+
+                  return const HomeScreen();
+                },
+              );
             },
           );
         }
@@ -111,6 +147,8 @@ class _AuthGateState extends State<AuthGate> {
         initializedProfileUserId = null;
         activeProfileUserId = null;
         activeProfileFuture = null;
+        activeTutorialUserId = null;
+        activeTutorialFuture = null;
         return const LoginScreen();
       },
     );
