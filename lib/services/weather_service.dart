@@ -15,7 +15,7 @@ class WeatherService {
        locationService = locationService ?? LocationService(),
        client = client ?? http.Client();
 
-  static const cacheKey = 'weather_current_v1';
+  static const cacheKey = 'weather_current_malaysia_v2';
   static const cacheLifetime = Duration(minutes: 30);
 
   final LocalCacheService cache;

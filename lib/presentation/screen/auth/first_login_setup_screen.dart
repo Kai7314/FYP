@@ -85,10 +85,18 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
       });
       if (mounted) widget.onComplete();
     } catch (error) {
-      if (mounted) _showMessage('Could not save setup: $error');
+      if (mounted) _showMessage(_setupErrorMessage(error));
     } finally {
       if (mounted) setState(() => saving = false);
     }
+  }
+
+  String _setupErrorMessage(Object error) {
+    final text = error.toString();
+    if (text.contains('PGRST204') || text.contains('schema cache')) {
+      return 'Supabase users table is missing profile columns. Run supabase/quick_fix_users_profile_columns.sql, then retry.';
+    }
+    return 'Could not save setup: $error';
   }
 
   void _showMessage(String message) {
@@ -246,6 +254,12 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
               ),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: saving ? null : userService.signOut,
+              icon: const Icon(Icons.logout),
+              label: const Text('Sign out'),
             ),
           ],
         ),

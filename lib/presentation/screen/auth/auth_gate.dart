@@ -78,8 +78,10 @@ class _AuthGateState extends State<AuthGate> {
                           ),
                           const SizedBox(height: 16),
                           FilledButton(
-                            onPressed: () =>
-                                setState(() => setupRefresh += 1),
+                            onPressed: () => setState(() {
+                              activeProfileFuture = null;
+                              setupRefresh += 1;
+                            }),
                             child: const Text('Retry'),
                           ),
                         ],

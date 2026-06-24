@@ -80,34 +80,27 @@ class ContactRepository {
       throw StateError('This phone number is already an emergency contact.');
     }
 
-    final payload = {
+    final shouldBePrimary = isPrimary || existing.isEmpty;
+    if (shouldBePrimary && existing.isNotEmpty) {
+      try {
+        await client
+            .from('contacts')
+            .update({'is_primary': false})
+            .eq('user_id', userId);
+      } on PostgrestException catch (error) {
+        if (!error.message.toLowerCase().contains('is_primary')) rethrow;
+      }
+    }
+
+    final payload = <String, dynamic>{
       'user_id': userId,
       'name': name,
       'relationship': relationship,
       'phone': phone,
-      'is_primary': isPrimary || existing.isEmpty,
+      'is_primary': shouldBePrimary,
     };
-    try {
-      await client.from('contacts').insert({
-        ...payload,
-        if (address != null && address.isNotEmpty) 'address': address,
-      });
-    } on PostgrestException catch (error) {
-      final message = error.message.toLowerCase();
-      if (!message.contains('address') && !message.contains('is_primary')) {
-        rethrow;
-      }
-      final compatiblePayload = {...payload};
-      if (message.contains('is_primary')) compatiblePayload.remove('is_primary');
-      await client.from('contacts').insert(
-        message.contains('address')
-            ? compatiblePayload
-            : {
-                ...compatiblePayload,
-                if (address != null && address.isNotEmpty) 'address': address,
-              },
-      );
-    }
+    if (address != null && address.isNotEmpty) payload['address'] = address;
+    await _insertWithColumnFallback(payload, {'address', 'is_primary'});
   }
 
   Future<void> deleteContact({
@@ -139,27 +132,61 @@ class ContactRepository {
     required Map<String, dynamic> row,
   }) async {
     final id = row['id'] ?? row['contact_id'];
-    await client
-        .from('contacts')
-        .update({'is_primary': false})
-        .eq('user_id', userId);
+    try {
+      await client
+          .from('contacts')
+          .update({'is_primary': false})
+          .eq('user_id', userId);
 
-    var query = client
-        .from('contacts')
-        .update({'is_primary': true})
-        .eq('user_id', userId);
+      var query = client
+          .from('contacts')
+          .update({'is_primary': true})
+          .eq('user_id', userId);
 
-    if (id != null) {
-      final idColumn = row.containsKey('id') ? 'id' : 'contact_id';
-      await query.eq(idColumn, id);
-      return;
+      if (id != null) {
+        final idColumn = row.containsKey('id') ? 'id' : 'contact_id';
+        await query.eq(idColumn, id);
+        return;
+      }
+
+      final phone = row['phone']?.toString();
+      if (phone == null || phone.trim().isEmpty) {
+        throw StateError('Contact identifier is missing.');
+      }
+      await query.eq('phone', phone);
+    } on PostgrestException catch (error) {
+      if (error.message.toLowerCase().contains('is_primary')) {
+        throw StateError(
+          'Supabase contacts table is missing is_primary. Run supabase/quick_fix_contacts_columns.sql.',
+        );
+      }
+      rethrow;
     }
+  }
 
-    final phone = row['phone']?.toString();
-    if (phone == null || phone.trim().isEmpty) {
-      throw StateError('Contact identifier is missing.');
+  Future<void> _insertWithColumnFallback(
+    Map<String, dynamic> payload,
+    Set<String> optionalColumns,
+  ) async {
+    final compatiblePayload = {...payload};
+    while (true) {
+      try {
+        await client.from('contacts').insert(compatiblePayload);
+        return;
+      } on PostgrestException catch (error) {
+        final message = error.message.toLowerCase();
+        String? missingColumn;
+        for (final column in optionalColumns) {
+          if (compatiblePayload.containsKey(column) &&
+              message.contains(column.toLowerCase())) {
+            missingColumn = column;
+            break;
+          }
+        }
+        if (missingColumn == null) rethrow;
+        compatiblePayload.remove(missingColumn);
+      }
     }
-    await query.eq('phone', phone);
   }
 
   String _digits(String value) => value.replaceAll(RegExp(r'\D'), '');

@@ -181,6 +181,7 @@ void main() {
 
     expect(rainy.backgroundAsset, endsWith('raining.jpg'));
     expect(night.backgroundAsset, endsWith('night.jpg'));
+    expect(rainy.malaysiaRegion, 'Klang Valley');
   });
 
   test('validation rules enforce account and contact limits', () {

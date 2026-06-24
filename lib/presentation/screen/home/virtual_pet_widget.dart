@@ -65,20 +65,31 @@ class VirtualPetWidget extends StatelessWidget {
           Positioned(
             top: 12,
             right: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .9),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Text(
-                weather == null
-                    ? 'Weather unavailable'
-                    : '${weather!.description}  ${weather!.temperatureCelsius.round()} C',
-                style: const TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
+            left: 12,
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 230),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .9),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  weather == null
+                      ? 'Weather unavailable'
+                      : '${weather!.malaysiaRegion}: ${weather!.description} ${weather!.temperatureCelsius.round()} C',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),

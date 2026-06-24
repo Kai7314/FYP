@@ -156,6 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> signInWithProvider(OAuthProvider provider) async {
+    setState(() => loading = true);
     try {
       await authService.signInWithOAuth(
         provider: provider,
@@ -163,6 +164,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (error) {
       if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
