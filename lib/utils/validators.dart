@@ -94,24 +94,28 @@ class AppValidators {
     return null;
   }
 
-  static String? relationship(String value) {
+  static String? relationship(String value, {bool required = false}) {
     final relationship = normalizeSpaces(value);
-    if (relationship.isEmpty) return null;
+    if (relationship.isEmpty) {
+      return required ? 'Relationship is required.' : null;
+    }
     if (relationship.length < 2 || relationship.length > 30) {
       return 'Relationship must contain 2 to 30 characters.';
     }
     return null;
   }
 
-  static String? address(String value) {
-    if (value.trim().length > maxAddressLength) {
+  static String? address(String value, {bool required = false}) {
+    final address = normalizeSpaces(value);
+    if (address.isEmpty) return required ? 'Address is required.' : null;
+    if (address.length > maxAddressLength) {
       return 'Address must not exceed $maxAddressLength characters.';
     }
     return null;
   }
 
-  static String? age(String value) {
-    if (value.trim().isEmpty) return null;
+  static String? age(String value, {bool required = false}) {
+    if (value.trim().isEmpty) return required ? 'Age is required.' : null;
     final age = int.tryParse(value.trim());
     if (age == null || age < 18 || age > 120) {
       return 'Age must be between 18 and 120.';
@@ -119,8 +123,10 @@ class AppValidators {
     return null;
   }
 
-  static String? bloodType(String value) {
-    if (value.trim().isEmpty) return null;
+  static String? bloodType(String value, {bool required = false}) {
+    if (value.trim().isEmpty) {
+      return required ? 'Blood type is required.' : null;
+    }
     const allowed = {'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'};
     if (!allowed.contains(value.trim().toUpperCase())) {
       return 'Use A+, A-, B+, B-, AB+, AB-, O+, or O-.';

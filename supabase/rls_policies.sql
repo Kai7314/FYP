@@ -6,6 +6,7 @@ alter table public.checkins enable row level security;
 alter table public.contacts enable row level security;
 alter table public.rewards enable row level security;
 alter table public.emergency_alerts enable row level security;
+alter table public.locations enable row level security;
 
 drop policy if exists "users_select_own" on public.users;
 create policy "users_select_own"
@@ -93,3 +94,29 @@ create policy "alerts_insert_own"
 on public.emergency_alerts for insert
 to authenticated
 with check ((select auth.uid()) = user_id);
+
+drop policy if exists "locations_select_own" on public.locations;
+create policy "locations_select_own"
+on public.locations for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.emergency_alerts alerts
+    where alerts.id::text = locations.alert_id::text
+      and alerts.user_id = (select auth.uid())
+  )
+);
+
+drop policy if exists "locations_insert_own" on public.locations;
+create policy "locations_insert_own"
+on public.locations for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.emergency_alerts alerts
+    where alerts.id::text = locations.alert_id::text
+      and alerts.user_id = (select auth.uid())
+  )
+);

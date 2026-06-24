@@ -46,8 +46,26 @@ class AuthService {
     );
   }
 
-  Future<bool> signInWithGoogle({required String redirectTo}) {
-    return authRepository.signInWithGoogle(redirectTo: redirectTo);
+  Future<AuthResponse> verifySignupCode({
+    required String email,
+    required String token,
+    required String redirectTo,
+  }) {
+    return authRepository.verifySignupCode(
+      email: email,
+      token: token,
+      redirectTo: redirectTo,
+    );
+  }
+
+  Future<bool> signInWithOAuth({
+    required OAuthProvider provider,
+    required String redirectTo,
+  }) {
+    return authRepository.signInWithOAuth(
+      provider: provider,
+      redirectTo: redirectTo,
+    );
   }
 
   Future<void> signOut() => authRepository.signOut();

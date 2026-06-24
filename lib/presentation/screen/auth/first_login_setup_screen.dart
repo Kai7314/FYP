@@ -1,0 +1,255 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/colors.dart';
+import '../../../services/user_service.dart';
+import '../../../utils/validators.dart';
+
+class FirstLoginSetupScreen extends StatefulWidget {
+  const FirstLoginSetupScreen({
+    super.key,
+    required this.profile,
+    required this.onComplete,
+  });
+
+  final Map<String, dynamic> profile;
+  final VoidCallback onComplete;
+
+  @override
+  State<FirstLoginSetupScreen> createState() => _FirstLoginSetupScreenState();
+}
+
+class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
+  final formKey = GlobalKey<FormState>();
+  final userService = UserService();
+  late final TextEditingController nameController;
+  late final TextEditingController phoneController;
+  late final TextEditingController addressController;
+  late final TextEditingController ageController;
+  late final TextEditingController bloodTypeController;
+  late final TextEditingController thresholdController;
+  bool acceptedTerms = false;
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(
+      text: widget.profile['name']?.toString() ?? '',
+    );
+    phoneController = TextEditingController(
+      text: widget.profile['phone']?.toString() ?? '',
+    );
+    addressController = TextEditingController(
+      text: widget.profile['address']?.toString() ?? '',
+    );
+    ageController = TextEditingController(
+      text: widget.profile['age']?.toString() ?? '',
+    );
+    bloodTypeController = TextEditingController(
+      text: widget.profile['blood_type']?.toString() ?? '',
+    );
+    thresholdController = TextEditingController(
+      text: widget.profile['inactivity_threshold']?.toString() ?? '24',
+    );
+    acceptedTerms =
+        (widget.profile['terms_accepted_at']?.toString() ?? '').isNotEmpty;
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    phoneController.dispose();
+    addressController.dispose();
+    ageController.dispose();
+    bloodTypeController.dispose();
+    thresholdController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!(formKey.currentState?.validate() ?? false)) return;
+    if (!acceptedTerms) {
+      _showMessage('Please accept the Terms and Conditions to continue.');
+      return;
+    }
+
+    setState(() => saving = true);
+    try {
+      await userService.completeFirstLoginSetup({
+        'name': AppValidators.normalizeSpaces(nameController.text),
+        'phone': AppValidators.normalizePhone(phoneController.text),
+        'address': AppValidators.normalizeSpaces(addressController.text),
+        'age': int.parse(ageController.text.trim()),
+        'blood_type': bloodTypeController.text.trim().toUpperCase(),
+        'inactivity_threshold': int.parse(thresholdController.text.trim()),
+      });
+      if (mounted) widget.onComplete();
+    } catch (error) {
+      if (mounted) _showMessage('Could not save setup: $error');
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(22, 24, 22, 28),
+          children: [
+            const Text(
+              'Complete Your Profile',
+              style: TextStyle(
+                color: AppColors.ink,
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'EthernaCare needs these details before emergency, check-in, and reminder features can work properly.',
+              style: TextStyle(color: AppColors.muted),
+            ),
+            const SizedBox(height: 22),
+            Form(
+              key: formKey,
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    maxLength: AppValidators.maxDisplayNameLength,
+                    textCapitalization: TextCapitalization.words,
+                    validator: (value) =>
+                        AppValidators.displayName(value ?? ''),
+                    decoration: const InputDecoration(labelText: 'Full name'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    validator: (value) => AppValidators.phone(value ?? ''),
+                    decoration: const InputDecoration(labelText: 'Phone'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: addressController,
+                    maxLength: AppValidators.maxAddressLength,
+                    maxLines: 2,
+                    textCapitalization: TextCapitalization.sentences,
+                    validator: (value) =>
+                        AppValidators.address(value ?? '', required: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Home address',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: ageController,
+                          keyboardType: TextInputType.number,
+                          validator: (value) =>
+                              AppValidators.age(value ?? '', required: true),
+                          decoration: const InputDecoration(labelText: 'Age'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: bloodTypeController,
+                          textCapitalization: TextCapitalization.characters,
+                          validator: (value) => AppValidators.bloodType(
+                            value ?? '',
+                            required: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Blood type',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: thresholdController,
+                    keyboardType: TextInputType.number,
+                    validator: (value) =>
+                        AppValidators.inactivityThreshold(value ?? ''),
+                    decoration: const InputDecoration(
+                      labelText: 'Inactivity threshold (hours)',
+                      helperText: 'Between 1 and 168 hours',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.policy_outlined, color: AppColors.primary),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Terms and Conditions',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'By continuing, you agree that EthernaCare stores your profile, check-ins, location-based emergency records, trusted contacts, rewards, and legacy-planning data to provide app features. Emergency alerts support user follow-up, but they do not replace official emergency services. For immediate danger in Malaysia, call 999.',
+                      style: TextStyle(color: AppColors.muted, height: 1.35),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: acceptedTerms,
+                      onChanged: saving
+                          ? null
+                          : (value) =>
+                                setState(() => acceptedTerms = value ?? false),
+                      title: const Text('I accept the Terms and Conditions'),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: saving ? null : _save,
+              icon: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.check_circle_outline),
+              label: Text(saving ? 'Saving...' : 'Finish Setup'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

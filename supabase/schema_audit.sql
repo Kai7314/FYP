@@ -1,0 +1,82 @@
+-- Run in Supabase Dashboard > SQL Editor.
+-- Shows which EthernaCare columns are missing from the public schema.
+
+with expected(table_name, column_name) as (
+  values
+    ('users', 'id'),
+    ('users', 'name'),
+    ('users', 'phone'),
+    ('users', 'address'),
+    ('users', 'age'),
+    ('users', 'blood_type'),
+    ('users', 'inactivity_threshold'),
+    ('users', 'terms_version'),
+    ('users', 'terms_accepted_at'),
+    ('users', 'profile_completed_at'),
+    ('checkins', 'id'),
+    ('checkins', 'user_id'),
+    ('checkins', 'checkin_time'),
+    ('checkins', 'status'),
+    ('contacts', 'id'),
+    ('contacts', 'user_id'),
+    ('contacts', 'name'),
+    ('contacts', 'relationship'),
+    ('contacts', 'phone'),
+    ('contacts', 'address'),
+    ('contacts', 'is_primary'),
+    ('rewards', 'id'),
+    ('rewards', 'user_id'),
+    ('rewards', 'streak_days'),
+    ('rewards', 'reward_type'),
+    ('rewards', 'reward_code'),
+    ('rewards', 'status'),
+    ('rewards', 'earned_at'),
+    ('rewards', 'redeemed_at'),
+    ('reward_catalog', 'code'),
+    ('reward_catalog', 'title'),
+    ('reward_catalog', 'sponsor'),
+    ('reward_catalog', 'description'),
+    ('reward_catalog', 'milestone_days'),
+    ('reward_catalog', 'reward_kind'),
+    ('reward_catalog', 'voucher_value'),
+    ('reward_catalog', 'catalog_version'),
+    ('reward_catalog', 'active'),
+    ('emergency_alerts', 'id'),
+    ('emergency_alerts', 'user_id'),
+    ('emergency_alerts', 'triggered_time'),
+    ('emergency_alerts', 'status'),
+    ('locations', 'id'),
+    ('locations', 'alert_id'),
+    ('locations', 'latitude'),
+    ('locations', 'longitude'),
+    ('locations', 'timestamp'),
+    ('funeral_preferences', 'user_id'),
+    ('funeral_preferences', 'religion'),
+    ('funeral_preferences', 'service_type'),
+    ('funeral_preferences', 'venue'),
+    ('funeral_preferences', 'notes'),
+    ('funeral_preferences', 'authorized_contact'),
+    ('funeral_preferences', 'updated_at'),
+    ('documents', 'id'),
+    ('documents', 'user_id'),
+    ('documents', 'name'),
+    ('documents', 'storage_path'),
+    ('documents', 'uploaded_at'),
+    ('emergency_delivery_outbox', 'id'),
+    ('emergency_delivery_outbox', 'alert_id'),
+    ('emergency_delivery_outbox', 'user_id'),
+    ('emergency_delivery_outbox', 'contact_name'),
+    ('emergency_delivery_outbox', 'contact_phone'),
+    ('emergency_delivery_outbox', 'status'),
+    ('emergency_delivery_outbox', 'attempt_count')
+)
+select
+  expected.table_name,
+  expected.column_name,
+  case when columns.column_name is null then 'missing' else 'ok' end as status
+from expected
+left join information_schema.columns columns
+  on columns.table_schema = 'public'
+ and columns.table_name = expected.table_name
+ and columns.column_name = expected.column_name
+order by expected.table_name, expected.column_name;

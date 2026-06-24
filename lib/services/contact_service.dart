@@ -41,6 +41,7 @@ class ContactService {
     required String relationship,
     required String phone,
     String? address,
+    bool isPrimary = false,
   }) async {
     final user = authRepository.currentUser;
     if (user == null) throw StateError('You must be signed in.');
@@ -50,12 +51,22 @@ class ContactService {
       phone: phone,
       relationship: relationship,
       address: address,
+      isPrimary: isPrimary,
     );
     await getContacts(forceRefresh: true);
   }
 
   Future<void> deleteContact(Map<String, dynamic> row) async {
-    await contactRepository.deleteContact(row);
+    final user = authRepository.currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    await contactRepository.deleteContact(userId: user.id, row: row);
+    await getContacts(forceRefresh: true);
+  }
+
+  Future<void> setPrimaryContact(Map<String, dynamic> row) async {
+    final user = authRepository.currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    await contactRepository.setPrimaryContact(userId: user.id, row: row);
     await getContacts(forceRefresh: true);
   }
 }

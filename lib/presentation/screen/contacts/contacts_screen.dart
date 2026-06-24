@@ -26,7 +26,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<void> _addContact() async {
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => const AddContactDialog(),
     );
@@ -38,6 +38,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         relationship: result['relationship']!,
         phone: result['phone']!,
         address: result['address'],
+        isPrimary: result['is_primary'] == true,
       );
       if (mounted) {
         setState(() => contactsFuture = _loadContacts());
@@ -45,6 +46,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
       }
     } catch (error) {
       if (mounted) _showMessage('Could not add contact: $error');
+    }
+  }
+
+  Future<void> _setPrimaryContact(Map<String, dynamic> row) async {
+    try {
+      await contactService.setPrimaryContact(row);
+      if (mounted) {
+        setState(() => contactsFuture = _loadContacts());
+        _showMessage('${row['name'] ?? 'Contact'} set as primary.');
+      }
+    } catch (error) {
+      if (mounted) _showMessage('Could not set primary contact: $error');
     }
   }
 
@@ -177,8 +190,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
               )
             else
               ...rows.map(
-                (row) =>
-                    _ContactCard(row: row, onDelete: () => _deleteContact(row)),
+                (row) => _ContactCard(
+                  row: row,
+                  onDelete: () => _deleteContact(row),
+                  onSetPrimary: () => _setPrimaryContact(row),
+                ),
               ),
           ],
         );
@@ -188,14 +204,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
 }
 
 class _ContactCard extends StatelessWidget {
-  const _ContactCard({required this.row, required this.onDelete});
+  const _ContactCard({
+    required this.row,
+    required this.onDelete,
+    required this.onSetPrimary,
+  });
 
   final Map<String, dynamic> row;
   final VoidCallback onDelete;
+  final VoidCallback onSetPrimary;
 
   @override
   Widget build(BuildContext context) {
     final name = row['name']?.toString() ?? 'Unnamed';
+    final isPrimary = row['is_primary'] == true;
     final color = row['color'] is Color
         ? row['color'] as Color
         : AppColors.primary;
@@ -228,6 +250,38 @@ class _ContactCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
+                    if (isPrimary) ...[
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primarySoft,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.star_rounded,
+                              color: AppColors.primaryDark,
+                              size: 14,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Primary emergency contact',
+                              style: TextStyle(
+                                color: AppColors.primaryDark,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     Text(
                       row['relationship']?.toString() ?? 'Trusted contact',
                       style: const TextStyle(color: AppColors.muted),
@@ -283,11 +337,23 @@ class _ContactCard extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline),
-                color: AppColors.muted,
-                tooltip: 'Delete contact',
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!isPrimary)
+                    IconButton(
+                      onPressed: onSetPrimary,
+                      icon: const Icon(Icons.star_border_rounded),
+                      color: AppColors.primary,
+                      tooltip: 'Set as primary',
+                    ),
+                  IconButton(
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline),
+                    color: AppColors.muted,
+                    tooltip: 'Delete contact',
+                  ),
+                ],
               ),
             ],
           ),

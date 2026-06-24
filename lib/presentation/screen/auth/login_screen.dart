@@ -23,14 +23,11 @@ class _LoginScreenState extends State<LoginScreen> {
     'AUTH_REDIRECT_URL',
   );
 
-  // Enable this only after configuring Google OAuth in both Google Cloud and
-  // Supabase Authentication > Providers > Google.
-  static const googleOAuthEnabled = false;
-
   final authService = AuthService();
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final verificationCodeController = TextEditingController();
 
   Timer? resendTimer;
   _AuthView view = _AuthView.login;
@@ -112,6 +109,34 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> verifyEmailCode() async {
+    final email = emailController.text.trim();
+    final token = verificationCodeController.text.trim();
+    if (AppValidators.email(email) != null) {
+      _showMessage('Enter the same email address used to register.');
+      return;
+    }
+    if (!RegExp(r'^[0-9]{6}$').hasMatch(token)) {
+      _showMessage('Enter the 6-digit code from your verification email.');
+      return;
+    }
+
+    setState(() => loading = true);
+    try {
+      await authService.verifySignupCode(
+        email: email,
+        token: token,
+        redirectTo: redirectUrl,
+      );
+      if (!mounted) return;
+      _showMessage('Email verified. Welcome to EthernaCare.');
+    } catch (error) {
+      if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
   Future<void> resendVerification() async {
     if (resendSeconds > 0) return;
     setState(() => loading = true);
@@ -130,15 +155,12 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> signInWithGoogle() async {
-    if (!googleOAuthEnabled) {
-      _showMessage(
-        'Google sign-in needs an OAuth client ID and secret configured in Supabase first.',
-      );
-      return;
-    }
+  Future<void> signInWithProvider(OAuthProvider provider) async {
     try {
-      await authService.signInWithGoogle(redirectTo: redirectUrl);
+      await authService.signInWithOAuth(
+        provider: provider,
+        redirectTo: redirectUrl,
+      );
     } catch (error) {
       if (mounted) _showError(error);
     }
@@ -209,6 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
     nameController.dispose();
     emailController.dispose();
     passwordController.dispose();
+    verificationCodeController.dispose();
     super.dispose();
   }
 
@@ -380,28 +403,31 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: loading ? null : signInWithGoogle,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                  side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                icon: const Text(
-                  'G',
-                  style: TextStyle(
-                    color: AppColors.blue,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                label: Text(
-                  googleOAuthEnabled
-                      ? 'Continue with Google'
-                      : 'Google sign-in — setup required',
-                ),
+              _OAuthButton(
+                label: 'Continue with Google',
+                mark: 'G',
+                markColor: AppColors.blue,
+                onPressed: loading
+                    ? null
+                    : () => signInWithProvider(OAuthProvider.google),
+              ),
+              const SizedBox(height: 10),
+              _OAuthButton(
+                label: 'Continue with Facebook',
+                mark: 'f',
+                markColor: const Color(0xFF1877F2),
+                onPressed: loading
+                    ? null
+                    : () => signInWithProvider(OAuthProvider.facebook),
+              ),
+              const SizedBox(height: 10),
+              _OAuthButton(
+                label: 'Continue with GitHub',
+                mark: '{}',
+                markColor: AppColors.ink,
+                onPressed: loading
+                    ? null
+                    : () => signInWithProvider(OAuthProvider.github),
               ),
               const SizedBox(height: 14),
               TextButton(
@@ -482,8 +508,8 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const _VerificationStep(
             number: 2,
-            title: 'Tap Confirm your email',
-            detail: 'The link will return you to EthernaCare.',
+            title: 'Tap the link or copy the code',
+            detail: 'If the link opens a blank page, enter the code below.',
           ),
           const _VerificationStep(
             number: 3,
@@ -491,6 +517,27 @@ class _LoginScreenState extends State<LoginScreen> {
             detail: 'Return here if the app does not open automatically.',
           ),
           const SizedBox(height: 22),
+          TextField(
+            controller: verificationCodeController,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) {
+              if (!loading) verifyEmailCode();
+            },
+            decoration: const InputDecoration(
+              labelText: '6-digit verification code',
+              prefixIcon: Icon(Icons.password_outlined),
+              helperText: 'Use the code from the latest verification email',
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: loading ? null : verifyEmailCode,
+            icon: const Icon(Icons.verified_outlined),
+            label: Text(loading ? 'Verifying...' : 'Verify Code In App'),
+          ),
+          const SizedBox(height: 10),
           ElevatedButton.icon(
             onPressed: loading ? null : checkVerification,
             icon: const Icon(Icons.verified_outlined),
@@ -538,6 +585,41 @@ class _LoginScreenState extends State<LoginScreen> {
           style: TextStyle(color: AppColors.muted),
         ),
       ],
+    );
+  }
+}
+
+class _OAuthButton extends StatelessWidget {
+  const _OAuthButton({
+    required this.label,
+    required this.mark,
+    required this.markColor,
+    required this.onPressed,
+  });
+
+  final String label;
+  final String mark;
+  final Color markColor;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(52),
+        side: const BorderSide(color: AppColors.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      icon: Text(
+        mark,
+        style: TextStyle(
+          color: markColor,
+          fontSize: 19,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      label: Text(label),
     );
   }
 }

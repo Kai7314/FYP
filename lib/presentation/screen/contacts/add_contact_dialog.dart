@@ -15,6 +15,7 @@ class _AddContactDialogState extends State<AddContactDialog> {
   final relationshipController = TextEditingController();
   final phoneController = TextEditingController();
   final addressController = TextEditingController();
+  bool isPrimary = false;
 
   @override
   void dispose() {
@@ -30,11 +31,10 @@ class _AddContactDialogState extends State<AddContactDialog> {
 
     Navigator.of(context).pop({
       'name': AppValidators.normalizeSpaces(nameController.text),
-      'relationship': relationshipController.text.trim().isEmpty
-          ? 'Trusted contact'
-          : AppValidators.normalizeSpaces(relationshipController.text),
+      'relationship': AppValidators.normalizeSpaces(relationshipController.text),
       'phone': AppValidators.normalizePhone(phoneController.text),
       'address': AppValidators.normalizeSpaces(addressController.text),
+      'is_primary': isPrimary,
     });
   }
 
@@ -61,7 +61,8 @@ class _AddContactDialogState extends State<AddContactDialog> {
                 controller: relationshipController,
                 maxLength: 30,
                 textCapitalization: TextCapitalization.words,
-                validator: (value) => AppValidators.relationship(value ?? ''),
+                validator: (value) =>
+                    AppValidators.relationship(value ?? '', required: true),
                 decoration: const InputDecoration(labelText: 'Relationship'),
               ),
               const SizedBox(height: 12),
@@ -83,8 +84,19 @@ class _AddContactDialogState extends State<AddContactDialog> {
                 controller: addressController,
                 maxLength: AppValidators.maxAddressLength,
                 maxLines: 2,
-                validator: (value) => AppValidators.address(value ?? ''),
+                validator: (value) =>
+                    AppValidators.address(value ?? '', required: true),
                 decoration: const InputDecoration(labelText: 'Address'),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: isPrimary,
+                onChanged: (value) => setState(() => isPrimary = value),
+                title: const Text('Primary emergency contact'),
+                subtitle: const Text(
+                  'This person is prioritized for emergency alerts.',
+                ),
               ),
             ],
           ),

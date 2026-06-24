@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fyp/models/location_model.dart';
 import 'package:fyp/models/document_model.dart';
 import 'package:fyp/models/reward_model.dart';
+import 'package:fyp/presentation/screen/auth/login_screen.dart';
 import 'package:fyp/presentation/screen/contacts/add_contact_dialog.dart';
 import 'package:fyp/presentation/screen/home/pet_button.dart';
 import 'package:fyp/presentation/screen/home/virtual_pet_widget.dart';
@@ -10,9 +11,14 @@ import 'package:fyp/presentation/screen/profile/profile_screen.dart';
 import 'package:fyp/dataAccessLayer/repositories/contact_repository.dart';
 import 'package:fyp/services/reward_service.dart';
 import 'package:fyp/services/ai_service.dart';
+import 'package:fyp/services/user_service.dart';
 import 'package:fyp/utils/validators.dart';
 
 void main() {
+  test('auth screen remains available for email and OAuth flows', () {
+    expect(LoginScreen, isNotNull);
+  });
+
   testWidgets('pet button exposes the real daily check-in action', (
     tester,
   ) async {
@@ -53,9 +59,19 @@ void main() {
       'Family Member',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Phone number'),
+      find.widgetWithText(TextFormField, 'Relationship'),
+      'Daughter',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Phone number'),
       '0123456789',
     );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Address'),
+      'Kuala Lumpur',
+    );
+    await tester.ensureVisible(find.byType(SwitchListTile));
+    await tester.tap(find.byType(SwitchListTile));
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.byType(AddContactDialog), findsNothing);
@@ -71,8 +87,16 @@ void main() {
       'Daughter',
     );
     await tester.enterText(
+      find.widgetWithText(TextFormField, 'Relationship'),
+      'Daughter',
+    );
+    await tester.enterText(
       find.widgetWithText(TextFormField, 'Phone number'),
       '123',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Address'),
+      'Kuala Lumpur',
     );
     await tester.tap(find.text('Save'));
     await tester.pump();
@@ -180,6 +204,33 @@ void main() {
     );
     expect(AppValidators.inactivityThreshold('169'), isNotNull);
     expect(AppValidators.bloodType('AB+'), isNull);
+  });
+
+  test('first login profile rules require safety details and terms', () {
+    expect(
+      AppProfileRules.missingSetupItems({
+        'name': 'Kai Heng',
+        'phone': '0123456789',
+        'address': 'Kuala Lumpur',
+        'age': 72,
+        'blood_type': 'O+',
+        'inactivity_threshold': 24,
+      }),
+      contains('Terms and Conditions'),
+    );
+
+    expect(
+      UserService.isProfileSetupComplete({
+        'name': 'Kai Heng',
+        'phone': '0123456789',
+        'address': 'Kuala Lumpur',
+        'age': 72,
+        'blood_type': 'O+',
+        'inactivity_threshold': 24,
+        'terms_accepted_at': '2026-06-24T00:00:00Z',
+      }),
+      isTrue,
+    );
   });
 
   test('funeral preferences serialize for secure persistence', () {

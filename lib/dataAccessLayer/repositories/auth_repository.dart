@@ -42,9 +42,25 @@ class AuthRepository {
     );
   }
 
-  Future<bool> signInWithGoogle({required String redirectTo}) {
+  Future<AuthResponse> verifySignupCode({
+    required String email,
+    required String token,
+    required String redirectTo,
+  }) {
+    return client.auth.verifyOTP(
+      email: email,
+      token: token,
+      type: OtpType.signup,
+      redirectTo: redirectTo,
+    );
+  }
+
+  Future<bool> signInWithOAuth({
+    required OAuthProvider provider,
+    required String redirectTo,
+  }) {
     return client.auth.signInWithOAuth(
-      OAuthProvider.google,
+      provider,
       redirectTo: redirectTo,
     );
   }
