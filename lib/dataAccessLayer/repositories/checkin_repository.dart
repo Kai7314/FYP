@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../models/checkin_model.dart';
+
 class CheckinRepository {
   CheckinRepository({SupabaseClient? client})
     : client = client ?? Supabase.instance.client;
@@ -13,6 +15,11 @@ class CheckinRepository {
         .eq('user_id', userId)
         .order('checkin_time', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<List<CheckinModel>> getCheckinModels(String userId) async {
+    final rows = await getCheckins(userId);
+    return rows.map(CheckinModel.fromJson).toList();
   }
 
   Future<List<DateTime>> getCheckinTimes(String userId) async {

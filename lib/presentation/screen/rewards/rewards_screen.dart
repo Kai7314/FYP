@@ -4,6 +4,7 @@ import '../../../core/constants/colors.dart';
 import '../../../models/reward_model.dart';
 import '../../../services/dashboard_service.dart';
 import '../../../services/reward_service.dart';
+import '../../widgets/premium_shell.dart';
 
 class RewardsScreen extends StatefulWidget {
   const RewardsScreen({super.key});
@@ -76,35 +77,20 @@ class _RewardsScreenState extends State<RewardsScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Rewards',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Physical gifts and virtual vouchers',
-                      style: TextStyle(color: AppColors.muted),
-                    ),
-                  ],
-                ),
-              ),
-              if (refreshing)
-                const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ),
-            ],
+          PremiumHeader(
+            title: 'Rewards',
+            subtitle: 'Physical gifts and virtual vouchers',
+            action: refreshing
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                : const PremiumStatusPill(
+                    icon: Icons.offline_bolt_outlined,
+                    label: 'Synced',
+                    color: AppColors.primary,
+                  ),
           ),
           const SizedBox(height: 18),
           if (error != null) ...[
@@ -142,15 +128,10 @@ class _RewardsScreenState extends State<RewardsScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Container(
+          GlassPanel(
             padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: .25),
-              ),
-            ),
+            color: AppColors.primarySoft,
+            borderColor: AppColors.primary.withValues(alpha: .24),
             child: Text(
               'Catalog version ${snapshot.catalogVersion}. Cached rewards open instantly; the server is checked for new items and earned status when online.',
               style: const TextStyle(
@@ -189,11 +170,15 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GlassPanel(
+      padding: EdgeInsets.zero,
+      color: color,
+      borderColor: Colors.white.withValues(alpha: .24),
+      child: Container(
       height: 102,
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -212,6 +197,7 @@ class _MetricCard extends StatelessWidget {
             style: const TextStyle(color: Colors.white, fontSize: 10),
           ),
         ],
+      ),
       ),
     );
   }
@@ -237,9 +223,14 @@ class _RewardCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 11),
-      child: Card(
+      child: GlassPanel(
+        color: earned ? AppColors.primarySoft : AppColors.glassStrong,
+        borderColor: earned
+            ? AppColors.primary.withValues(alpha: .34)
+            : AppColors.border,
+        padding: const EdgeInsets.all(13),
         child: Padding(
-          padding: const EdgeInsets.all(13),
+          padding: EdgeInsets.zero,
           child: Row(
             children: [
               Container(
@@ -249,7 +240,7 @@ class _RewardCard extends StatelessWidget {
                   color: voucher
                       ? AppColors.warningSoft
                       : AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   voucher

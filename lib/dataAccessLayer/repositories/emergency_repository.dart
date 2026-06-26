@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../models/emergency_alert_model.dart';
+
 class EmergencyRepository {
   EmergencyRepository({SupabaseClient? client})
     : client = client ?? Supabase.instance.client;
@@ -19,6 +21,11 @@ class EmergencyRepository {
     return Map<String, dynamic>.from(row);
   }
 
+  Future<EmergencyAlertModel> createAlertModel(String userId) async {
+    final row = await createAlert(userId);
+    return EmergencyAlertModel.fromJson(row);
+  }
+
   Future<Map<String, dynamic>?> getLatestAlert(String userId) async {
     final rows = await client
         .from('emergency_alerts')
@@ -27,6 +34,11 @@ class EmergencyRepository {
         .order('triggered_time', ascending: false)
         .limit(1);
     return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
+  }
+
+  Future<EmergencyAlertModel?> getLatestAlertModel(String userId) async {
+    final row = await getLatestAlert(userId);
+    return row == null ? null : EmergencyAlertModel.fromJson(row);
   }
 
   Future<void> addLocation({

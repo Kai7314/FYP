@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
+import '../../widgets/premium_shell.dart';
 import '../planning/ai_guidance_screen.dart';
 import '../planning/legacy_planning_screen.dart';
 
@@ -67,45 +68,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'My Profile',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.ink,
-                        ),
-                      ),
-                      SizedBox(height: 3),
-                      Text(
-                        'Personal & medical info',
-                        style: TextStyle(color: AppColors.muted),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton.filled(
+            PremiumHeader(
+              title: 'My Profile',
+              subtitle: 'Personal & medical info',
+              action: IconButton.filled(
                   onPressed: snapshot.connectionState == ConnectionState.done
                       ? () => _editProfile(profile)
                       : null,
                   icon: const Icon(Icons.edit_outlined),
                   tooltip: 'Edit profile',
                 ),
-              ],
             ),
             const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryDark],
+                  colors: AppColors.heroGradient,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(8),
                 boxShadow: const [
                   BoxShadow(
                     color: Color(0x3000B884),
@@ -121,7 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     height: 65,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: .18),
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
                       Icons.person,
@@ -143,7 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         Text(
-                          '$age years old • $bloodType',
+                          '$age years old - $bloodType',
                           style: const TextStyle(color: Colors.white),
                         ),
                         const SizedBox(height: 5),
@@ -243,7 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
             ),
@@ -269,7 +252,9 @@ class _ProfileAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return GlassPanel(
+      padding: EdgeInsets.zero,
+      color: AppColors.glassStrong,
       child: ListTile(
         onTap: onTap,
         leading: Icon(icon, color: AppColors.primary),
@@ -302,7 +287,9 @@ class _InfoSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Card(
+        GlassPanel(
+          padding: EdgeInsets.zero,
+          color: AppColors.glassStrong,
           child: Column(
             children: [
               for (var index = 0; index < children.length; index++) ...[

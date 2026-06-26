@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fyp/models/location_model.dart';
+import 'package:fyp/models/checkin_model.dart';
+import 'package:fyp/models/contact_model.dart';
 import 'package:fyp/models/document_model.dart';
+import 'package:fyp/models/emergency_alert_model.dart';
+import 'package:fyp/models/oren_care_model.dart';
 import 'package:fyp/models/reward_model.dart';
+import 'package:fyp/models/user_model.dart';
+import 'package:fyp/businessLogicLayer/controllers/checkin_controller.dart';
+import 'package:fyp/businessLogicLayer/controllers/contact_controller.dart';
+import 'package:fyp/businessLogicLayer/providers/auth_provider.dart';
 import 'package:fyp/presentation/screen/auth/login_screen.dart';
 import 'package:fyp/presentation/screen/auth/tutorial_screen.dart';
 import 'package:fyp/presentation/screen/contacts/add_contact_dialog.dart';
+import 'package:fyp/presentation/screen/home/home_screen.dart';
 import 'package:fyp/presentation/screen/home/pet_button.dart';
 import 'package:fyp/presentation/screen/home/virtual_pet_widget.dart';
 import 'package:fyp/presentation/screen/profile/profile_screen.dart';
+import 'package:fyp/presentation/widgets/custom_button.dart';
+import 'package:fyp/presentation/widgets/loading_indicator.dart';
 import 'package:fyp/dataAccessLayer/repositories/contact_repository.dart';
 import 'package:fyp/services/reward_service.dart';
 import 'package:fyp/services/ai_service.dart';
@@ -24,6 +35,43 @@ void main() {
     expect(TutorialScreen, isNotNull);
   });
 
+  test('home screen compiles with oren care shop', () {
+    expect(HomeScreen, isNotNull);
+  });
+
+  test('architecture scaffold exposes models controllers and providers', () {
+    final contact = ContactModel.fromJson({
+      'id': '1',
+      'user_id': 'u1',
+      'name': 'Daughter',
+      'relationship': 'Family',
+      'phone': '0123456789',
+      'address': 'Kuala Lumpur',
+      'is_primary': true,
+    });
+    final checkin = CheckinModel.fromJson({
+      'user_id': 'u1',
+      'checkin_time': '2026-06-25T08:00:00Z',
+    });
+    final alert = EmergencyAlertModel.fromJson({
+      'user_id': 'u1',
+      'triggered_time': '2026-06-25T08:00:00Z',
+    });
+    final user = UserModel.fromJson({
+      'id': 'u1',
+      'name': 'Kai Heng',
+      'inactivity_threshold': 24,
+    });
+
+    expect(contact.isPrimary, isTrue);
+    expect(checkin.status, 'active');
+    expect(alert.status, 'triggered');
+    expect(user.name, 'Kai Heng');
+    expect(CheckinController, isNotNull);
+    expect(ContactController, isNotNull);
+    expect(authControllerProvider, isNotNull);
+  });
+
   testWidgets('pet button exposes the real daily check-in action', (
     tester,
   ) async {
@@ -37,6 +85,24 @@ void main() {
     expect(find.byIcon(Icons.pets), findsOneWidget);
   });
 
+  testWidgets('shared widgets render common controls', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              CustomButton(label: 'Save', onPressed: () {}),
+              const LoadingIndicator(message: 'Loading'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Loading'), findsOneWidget);
+  });
+
   testWidgets('virtual pet switches to the checked-in state', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
@@ -46,8 +112,22 @@ void main() {
       ),
     );
 
-    expect(find.text('Oren 💚'), findsOneWidget);
+    expect(find.text('Mood: Loved'), findsOneWidget);
     expect(find.byType(Image), findsNWidgets(2));
+  });
+
+  test('oren care state serializes tokens and toys', () {
+    final state = OrenCareState.initial().copyWith(
+      tokens: 15,
+      ownedToyIds: {'fish_plush'},
+      mood: 'Playful',
+      lastAction: 'Oren played with Fish Plush.',
+    );
+    final restored = OrenCareState.fromJson(state.toJson());
+
+    expect(restored.tokens, 15);
+    expect(restored.ownedToyIds, contains('fish_plush'));
+    expect(restored.mood, 'Playful');
   });
 
   testWidgets('contact dialog validates required details', (tester) async {

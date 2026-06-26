@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/auth_service.dart';
 import '../../../utils/validators.dart';
+import '../../widgets/premium_shell.dart';
 
 enum _AuthView { login, register, verifyEmail }
 
@@ -240,28 +241,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFE5F8F2), Color(0xFFF7FBFA)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(22),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: view == _AuthView.verifyEmail
-                      ? _buildVerificationCard()
-                      : _buildAuthCard(),
-                ),
-              ),
+    return PremiumScaffold(
+      padding: const EdgeInsets.all(22),
+      child: Center(
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: view == _AuthView.verifyEmail
+                  ? _buildVerificationCard()
+                  : _buildAuthCard(),
             ),
           ),
         ),
@@ -276,20 +268,9 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         _buildBrand(),
         const SizedBox(height: 26),
-        Container(
+        GlassPanel(
           padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.border),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x16008D68),
-                blurRadius: 24,
-                offset: Offset(0, 10),
-              ),
-            ],
-          ),
+          color: AppColors.glassStrong,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -459,21 +440,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildVerificationCard() {
-    return Container(
+    return GlassPanel(
       key: const ValueKey('verify-email'),
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x16008D68),
-            blurRadius: 24,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
+      color: AppColors.glassStrong,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -612,7 +582,7 @@ class _OAuthButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(52),
         side: const BorderSide(color: AppColors.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       icon: Text(
         mark,

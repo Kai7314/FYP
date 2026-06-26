@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../models/contact_model.dart';
+
 class ContactRepository {
   ContactRepository({SupabaseClient? client})
     : client = client ?? Supabase.instance.client;
@@ -25,6 +27,11 @@ class ContactRepository {
           .order('name', ascending: true);
     }
     return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<List<ContactModel>> getContactModels(String userId) async {
+    final rows = await getContacts(userId);
+    return rows.map(ContactModel.fromJson).toList();
   }
 
   Future<bool> hasAnyContact(String userId) async {

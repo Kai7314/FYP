@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../widgets/error_dialog.dart';
+import '../../widgets/premium_shell.dart';
 import '../../../services/contact_service.dart';
 import 'add_contact_dialog.dart';
 
@@ -129,46 +130,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Emergency Contacts',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.ink,
-                        ),
-                      ),
-                      SizedBox(height: 3),
-                      Text(
-                        'People notified in emergencies',
-                        style: TextStyle(color: AppColors.muted),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton.filled(
+            PremiumHeader(
+              title: 'Emergency Contacts',
+              subtitle: 'People notified in emergencies',
+              action: IconButton.filled(
                   onPressed: _addContact,
                   icon: const Icon(Icons.person_add_alt_1),
                   tooltip: 'Add contact',
                 ),
-              ],
             ),
             const SizedBox(height: 18),
-            Container(
+            GlassPanel(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.primary.withValues(alpha: .22),
-                ),
-              ),
+              color: AppColors.primarySoft,
+              borderColor: AppColors.primary,
               child: const Row(
                 children: [
                   Icon(Icons.shield_outlined, color: AppColors.primary),
@@ -189,22 +164,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
             if (snapshot.connectionState == ConnectionState.waiting)
               const Center(child: CircularProgressIndicator())
             else if (snapshot.hasError)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text(
-                    'Unable to load contacts. Check your connection and try again.',
-                    style: TextStyle(color: AppColors.danger),
-                  ),
+              const GlassPanel(
+                padding: EdgeInsets.all(20),
+                child: Text(
+                  'Unable to load contacts. Check your connection and try again.',
+                  style: TextStyle(color: AppColors.danger),
                 ),
               )
             else if (rows.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text(
-                    'No contacts yet. Add at least one family member or caregiver.',
-                  ),
+              const GlassPanel(
+                padding: EdgeInsets.all(20),
+                child: Text(
+                  'No contacts yet. Add at least one family member or caregiver.',
                 ),
               )
             else
@@ -242,9 +213,13 @@ class _ContactCard extends StatelessWidget {
         : AppColors.primary;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
+      child: GlassPanel(
+        color: isPrimary ? AppColors.primarySoft : AppColors.glassStrong,
+        borderColor: isPrimary
+            ? AppColors.primary.withValues(alpha: .38)
+            : AppColors.border,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.zero,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -278,7 +253,7 @@ class _ContactCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: AppColors.primarySoft,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
@@ -331,7 +306,7 @@ class _ContactCard extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         children: [
