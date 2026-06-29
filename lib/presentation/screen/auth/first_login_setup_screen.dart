@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../core/constants/malaysia_locations.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
+import '../../widgets/malaysia_address_fields.dart';
 
 class FirstLoginSetupScreen extends StatefulWidget {
   const FirstLoginSetupScreen({
@@ -27,6 +29,8 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
   late final TextEditingController ageController;
   late final TextEditingController bloodTypeController;
   late final TextEditingController thresholdController;
+  String? selectedState;
+  String? selectedRegion;
   bool acceptedTerms = false;
   bool saving = false;
 
@@ -51,8 +55,21 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     thresholdController = TextEditingController(
       text: widget.profile['inactivity_threshold']?.toString() ?? '24',
     );
+    selectedState = _initialState();
+    selectedRegion = _initialRegion(selectedState);
     acceptedTerms =
         (widget.profile['terms_accepted_at']?.toString() ?? '').isNotEmpty;
+  }
+
+  String? _initialState() {
+    final value = widget.profile['address_state']?.toString();
+    return MalaysiaLocations.states.contains(value) ? value : null;
+  }
+
+  String? _initialRegion(String? state) {
+    final value = widget.profile['address_region']?.toString();
+    final regions = MalaysiaLocations.regionsFor(state);
+    return regions.any((location) => location.region == value) ? value : null;
   }
 
   @override
@@ -79,6 +96,8 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
         'name': AppValidators.normalizeSpaces(nameController.text),
         'phone': AppValidators.normalizePhone(phoneController.text),
         'address': AppValidators.normalizeSpaces(addressController.text),
+        'address_state': selectedState,
+        'address_region': selectedRegion,
         'age': int.parse(ageController.text.trim()),
         'blood_type': bloodTypeController.text.trim().toUpperCase(),
         'inactivity_threshold': int.parse(thresholdController.text.trim()),
@@ -146,16 +165,17 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                     decoration: const InputDecoration(labelText: 'Phone'),
                   ),
                   const SizedBox(height: 10),
-                  TextFormField(
-                    controller: addressController,
-                    maxLength: AppValidators.maxAddressLength,
-                    maxLines: 2,
-                    textCapitalization: TextCapitalization.sentences,
-                    validator: (value) =>
-                        AppValidators.address(value ?? '', required: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Home address',
-                    ),
+                  MalaysiaAddressFields(
+                    addressController: addressController,
+                    selectedState: selectedState,
+                    selectedRegion: selectedRegion,
+                    addressRequired: true,
+                    onStateChanged: (value) => setState(() {
+                      selectedState = value;
+                      selectedRegion = null;
+                    }),
+                    onRegionChanged: (value) =>
+                        setState(() => selectedRegion = value),
                   ),
                   const SizedBox(height: 10),
                   Row(

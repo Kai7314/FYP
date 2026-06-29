@@ -4,6 +4,8 @@
 alter table public.users
   add column if not exists phone text,
   add column if not exists address text,
+  add column if not exists address_state text,
+  add column if not exists address_region text,
   add column if not exists age integer,
   add column if not exists blood_type text,
   add column if not exists inactivity_threshold integer not null default 24,
@@ -18,6 +20,8 @@ where table_schema = 'public'
   and column_name in (
     'phone',
     'address',
+    'address_state',
+    'address_region',
     'age',
     'blood_type',
     'inactivity_threshold',

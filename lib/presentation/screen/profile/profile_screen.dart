@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../core/constants/malaysia_locations.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
+import '../../widgets/malaysia_address_fields.dart';
 import '../../widgets/premium_shell.dart';
 import '../planning/ai_guidance_screen.dart';
 import '../planning/legacy_planning_screen.dart';
@@ -182,6 +184,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: 'Address',
                   value: profile['address']?.toString() ?? 'Not provided',
                 ),
+                _InfoTile(
+                  icon: Icons.map_outlined,
+                  iconColor: AppColors.blue,
+                  label: 'State / region',
+                  value: _formatAddressRegion(profile),
+                ),
               ],
             ),
             const SizedBox(height: 17),
@@ -234,6 +242,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
+  }
+
+  String _formatAddressRegion(Map<String, dynamic> profile) {
+    final state = profile['address_state']?.toString() ?? '';
+    final region = profile['address_region']?.toString() ?? '';
+    if (state.isEmpty && region.isEmpty) return 'Not provided';
+    if (state.isEmpty) return region;
+    if (region.isEmpty) return state;
+    return '$region, $state';
   }
 }
 
@@ -360,6 +377,8 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   late final TextEditingController ageController;
   late final TextEditingController bloodTypeController;
   late final TextEditingController thresholdController;
+  String? selectedState;
+  String? selectedRegion;
 
   @override
   void initState() {
@@ -382,6 +401,19 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     thresholdController = TextEditingController(
       text: widget.profile['inactivity_threshold']?.toString() ?? '24',
     );
+    selectedState = _initialState();
+    selectedRegion = _initialRegion(selectedState);
+  }
+
+  String? _initialState() {
+    final value = widget.profile['address_state']?.toString();
+    return MalaysiaLocations.states.contains(value) ? value : null;
+  }
+
+  String? _initialRegion(String? state) {
+    final value = widget.profile['address_region']?.toString();
+    final regions = MalaysiaLocations.regionsFor(state);
+    return regions.any((location) => location.region == value) ? value : null;
   }
 
   @override
@@ -406,6 +438,8 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       'name': name,
       'phone': AppValidators.normalizePhone(phoneController.text),
       'address': AppValidators.normalizeSpaces(addressController.text),
+      'address_state': selectedState,
+      'address_region': selectedRegion,
       'age': age,
       'blood_type': bloodTypeController.text.trim().toUpperCase(),
       'inactivity_threshold': threshold,
@@ -437,12 +471,16 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                 decoration: const InputDecoration(labelText: 'Phone'),
               ),
               const SizedBox(height: 10),
-              TextFormField(
-                controller: addressController,
-                maxLength: AppValidators.maxAddressLength,
-                maxLines: 2,
-                validator: (value) => AppValidators.address(value ?? ''),
-                decoration: const InputDecoration(labelText: 'Home address'),
+              MalaysiaAddressFields(
+                addressController: addressController,
+                selectedState: selectedState,
+                selectedRegion: selectedRegion,
+                onStateChanged: (value) => setState(() {
+                  selectedState = value;
+                  selectedRegion = null;
+                }),
+                onRegionChanged: (value) =>
+                    setState(() => selectedRegion = value),
               ),
               const SizedBox(height: 10),
               TextFormField(

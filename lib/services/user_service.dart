@@ -76,6 +76,8 @@ class AppProfileRules {
     final name = profile['name']?.toString() ?? '';
     final phone = profile['phone']?.toString() ?? '';
     final address = profile['address']?.toString() ?? '';
+    final addressState = profile['address_state']?.toString() ?? '';
+    final addressRegion = profile['address_region']?.toString() ?? '';
     final age = profile['age']?.toString() ?? '';
     final bloodType = profile['blood_type']?.toString() ?? '';
     final threshold = profile['inactivity_threshold']?.toString() ?? '';
@@ -86,6 +88,8 @@ class AppProfileRules {
     if (AppValidators.address(address, required: true) != null) {
       missing.add('Home address');
     }
+    if (addressState.trim().isEmpty) missing.add('State');
+    if (addressRegion.trim().isEmpty) missing.add('Region');
     if (AppValidators.age(age, required: true) != null) missing.add('Age');
     if (AppValidators.bloodType(bloodType, required: true) != null) {
       missing.add('Blood type');

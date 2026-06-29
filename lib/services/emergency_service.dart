@@ -1,3 +1,5 @@
+import 'package:url_launcher/url_launcher.dart';
+
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/contact_repository.dart';
 import '../dataAccessLayer/repositories/emergency_repository.dart';
@@ -19,6 +21,14 @@ class EmergencyService {
   final EmergencyRepository emergencyRepository;
   final LocationService locationService;
 
+  Future<void> callMalaysiaEmergency999() async {
+    final uri = Uri(scheme: 'tel', path: '999');
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched) {
+      throw StateError('Could not open the phone dialer for 999.');
+    }
+  }
+
   Future<bool> triggerEmergency() async {
     final user = authRepository.currentUser;
     if (user == null) {
@@ -27,6 +37,8 @@ class EmergencyService {
 
     final contacts = await contactRepository.getAlertRecipients(user.id);
     if (contacts.isEmpty) return false;
+    final hasPrimary = await contactRepository.hasPrimaryContact(user.id);
+    if (!hasPrimary) return false;
     final alert = await _retry(
       () => emergencyRepository.createAlert(user.id),
       attempts: 3,

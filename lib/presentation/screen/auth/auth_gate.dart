@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../services/auth_service.dart';
+import '../../../services/contact_service.dart';
 import '../../../services/onboarding_service.dart';
 import '../../../services/user_service.dart';
 import '../home/home_screen.dart';
 import 'first_login_setup_screen.dart';
 import 'login_screen.dart';
+import 'primary_contact_setup_screen.dart';
 import 'tutorial_screen.dart';
 
 class AuthGate extends StatefulWidget {
@@ -19,14 +21,18 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   final authService = AuthService();
   final userService = UserService();
+  final contactService = ContactService();
   final onboardingService = OnboardingService();
   String? initializedProfileUserId;
   String? activeProfileUserId;
   Future<Map<String, dynamic>>? activeProfileFuture;
   String? activeTutorialUserId;
   Future<bool>? activeTutorialFuture;
+  String? activePrimaryContactUserId;
+  Future<bool>? activePrimaryContactFuture;
   int setupRefresh = 0;
   int tutorialRefresh = 0;
+  int contactRefresh = 0;
 
   Future<Map<String, dynamic>> _profileFutureFor(String userId) {
     if (activeProfileUserId != userId || activeProfileFuture == null) {
@@ -42,6 +48,17 @@ class _AuthGateState extends State<AuthGate> {
       activeTutorialFuture = onboardingService.hasCompletedTutorial();
     }
     return activeTutorialFuture!;
+  }
+
+  Future<bool> _primaryContactFutureFor(String userId) {
+    if (activePrimaryContactUserId != userId ||
+        activePrimaryContactFuture == null) {
+      activePrimaryContactUserId = userId;
+      activePrimaryContactFuture = contactService.hasPrimaryContact(
+        forceRefresh: true,
+      );
+    }
+    return activePrimaryContactFuture!;
   }
 
   Future<Map<String, dynamic>> _loadProfile(String userId) async {
@@ -118,26 +135,86 @@ class _AuthGateState extends State<AuthGate> {
               }
 
               return FutureBuilder<bool>(
-                key: ValueKey('tutorial-${session.user.id}-$tutorialRefresh'),
-                future: _tutorialFutureFor(session.user.id),
-                builder: (context, tutorialSnapshot) {
-                  if (tutorialSnapshot.connectionState !=
+                key: ValueKey(
+                  'primary-contact-${session.user.id}-$contactRefresh',
+                ),
+                future: _primaryContactFutureFor(session.user.id),
+                builder: (context, contactSnapshot) {
+                  if (contactSnapshot.connectionState !=
                       ConnectionState.done) {
                     return const Scaffold(
                       body: Center(child: CircularProgressIndicator()),
                     );
                   }
 
-                  if (tutorialSnapshot.data != true) {
-                    return TutorialScreen(
+                  if (contactSnapshot.hasError) {
+                    return Scaffold(
+                      body: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.error_outline, size: 40),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Unable to load emergency contacts.',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                contactSnapshot.error.toString(),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton(
+                                onPressed: () => setState(() {
+                                  activePrimaryContactFuture = null;
+                                  contactRefresh += 1;
+                                }),
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (contactSnapshot.data != true) {
+                    return PrimaryContactSetupScreen(
                       onComplete: () => setState(() {
-                        activeTutorialFuture = null;
-                        tutorialRefresh += 1;
+                        activePrimaryContactFuture = null;
+                        contactRefresh += 1;
                       }),
                     );
                   }
 
-                  return const HomeScreen();
+                  return FutureBuilder<bool>(
+                    key: ValueKey(
+                      'tutorial-${session.user.id}-$tutorialRefresh',
+                    ),
+                    future: _tutorialFutureFor(session.user.id),
+                    builder: (context, tutorialSnapshot) {
+                      if (tutorialSnapshot.connectionState !=
+                          ConnectionState.done) {
+                        return const Scaffold(
+                          body: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+
+                      if (tutorialSnapshot.data != true) {
+                        return TutorialScreen(
+                          onComplete: () => setState(() {
+                            activeTutorialFuture = null;
+                            tutorialRefresh += 1;
+                          }),
+                        );
+                      }
+
+                      return const HomeScreen();
+                    },
+                  );
                 },
               );
             },
@@ -149,6 +226,8 @@ class _AuthGateState extends State<AuthGate> {
         activeProfileFuture = null;
         activeTutorialUserId = null;
         activeTutorialFuture = null;
+        activePrimaryContactUserId = null;
+        activePrimaryContactFuture = null;
         return const LoginScreen();
       },
     );

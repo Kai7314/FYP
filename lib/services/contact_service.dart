@@ -36,6 +36,15 @@ class ContactService {
     return rows;
   }
 
+  Future<bool> hasPrimaryContact({bool forceRefresh = false}) async {
+    final contacts = await getContacts(forceRefresh: forceRefresh);
+    if (contacts.any((row) => row['is_primary'] == true)) return true;
+
+    final user = authRepository.currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    return contactRepository.hasPrimaryContact(user.id);
+  }
+
   Future<void> addContact({
     required String name,
     required String relationship,

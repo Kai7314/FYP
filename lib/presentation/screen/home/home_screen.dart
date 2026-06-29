@@ -171,29 +171,43 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _triggerSos() async {
-    final confirmed = await showDialog<bool>(
+    final action = await showDialog<_SosAction>(
       context: context,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.sos, color: AppColors.danger, size: 40),
-        title: const Text('Send emergency alert?'),
+        title: const Text('Emergency help'),
         content: const Text(
-          'An emergency record will be created and your location will be attached when permission is available.',
+          'For immediate danger in Malaysia, call 999. EthernaCare can also record an SOS alert for your primary contact and trusted contacts.',
           textAlign: TextAlign.center,
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context, _SosAction.call999),
+            icon: const Icon(Icons.call_outlined),
+            label: const Text('Call 999'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(context, _SosAction.sendAlert),
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             child: const Text('Send Alert'),
           ),
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (action == null || !mounted) return;
+
+    if (action == _SosAction.call999) {
+      try {
+        await EmergencyService().callMalaysiaEmergency999();
+      } catch (error) {
+        if (mounted) _showMessage('Could not open phone dialer: $error');
+      }
+      return;
+    }
 
     try {
       final sent = await EmergencyService().triggerEmergency();
@@ -201,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _showMessage(
         sent
             ? 'Emergency alert recorded for your trusted contacts.'
-            : 'Add an emergency contact before sending an alert.',
+            : 'Add a primary emergency contact before sending an alert.',
       );
     } catch (error) {
       if (mounted) _showMessage('Could not send emergency alert: $error');
@@ -290,6 +304,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+enum _SosAction { call999, sendAlert }
 
 class _HomeDashboard extends StatelessWidget {
   const _HomeDashboard({

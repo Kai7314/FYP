@@ -43,6 +43,23 @@ class ContactRepository {
     return rows.isNotEmpty;
   }
 
+  Future<bool> hasPrimaryContact(String userId) async {
+    try {
+      final rows = await client
+          .from('contacts')
+          .select('user_id')
+          .eq('user_id', userId)
+          .eq('is_primary', true)
+          .limit(1);
+      return rows.isNotEmpty;
+    } on PostgrestException catch (error) {
+      if (error.message.toLowerCase().contains('is_primary')) {
+        return hasAnyContact(userId);
+      }
+      rethrow;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getAlertRecipients(String userId) async {
     dynamic rows;
     try {

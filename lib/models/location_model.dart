@@ -6,6 +6,11 @@ class WeatherSnapshot {
     required this.latitude,
     required this.longitude,
     required this.fetchedAt,
+    this.locationName,
+    this.summaryForecast,
+    this.summaryWhen,
+    this.minTemperatureCelsius,
+    this.maxTemperatureCelsius,
   });
 
   final double temperatureCelsius;
@@ -14,6 +19,11 @@ class WeatherSnapshot {
   final double latitude;
   final double longitude;
   final DateTime fetchedAt;
+  final String? locationName;
+  final String? summaryForecast;
+  final String? summaryWhen;
+  final double? minTemperatureCelsius;
+  final double? maxTemperatureCelsius;
 
   bool get isRainy => const {
     51,
@@ -35,6 +45,9 @@ class WeatherSnapshot {
   }.contains(weatherCode);
 
   String get description {
+    if (summaryForecast != null && summaryForecast!.trim().isNotEmpty) {
+      return summaryForecast!;
+    }
     if (isRainy) return 'Rainy';
     if (weatherCode == 0) return 'Clear';
     if (weatherCode <= 3) return 'Cloudy';
@@ -45,6 +58,9 @@ class WeatherSnapshot {
   String get malaysiaRegion {
     final lat = latitude;
     final lng = longitude;
+    if (locationName != null && locationName!.trim().isNotEmpty) {
+      return locationName!;
+    }
     if (!_isInMalaysia) return 'Current location';
 
     if (lat >= 5.8 && lng < 100.8) return 'Kedah / Perlis';
@@ -100,6 +116,15 @@ class WeatherSnapshot {
       fetchedAt:
           DateTime.tryParse(json['fetched_at']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
+      locationName: json['location_name']?.toString(),
+      summaryForecast: json['summary_forecast']?.toString(),
+      summaryWhen: json['summary_when']?.toString(),
+      minTemperatureCelsius: double.tryParse(
+        json['min_temperature_celsius']?.toString() ?? '',
+      ),
+      maxTemperatureCelsius: double.tryParse(
+        json['max_temperature_celsius']?.toString() ?? '',
+      ),
     );
   }
 
@@ -110,5 +135,10 @@ class WeatherSnapshot {
     'latitude': latitude,
     'longitude': longitude,
     'fetched_at': fetchedAt.toIso8601String(),
+    'location_name': locationName,
+    'summary_forecast': summaryForecast,
+    'summary_when': summaryWhen,
+    'min_temperature_celsius': minTemperatureCelsius,
+    'max_temperature_celsius': maxTemperatureCelsius,
   };
 }
