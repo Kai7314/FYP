@@ -46,7 +46,7 @@ class MalaysiaAddressFields extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
-          value: selectedState?.isEmpty == true ? null : selectedState,
+          initialValue: selectedState?.isEmpty == true ? null : selectedState,
           isExpanded: true,
           validator: (_) => addressRequired && selectedState == null
               ? 'Select your state.'
@@ -62,7 +62,7 @@ class MalaysiaAddressFields extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
-          value: hasSelectedRegion ? selectedRegion : null,
+          initialValue: hasSelectedRegion ? selectedRegion : null,
           isExpanded: true,
           validator: (_) => addressRequired && selectedRegion == null
               ? 'Select your region or district.'
