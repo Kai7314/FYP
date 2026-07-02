@@ -4,6 +4,7 @@ import '../../../core/constants/colors.dart';
 import '../../../core/constants/malaysia_locations.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
+import '../../widgets/country_phone_field.dart';
 import '../../widgets/malaysia_address_fields.dart';
 
 class FirstLoginSetupScreen extends StatefulWidget {
@@ -31,6 +32,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
   late final TextEditingController thresholdController;
   String? selectedState;
   String? selectedRegion;
+  late String phoneDialCode;
   bool acceptedTerms = false;
   bool saving = false;
 
@@ -40,8 +42,10 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     nameController = TextEditingController(
       text: widget.profile['name']?.toString() ?? '',
     );
+    final profilePhone = widget.profile['phone']?.toString() ?? '';
+    phoneDialCode = AppValidators.detectPhoneCountry(profilePhone).dialCode;
     phoneController = TextEditingController(
-      text: widget.profile['phone']?.toString() ?? '',
+      text: AppValidators.localPhoneForCountry(profilePhone, phoneDialCode),
     );
     addressController = TextEditingController(
       text: widget.profile['address']?.toString() ?? '',
@@ -94,7 +98,10 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     try {
       await userService.completeFirstLoginSetup({
         'name': AppValidators.normalizeSpaces(nameController.text),
-        'phone': AppValidators.normalizePhone(phoneController.text),
+        'phone': AppValidators.normalizePhoneWithCountry(
+          phoneController.text,
+          phoneDialCode,
+        ),
         'address': AppValidators.normalizeSpaces(addressController.text),
         'address_state': selectedState,
         'address_region': selectedRegion,
@@ -158,11 +165,12 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                     decoration: const InputDecoration(labelText: 'Full name'),
                   ),
                   const SizedBox(height: 10),
-                  TextFormField(
+                  CountryPhoneField(
                     controller: phoneController,
-                    keyboardType: TextInputType.phone,
-                    validator: (value) => AppValidators.phone(value ?? ''),
-                    decoration: const InputDecoration(labelText: 'Phone'),
+                    dialCode: phoneDialCode,
+                    onDialCodeChanged: (value) =>
+                        setState(() => phoneDialCode = value),
+                    labelText: 'Phone',
                   ),
                   const SizedBox(height: 10),
                   MalaysiaAddressFields(

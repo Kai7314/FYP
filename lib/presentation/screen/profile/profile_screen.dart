@@ -4,6 +4,7 @@ import '../../../core/constants/colors.dart';
 import '../../../core/constants/malaysia_locations.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
+import '../../widgets/country_phone_field.dart';
 import '../../widgets/malaysia_address_fields.dart';
 import '../../widgets/premium_shell.dart';
 import '../planning/ai_guidance_screen.dart';
@@ -379,6 +380,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   late final TextEditingController thresholdController;
   String? selectedState;
   String? selectedRegion;
+  late String phoneDialCode;
 
   @override
   void initState() {
@@ -386,8 +388,10 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     nameController = TextEditingController(
       text: widget.profile['name']?.toString() ?? '',
     );
+    final profilePhone = widget.profile['phone']?.toString() ?? '';
+    phoneDialCode = AppValidators.detectPhoneCountry(profilePhone).dialCode;
     phoneController = TextEditingController(
-      text: widget.profile['phone']?.toString() ?? '',
+      text: AppValidators.localPhoneForCountry(profilePhone, phoneDialCode),
     );
     addressController = TextEditingController(
       text: widget.profile['address']?.toString() ?? '',
@@ -436,7 +440,10 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
 
     Navigator.pop(context, {
       'name': name,
-      'phone': AppValidators.normalizePhone(phoneController.text),
+      'phone': AppValidators.normalizePhoneWithCountry(
+        phoneController.text,
+        phoneDialCode,
+      ),
       'address': AppValidators.normalizeSpaces(addressController.text),
       'address_state': selectedState,
       'address_region': selectedRegion,
@@ -463,12 +470,13 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                 decoration: const InputDecoration(labelText: 'Name'),
               ),
               const SizedBox(height: 10),
-              TextFormField(
+              CountryPhoneField(
                 controller: phoneController,
-                keyboardType: TextInputType.phone,
-                validator: (value) =>
-                    AppValidators.phone(value ?? '', required: false),
-                decoration: const InputDecoration(labelText: 'Phone'),
+                dialCode: phoneDialCode,
+                onDialCodeChanged: (value) =>
+                    setState(() => phoneDialCode = value),
+                labelText: 'Phone',
+                required: false,
               ),
               const SizedBox(height: 10),
               MalaysiaAddressFields(

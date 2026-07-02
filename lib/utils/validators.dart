@@ -1,9 +1,112 @@
+class PhoneCountry {
+  const PhoneCountry({
+    required this.name,
+    required this.isoCode,
+    required this.dialCode,
+    required this.minNationalDigits,
+    required this.maxNationalDigits,
+    required this.example,
+  });
+
+  final String name;
+  final String isoCode;
+  final String dialCode;
+  final int minNationalDigits;
+  final int maxNationalDigits;
+  final String example;
+
+  String get label => '$isoCode $dialCode';
+}
+
 class AppValidators {
   static const minPasswordLength = 8;
   static const maxPasswordLength = 64;
   static const maxDisplayNameLength = 50;
   static const maxPhoneDigits = 15;
   static const maxAddressLength = 200;
+  static const defaultPhoneCountry = PhoneCountry(
+    name: 'Malaysia',
+    isoCode: 'MY',
+    dialCode: '+60',
+    minNationalDigits: 8,
+    maxNationalDigits: 10,
+    example: '0123456789',
+  );
+  static const phoneCountries = [
+    defaultPhoneCountry,
+    PhoneCountry(
+      name: 'Singapore',
+      isoCode: 'SG',
+      dialCode: '+65',
+      minNationalDigits: 8,
+      maxNationalDigits: 8,
+      example: '81234567',
+    ),
+    PhoneCountry(
+      name: 'Indonesia',
+      isoCode: 'ID',
+      dialCode: '+62',
+      minNationalDigits: 8,
+      maxNationalDigits: 12,
+      example: '81234567890',
+    ),
+    PhoneCountry(
+      name: 'Thailand',
+      isoCode: 'TH',
+      dialCode: '+66',
+      minNationalDigits: 8,
+      maxNationalDigits: 9,
+      example: '812345678',
+    ),
+    PhoneCountry(
+      name: 'Brunei',
+      isoCode: 'BN',
+      dialCode: '+673',
+      minNationalDigits: 7,
+      maxNationalDigits: 7,
+      example: '7123456',
+    ),
+    PhoneCountry(
+      name: 'Philippines',
+      isoCode: 'PH',
+      dialCode: '+63',
+      minNationalDigits: 10,
+      maxNationalDigits: 10,
+      example: '9123456789',
+    ),
+    PhoneCountry(
+      name: 'China',
+      isoCode: 'CN',
+      dialCode: '+86',
+      minNationalDigits: 11,
+      maxNationalDigits: 11,
+      example: '13123456789',
+    ),
+    PhoneCountry(
+      name: 'India',
+      isoCode: 'IN',
+      dialCode: '+91',
+      minNationalDigits: 10,
+      maxNationalDigits: 10,
+      example: '9123456789',
+    ),
+    PhoneCountry(
+      name: 'United States',
+      isoCode: 'US',
+      dialCode: '+1',
+      minNationalDigits: 10,
+      maxNationalDigits: 10,
+      example: '4155552671',
+    ),
+    PhoneCountry(
+      name: 'United Kingdom',
+      isoCode: 'GB',
+      dialCode: '+44',
+      minNationalDigits: 9,
+      maxNationalDigits: 10,
+      example: '7400123456',
+    ),
+  ];
 
   static String normalizeSpaces(String value) {
     return value.trim().replaceAll(RegExp(r'\s+'), ' ');
@@ -14,6 +117,61 @@ class AppValidators {
     final hasPlus = trimmed.startsWith('+');
     final digits = trimmed.replaceAll(RegExp(r'\D'), '');
     return hasPlus ? '+$digits' : digits;
+  }
+
+  static PhoneCountry phoneCountryForDialCode(String dialCode) {
+    return phoneCountries.firstWhere(
+      (country) => country.dialCode == dialCode,
+      orElse: () => defaultPhoneCountry,
+    );
+  }
+
+  static PhoneCountry detectPhoneCountry(String value) {
+    final normalized = normalizePhone(value);
+    final digits = normalized.replaceAll('+', '');
+    final sortedCountries = [...phoneCountries]
+      ..sort((a, b) => b.dialCode.length.compareTo(a.dialCode.length));
+
+    for (final country in sortedCountries) {
+      final dialDigits = country.dialCode.replaceAll('+', '');
+      if (normalized.startsWith(country.dialCode) ||
+          digits.startsWith(dialDigits)) {
+        return country;
+      }
+    }
+    return defaultPhoneCountry;
+  }
+
+  static String localPhoneForCountry(String value, String dialCode) {
+    final normalized = normalizePhone(value);
+    if (normalized.isEmpty) return '';
+
+    final country = phoneCountryForDialCode(dialCode);
+    final dialDigits = country.dialCode.replaceAll('+', '');
+    var digits = normalized.replaceAll('+', '');
+    if (digits.startsWith(dialDigits)) {
+      digits = digits.substring(dialDigits.length);
+    }
+    if (country.isoCode == defaultPhoneCountry.isoCode &&
+        digits.startsWith('0')) {
+      return digits;
+    }
+    return digits;
+  }
+
+  static String normalizePhoneWithCountry(String value, String dialCode) {
+    final normalized = normalizePhone(value);
+    if (normalized.isEmpty) return '';
+    if (normalized.startsWith('+')) return normalized;
+
+    final country = phoneCountryForDialCode(dialCode);
+    var nationalDigits = normalized.replaceAll(RegExp(r'\D'), '');
+    final dialDigits = country.dialCode.replaceAll('+', '');
+    if (nationalDigits.startsWith(dialDigits)) {
+      nationalDigits = nationalDigits.substring(dialDigits.length);
+    }
+    nationalDigits = nationalDigits.replaceFirst(RegExp(r'^0+'), '');
+    return '${country.dialCode}$nationalDigits';
   }
 
   static String? email(String value) {
@@ -90,6 +248,37 @@ class AppValidators {
     }
     if (!RegExp(r'^\+?[0-9]+$').hasMatch(normalized)) {
       return 'Enter a valid phone number.';
+    }
+    return null;
+  }
+
+  static String? phoneForCountry(
+    String value, {
+    required String dialCode,
+    bool required = true,
+  }) {
+    final normalized = normalizePhoneWithCountry(value, dialCode);
+    final digits = normalized.replaceAll('+', '');
+    if (digits.isEmpty && !required) return null;
+    if (!RegExp(r'^\+[0-9]+$').hasMatch(normalized)) {
+      return 'Enter a valid phone number.';
+    }
+    if (digits.length > maxPhoneDigits) {
+      return 'Phone number must not exceed $maxPhoneDigits digits including country code.';
+    }
+
+    final country = phoneCountryForDialCode(dialCode);
+    final dialDigits = country.dialCode.replaceAll('+', '');
+    if (!digits.startsWith(dialDigits)) {
+      return 'Phone number must start with ${country.dialCode}.';
+    }
+    final nationalDigits = digits.substring(dialDigits.length);
+    if (nationalDigits.length < country.minNationalDigits ||
+        nationalDigits.length > country.maxNationalDigits) {
+      final range = country.minNationalDigits == country.maxNationalDigits
+          ? '${country.minNationalDigits}'
+          : '${country.minNationalDigits} to ${country.maxNationalDigits}';
+      return '${country.name} phone number must contain $range digits after ${country.dialCode}.';
     }
     return null;
   }

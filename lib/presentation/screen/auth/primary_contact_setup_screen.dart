@@ -4,6 +4,7 @@ import '../../../core/constants/colors.dart';
 import '../../../services/contact_service.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
+import '../../widgets/country_phone_field.dart';
 import '../../widgets/error_dialog.dart';
 
 class PrimaryContactSetupScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
   final relationshipController = TextEditingController();
   final phoneController = TextEditingController();
   final addressController = TextEditingController();
+  String phoneDialCode = AppValidators.defaultPhoneCountry.dialCode;
   late Future<List<Map<String, dynamic>>> contactsFuture;
   bool saving = false;
 
@@ -51,7 +53,10 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
         relationship: AppValidators.normalizeSpaces(
           relationshipController.text,
         ),
-        phone: AppValidators.normalizePhone(phoneController.text),
+        phone: AppValidators.normalizePhoneWithCountry(
+          phoneController.text,
+          phoneDialCode,
+        ),
         address: AppValidators.normalizeSpaces(addressController.text),
         isPrimary: true,
       );
@@ -170,6 +175,9 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
                   nameController: nameController,
                   relationshipController: relationshipController,
                   phoneController: phoneController,
+                  phoneDialCode: phoneDialCode,
+                  onPhoneDialCodeChanged: (value) =>
+                      setState(() => phoneDialCode = value),
                   addressController: addressController,
                 );
               },
@@ -240,6 +248,8 @@ class _NewPrimaryContactForm extends StatelessWidget {
     required this.nameController,
     required this.relationshipController,
     required this.phoneController,
+    required this.phoneDialCode,
+    required this.onPhoneDialCodeChanged,
     required this.addressController,
   });
 
@@ -247,6 +257,8 @@ class _NewPrimaryContactForm extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController relationshipController;
   final TextEditingController phoneController;
+  final String phoneDialCode;
+  final ValueChanged<String> onPhoneDialCodeChanged;
   final TextEditingController addressController;
 
   @override
@@ -272,11 +284,10 @@ class _NewPrimaryContactForm extends StatelessWidget {
             decoration: const InputDecoration(labelText: 'Relationship'),
           ),
           const SizedBox(height: 10),
-          TextFormField(
+          CountryPhoneField(
             controller: phoneController,
-            keyboardType: TextInputType.phone,
-            validator: (value) => AppValidators.phone(value ?? ''),
-            decoration: const InputDecoration(labelText: 'Phone number'),
+            dialCode: phoneDialCode,
+            onDialCodeChanged: onPhoneDialCodeChanged,
           ),
           const SizedBox(height: 10),
           TextFormField(

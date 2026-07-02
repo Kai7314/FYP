@@ -1,15 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/constants/colors.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/contact_service.dart';
-import '../../../services/onboarding_service.dart';
 import '../../../services/user_service.dart';
 import '../home/home_screen.dart';
 import 'first_login_setup_screen.dart';
 import 'login_screen.dart';
 import 'primary_contact_setup_screen.dart';
-import 'tutorial_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -22,41 +23,31 @@ class _AuthGateState extends State<AuthGate> {
   final authService = AuthService();
   final userService = UserService();
   final contactService = ContactService();
-  final onboardingService = OnboardingService();
   String? initializedProfileUserId;
   String? activeProfileUserId;
   Future<Map<String, dynamic>>? activeProfileFuture;
-  String? activeTutorialUserId;
-  Future<bool>? activeTutorialFuture;
   String? activePrimaryContactUserId;
   Future<bool>? activePrimaryContactFuture;
   int setupRefresh = 0;
-  int tutorialRefresh = 0;
   int contactRefresh = 0;
 
   Future<Map<String, dynamic>> _profileFutureFor(String userId) {
     if (activeProfileUserId != userId || activeProfileFuture == null) {
       activeProfileUserId = userId;
-      activeProfileFuture = _loadProfile(userId);
+      activeProfileFuture = _loadProfile(
+        userId,
+      ).timeout(const Duration(seconds: 18));
     }
     return activeProfileFuture!;
-  }
-
-  Future<bool> _tutorialFutureFor(String userId) {
-    if (activeTutorialUserId != userId || activeTutorialFuture == null) {
-      activeTutorialUserId = userId;
-      activeTutorialFuture = onboardingService.hasCompletedTutorial();
-    }
-    return activeTutorialFuture!;
   }
 
   Future<bool> _primaryContactFutureFor(String userId) {
     if (activePrimaryContactUserId != userId ||
         activePrimaryContactFuture == null) {
       activePrimaryContactUserId = userId;
-      activePrimaryContactFuture = contactService.hasPrimaryContact(
-        forceRefresh: true,
-      );
+      activePrimaryContactFuture = contactService
+          .hasPrimaryContact(forceRefresh: true)
+          .timeout(const Duration(seconds: 18));
     }
     return activePrimaryContactFuture!;
   }
@@ -83,8 +74,9 @@ class _AuthGateState extends State<AuthGate> {
             future: _profileFutureFor(session.user.id),
             builder: (context, profileSnapshot) {
               if (profileSnapshot.connectionState != ConnectionState.done) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
+                return const _GateStatusScreen(
+                  title: 'Loading your profile',
+                  message: 'Preparing your safety setup.',
                 );
               }
 
@@ -142,8 +134,9 @@ class _AuthGateState extends State<AuthGate> {
                 builder: (context, contactSnapshot) {
                   if (contactSnapshot.connectionState !=
                       ConnectionState.done) {
-                    return const Scaffold(
-                      body: Center(child: CircularProgressIndicator()),
+                    return const _GateStatusScreen(
+                      title: 'Checking emergency contact',
+                      message: 'Making sure your primary contact is ready.',
                     );
                   }
 
@@ -190,31 +183,7 @@ class _AuthGateState extends State<AuthGate> {
                     );
                   }
 
-                  return FutureBuilder<bool>(
-                    key: ValueKey(
-                      'tutorial-${session.user.id}-$tutorialRefresh',
-                    ),
-                    future: _tutorialFutureFor(session.user.id),
-                    builder: (context, tutorialSnapshot) {
-                      if (tutorialSnapshot.connectionState !=
-                          ConnectionState.done) {
-                        return const Scaffold(
-                          body: Center(child: CircularProgressIndicator()),
-                        );
-                      }
-
-                      if (tutorialSnapshot.data != true) {
-                        return TutorialScreen(
-                          onComplete: () => setState(() {
-                            activeTutorialFuture = null;
-                            tutorialRefresh += 1;
-                          }),
-                        );
-                      }
-
-                      return const HomeScreen();
-                    },
-                  );
+                  return const HomeScreen();
                 },
               );
             },
@@ -224,12 +193,82 @@ class _AuthGateState extends State<AuthGate> {
         initializedProfileUserId = null;
         activeProfileUserId = null;
         activeProfileFuture = null;
-        activeTutorialUserId = null;
-        activeTutorialFuture = null;
         activePrimaryContactUserId = null;
         activePrimaryContactFuture = null;
         return const LoginScreen();
       },
+    );
+  }
+}
+
+class _GateStatusScreen extends StatelessWidget {
+  const _GateStatusScreen({
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: AppColors.appGradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (onAction == null)
+                    const CircularProgressIndicator()
+                  else
+                    const Icon(Icons.error_outline, size: 42),
+                  const SizedBox(height: 16),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.muted,
+                      height: 1.35,
+                    ),
+                  ),
+                  if (onAction != null && actionLabel != null) ...[
+                    const SizedBox(height: 18),
+                    FilledButton.icon(
+                      onPressed: onAction,
+                      icon: const Icon(Icons.refresh),
+                      label: Text(actionLabel!),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

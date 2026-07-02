@@ -22,31 +22,36 @@ class PremiumScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: bottomNavigationBar != null,
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: AppColors.appGradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      body: SizedBox.expand(
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: AppColors.appGradient,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-        ),
-        child: Stack(
-          children: [
-            const Positioned(
-              top: -120,
-              right: -90,
-              child: _AmbientGlow(color: Color(0x556CCFA5), size: 260),
-            ),
-            const Positioned(
-              bottom: 120,
-              left: -120,
-              child: _AmbientGlow(color: Color(0x443D7CFF), size: 240),
-            ),
-            SafeArea(
-              bottom: safeAreaBottom,
-              child: Padding(padding: padding, child: child),
-            ),
-          ],
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              const Positioned(
+                top: -120,
+                right: -90,
+                child: _AmbientGlow(color: Color(0x556CCFA5), size: 260),
+              ),
+              const Positioned(
+                bottom: 120,
+                left: -120,
+                child: _AmbientGlow(color: Color(0x443D7CFF), size: 240),
+              ),
+              SafeArea(
+                bottom: safeAreaBottom,
+                child: SizedBox.expand(
+                  child: Padding(padding: padding, child: child),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: bottomNavigationBar,

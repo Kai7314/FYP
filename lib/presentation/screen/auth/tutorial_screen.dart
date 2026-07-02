@@ -5,9 +5,14 @@ import '../../../services/onboarding_service.dart';
 import '../../widgets/premium_shell.dart';
 
 class TutorialScreen extends StatefulWidget {
-  const TutorialScreen({super.key, required this.onComplete});
+  const TutorialScreen({
+    super.key,
+    required this.onComplete,
+    this.onboardingService,
+  });
 
   final VoidCallback onComplete;
+  final OnboardingService? onboardingService;
 
   @override
   State<TutorialScreen> createState() => _TutorialScreenState();
@@ -15,7 +20,6 @@ class TutorialScreen extends StatefulWidget {
 
 class _TutorialScreenState extends State<TutorialScreen> {
   final controller = PageController();
-  final onboardingService = OnboardingService();
   int page = 0;
   bool completing = false;
 
@@ -71,7 +75,12 @@ class _TutorialScreenState extends State<TutorialScreen> {
   Future<void> _finish() async {
     if (completing) return;
     setState(() => completing = true);
-    await onboardingService.markTutorialComplete();
+    try {
+      final onboardingService = widget.onboardingService ?? OnboardingService();
+      await onboardingService.markTutorialComplete();
+    } catch (error) {
+      debugPrint('Tutorial completion was not cached: $error');
+    }
     if (mounted) widget.onComplete();
   }
 
@@ -554,12 +563,16 @@ class _MockActionButton extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 18),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../utils/validators.dart';
+import '../../widgets/country_phone_field.dart';
 
 class AddContactDialog extends StatefulWidget {
   const AddContactDialog({super.key});
@@ -15,6 +16,7 @@ class _AddContactDialogState extends State<AddContactDialog> {
   final relationshipController = TextEditingController();
   final phoneController = TextEditingController();
   final addressController = TextEditingController();
+  String phoneDialCode = AppValidators.defaultPhoneCountry.dialCode;
   bool isPrimary = false;
 
   @override
@@ -32,7 +34,10 @@ class _AddContactDialogState extends State<AddContactDialog> {
     Navigator.of(context).pop({
       'name': AppValidators.normalizeSpaces(nameController.text),
       'relationship': AppValidators.normalizeSpaces(relationshipController.text),
-      'phone': AppValidators.normalizePhone(phoneController.text),
+      'phone': AppValidators.normalizePhoneWithCountry(
+        phoneController.text,
+        phoneDialCode,
+      ),
       'address': AppValidators.normalizeSpaces(addressController.text),
       'is_primary': isPrimary,
     });
@@ -66,11 +71,11 @@ class _AddContactDialogState extends State<AddContactDialog> {
                 decoration: const InputDecoration(labelText: 'Relationship'),
               ),
               const SizedBox(height: 12),
-              TextFormField(
+              CountryPhoneField(
                 controller: phoneController,
-                keyboardType: TextInputType.phone,
-                validator: (value) => AppValidators.phone(value ?? ''),
-                decoration: const InputDecoration(labelText: 'Phone number'),
+                dialCode: phoneDialCode,
+                onDialCodeChanged: (value) =>
+                    setState(() => phoneDialCode = value),
               ),
               const Align(
                 alignment: Alignment.centerLeft,

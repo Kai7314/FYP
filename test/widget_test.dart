@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fyp/main.dart' as app;
 import 'package:fyp/models/location_model.dart';
 import 'package:fyp/models/checkin_model.dart';
 import 'package:fyp/models/contact_model.dart';
@@ -27,12 +28,34 @@ import 'package:fyp/services/user_service.dart';
 import 'package:fyp/utils/validators.dart';
 
 void main() {
+  test('app bootstrap compiles', () {
+    expect(app.MyApp, isNotNull);
+  });
+
   test('auth screen remains available for email and OAuth flows', () {
     expect(LoginScreen, isNotNull);
   });
 
   test('tutorial screen is available for first login guidance', () {
     expect(TutorialScreen, isNotNull);
+  });
+
+  testWidgets('tutorial screen renders the first login guide', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(home: TutorialScreen(onComplete: () {})),
+    );
+    await tester.pump();
+
+    expect(find.text('Quick Guide'), findsOneWidget);
+    expect(find.text('Meet Oren'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
   });
 
   test('home screen compiles with oren care shop', () {
@@ -186,7 +209,7 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pump();
 
-    expect(find.textContaining('8 to 15 digits'), findsOneWidget);
+    expect(find.textContaining('Malaysia phone number'), findsOneWidget);
     expect(find.byType(AddContactDialog), findsOneWidget);
   });
 
@@ -290,6 +313,14 @@ void main() {
     );
     expect(AppValidators.inactivityThreshold('169'), isNotNull);
     expect(AppValidators.bloodType('AB+'), isNull);
+    expect(
+      AppValidators.normalizePhoneWithCountry('0123456789', '+60'),
+      '+60123456789',
+    );
+    expect(
+      AppValidators.phoneForCountry('0123456789', dialCode: '+60'),
+      isNull,
+    );
   });
 
   test('first login profile rules require safety details and terms', () {
