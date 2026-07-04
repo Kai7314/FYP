@@ -1,25 +1,57 @@
+import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/contact_repository.dart';
 import '../dataAccessLayer/repositories/emergency_repository.dart';
+import '../dataAccessLayer/repositories/user_repository.dart';
+import '../models/emergency_escalation_target.dart';
+import 'direct_sms_service.dart';
 import 'location_service.dart';
+
+class EmergencyTriggerResult {
+  const EmergencyTriggerResult({
+    required this.alertRecorded,
+    required this.primarySmsComposerOpened,
+    this.official999Selected = false,
+    this.dialerOpened = false,
+    this.autoSmsAttempted = false,
+    this.autoSmsSent = 0,
+    this.autoSmsFailed = 0,
+    this.autoSmsError,
+  });
+
+  final bool alertRecorded;
+  final bool primarySmsComposerOpened;
+  final bool official999Selected;
+  final bool dialerOpened;
+  final bool autoSmsAttempted;
+  final int autoSmsSent;
+  final int autoSmsFailed;
+  final String? autoSmsError;
+}
 
 class EmergencyService {
   EmergencyService({
     AuthRepository? authRepository,
     ContactRepository? contactRepository,
     EmergencyRepository? emergencyRepository,
+    UserRepository? userRepository,
     LocationService? locationService,
+    DirectSmsService? directSmsService,
   }) : authRepository = authRepository ?? AuthRepository(),
        contactRepository = contactRepository ?? ContactRepository(),
        emergencyRepository = emergencyRepository ?? EmergencyRepository(),
-       locationService = locationService ?? LocationService();
+       userRepository = userRepository ?? UserRepository(),
+       locationService = locationService ?? LocationService(),
+       directSmsService = directSmsService ?? DirectSmsService();
 
   final AuthRepository authRepository;
   final ContactRepository contactRepository;
   final EmergencyRepository emergencyRepository;
+  final UserRepository userRepository;
   final LocationService locationService;
+  final DirectSmsService directSmsService;
 
   Future<void> callMalaysiaEmergency999() async {
     final uri = Uri(scheme: 'tel', path: '999');
@@ -29,32 +61,119 @@ class EmergencyService {
     }
   }
 
+  Future<bool> openPrimaryContactTestSms() async {
+    final user = authRepository.currentUser;
+    if (user == null) {
+      throw StateError('You must be signed in to test SMS.');
+    }
+
+    final primaryContact = await contactRepository.getPrimaryContact(user.id);
+    if (primaryContact == null) return false;
+    return _openSmsComposer(
+      phone: primaryContact['phone']?.toString() ?? '',
+      message:
+          'TEST message from EthernaCare. This is only a test of the emergency SMS flow. No emergency alert has been triggered.',
+    );
+  }
+
+  Future<bool> sendPrimaryContactTestSms() async {
+    final user = authRepository.currentUser;
+    if (user == null) {
+      throw StateError('You must be signed in to test SMS.');
+    }
+
+    final primaryContact = await contactRepository.getPrimaryContact(user.id);
+    if (primaryContact == null) return false;
+
+    final result = await directSmsService.send(
+      phone: primaryContact['phone']?.toString() ?? '',
+      message:
+          'TEST message from EthernaCare. This is only a test of the emergency SMS flow. No emergency alert has been triggered.',
+    );
+    final error = result.error;
+    if (!result.sent && error != null) {
+      throw StateError(error);
+    }
+    return result.sent;
+  }
+
   Future<bool> triggerEmergency() async {
+    final result = await triggerEmergencyDetailed();
+    return result.alertRecorded;
+  }
+
+  Future<EmergencyTriggerResult> triggerEmergencyDetailed({
+    bool openPrimarySmsComposer = false,
+    bool sendAutomatedSms = true,
+    bool allow999Dialer = false,
+    String? escalationTarget,
+  }) async {
     final user = authRepository.currentUser;
     if (user == null) {
       throw StateError('You must be signed in to send an emergency alert.');
     }
 
-    final contacts = await contactRepository.getAlertRecipients(user.id);
-    if (contacts.isEmpty) return false;
-    final hasPrimary = await contactRepository.hasPrimaryContact(user.id);
-    if (!hasPrimary) return false;
+    final target = escalationTarget ??
+        EmergencyEscalationTarget.normalize(
+          (await userRepository.getProfile(user.id))?[
+              'emergency_escalation_target'],
+        );
+    final useOfficial999 = target == EmergencyEscalationTarget.official999;
+
+    List<Map<String, dynamic>> contacts = const [];
+    if (!useOfficial999) {
+      final primaryContact = await contactRepository.getPrimaryContact(user.id);
+      contacts = primaryContact == null ? const [] : [primaryContact];
+      if (contacts.isEmpty) {
+        return const EmergencyTriggerResult(
+          alertRecorded: false,
+          primarySmsComposerOpened: false,
+        );
+      }
+      final hasPrimary = await contactRepository.hasPrimaryContact(user.id);
+      if (!hasPrimary) {
+        return const EmergencyTriggerResult(
+          alertRecorded: false,
+          primarySmsComposerOpened: false,
+        );
+      }
+    }
+
     final alert = await _retry(
       () => emergencyRepository.createAlert(user.id),
       attempts: 3,
     );
     final position = await locationService.getCurrentPosition();
     final alertId = alert['id'] ?? alert['alert_id'];
-    if (alertId != null) {
+    var autoSmsAttempted = false;
+    var autoSmsSent = 0;
+    var autoSmsFailed = 0;
+    String? autoSmsError;
+
+    if (sendAutomatedSms && !useOfficial999 && contacts.isNotEmpty) {
+      autoSmsAttempted = true;
+      final directDelivery = await _sendDirectSmsToContacts(
+        contacts,
+        _emergencyMessage(position),
+      );
+      autoSmsSent += directDelivery.sent;
+      autoSmsFailed += directDelivery.failed;
+      autoSmsError = directDelivery.error;
+    }
+
+    var smsOutboxCreated = false;
+    if (alertId != null && !useOfficial999 && autoSmsSent == 0) {
       try {
         await _retry(
           () => emergencyRepository.createDeliveryOutbox(
             alertId: alertId,
             userId: user.id,
             contacts: contacts,
+            messageBody: _emergencyMessage(position),
           ),
           attempts: 3,
         );
+        smsOutboxCreated = true;
       } catch (_) {
         // The alert remains recorded even if delivery queue creation fails.
       }
@@ -71,7 +190,98 @@ class EmergencyService {
         // is unavailable or the optional locations table is not configured.
       }
     }
-    return true;
+    var dialerOpened = false;
+    String? official999Error;
+    if (useOfficial999 && allow999Dialer) {
+      try {
+        await callMalaysiaEmergency999();
+        dialerOpened = true;
+      } catch (error) {
+        official999Error = error.toString();
+      }
+    }
+    if (smsOutboxCreated && sendAutomatedSms && !useOfficial999) {
+      autoSmsAttempted = true;
+      try {
+        final delivery = await emergencyRepository.processPendingSms();
+        autoSmsSent = _intFrom(delivery['sent']);
+        autoSmsFailed = _intFrom(delivery['failed']);
+        final error = delivery['error']?.toString();
+        if (error != null && error.trim().isNotEmpty) {
+          autoSmsError = _joinErrors(autoSmsError, error);
+        }
+      } catch (error) {
+        autoSmsError = _joinErrors(autoSmsError, error.toString());
+      }
+    }
+    var primarySmsComposerOpened = false;
+    if (openPrimarySmsComposer) {
+      final primaryContact = await contactRepository.getPrimaryContact(user.id);
+      if (primaryContact != null) {
+        primarySmsComposerOpened = await _openSmsComposer(
+          phone: primaryContact['phone']?.toString() ?? '',
+          message: _emergencyMessage(position),
+        );
+      }
+    }
+    return EmergencyTriggerResult(
+      alertRecorded: true,
+      primarySmsComposerOpened: primarySmsComposerOpened,
+      official999Selected: useOfficial999,
+      dialerOpened: dialerOpened,
+      autoSmsAttempted: autoSmsAttempted,
+      autoSmsSent: autoSmsSent,
+      autoSmsFailed: autoSmsFailed,
+      autoSmsError: official999Error ?? autoSmsError,
+    );
+  }
+
+  String _emergencyMessage(Position? position) {
+    final locationText = position == null
+        ? ''
+        : '\nLocation: https://maps.google.com/?q=${position.latitude},${position.longitude}';
+    return 'Emergency alert from EthernaCare. The user may need help. Please contact them immediately.$locationText';
+  }
+
+  Future<bool> _openSmsComposer({
+    required String phone,
+    required String message,
+  }) async {
+    final normalizedPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (normalizedPhone.isEmpty) return false;
+    final uri = Uri(
+      scheme: 'sms',
+      path: normalizedPhone,
+      queryParameters: {'body': message},
+    );
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<_SmsDeliveryAttempt> _sendDirectSmsToContacts(
+    List<Map<String, dynamic>> contacts,
+    String message,
+  ) async {
+    var sent = 0;
+    var failed = 0;
+    final errors = <String>[];
+    for (final contact in contacts) {
+      final result = await directSmsService.send(
+        phone: contact['phone']?.toString() ?? '',
+        message: message,
+      );
+      if (result.sent) {
+        sent += 1;
+      } else {
+        failed += 1;
+        final error = result.error;
+        if (error != null && error.trim().isNotEmpty) errors.add(error);
+      }
+    }
+    return _SmsDeliveryAttempt(
+      sent: sent,
+      failed: failed,
+      error: errors.isEmpty ? null : errors.join(' '),
+    );
   }
 
   Future<T> _retry<T>(
@@ -91,4 +301,27 @@ class EmergencyService {
     }
     throw lastError!;
   }
+
+  int _intFrom(Object? value) {
+    if (value is int) return value;
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String? _joinErrors(String? first, String second) {
+    if (first == null || first.trim().isEmpty) return second;
+    if (second.trim().isEmpty) return first;
+    return '$first $second';
+  }
+}
+
+class _SmsDeliveryAttempt {
+  const _SmsDeliveryAttempt({
+    required this.sent,
+    required this.failed,
+    this.error,
+  });
+
+  final int sent;
+  final int failed;
+  final String? error;
 }

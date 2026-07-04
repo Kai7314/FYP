@@ -10,9 +10,9 @@ create table if not exists public.users (
   address text,
   address_state text,
   address_region text,
-  age integer,
   blood_type text,
   inactivity_threshold integer not null default 24,
+  emergency_escalation_target text not null default 'primary_contact',
   terms_version text,
   terms_accepted_at timestamptz,
   profile_completed_at timestamptz
@@ -24,12 +24,16 @@ alter table public.users
   add column if not exists address text,
   add column if not exists address_state text,
   add column if not exists address_region text,
-  add column if not exists age integer,
   add column if not exists blood_type text,
   add column if not exists inactivity_threshold integer not null default 24,
+  add column if not exists emergency_escalation_target text not null default 'primary_contact',
   add column if not exists terms_version text,
   add column if not exists terms_accepted_at timestamptz,
   add column if not exists profile_completed_at timestamptz;
+
+update public.users
+set emergency_escalation_target = 'primary_contact'
+where emergency_escalation_target = 'trusted_contacts';
 
 create table if not exists public.checkins (
   id uuid primary key default gen_random_uuid(),

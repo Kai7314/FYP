@@ -123,12 +123,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final horizontalPadding = MediaQuery.sizeOf(context).width < 360 ? 14.0 : 20.0;
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: contactsFuture,
       builder: (context, snapshot) {
         final rows = snapshot.data ?? [];
         return ListView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          padding: EdgeInsets.fromLTRB(horizontalPadding, 20, horizontalPadding, 24),
           children: [
             PremiumHeader(
               title: 'Emergency Contacts',
@@ -265,7 +266,9 @@ class _ContactCard extends StatelessWidget {
                             ),
                             SizedBox(width: 4),
                             Text(
-                              'Primary emergency contact',
+                              'Primary contact',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: AppColors.primaryDark,
                                 fontSize: 11,
@@ -278,6 +281,8 @@ class _ContactCard extends StatelessWidget {
                     ],
                     Text(
                       row['relationship']?.toString() ?? 'Trusted contact',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: AppColors.muted),
                     ),
                     const SizedBox(height: 3),
@@ -292,6 +297,8 @@ class _ContactCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             row['phone']?.toString() ?? 'No phone',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13),
                           ),
                         ),
@@ -319,6 +326,8 @@ class _ContactCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               row['address']?.toString() ?? 'No address',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: AppColors.muted,
                                 fontSize: 12,

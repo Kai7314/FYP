@@ -10,12 +10,16 @@ alter table public.users
   add column if not exists name text not null default 'EthernaCare User',
   add column if not exists phone text,
   add column if not exists address text,
-  add column if not exists age integer,
   add column if not exists blood_type text,
   add column if not exists inactivity_threshold integer not null default 24,
+  add column if not exists emergency_escalation_target text not null default 'primary_contact',
   add column if not exists terms_version text,
   add column if not exists terms_accepted_at timestamptz,
   add column if not exists profile_completed_at timestamptz;
+
+update public.users
+set emergency_escalation_target = 'primary_contact'
+where emergency_escalation_target = 'trusted_contacts';
 
 alter table public.users
   drop constraint if exists users_name_format;
@@ -25,12 +29,6 @@ alter table public.users
     char_length(btrim(name)) between 2 and 50
     and btrim(name) ~ '^[A-Za-z][A-Za-z .''-]*$'
   ) not valid;
-
-alter table public.users
-  drop constraint if exists users_age_range;
-alter table public.users
-  add constraint users_age_range
-  check (age is null or age between 18 and 120) not valid;
 
 alter table public.users
   drop constraint if exists users_blood_type;
@@ -47,6 +45,14 @@ alter table public.users
 alter table public.users
   add constraint users_inactivity_threshold_range
   check (inactivity_threshold between 1 and 168) not valid;
+
+alter table public.users
+  drop constraint if exists users_emergency_escalation_target;
+alter table public.users
+  add constraint users_emergency_escalation_target
+  check (
+    emergency_escalation_target in ('primary_contact', 'official_999')
+  ) not valid;
 
 alter table public.users
   drop constraint if exists users_phone_format;
@@ -198,6 +204,43 @@ before update of is_primary on public.contacts
 for each row
 when (new.is_primary is true and old.is_primary is distinct from new.is_primary)
 execute function public.promote_primary_contact();
+
+create or replace function public.set_primary_contact(p_contact_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_user_id uuid;
+begin
+  select user_id
+  into target_user_id
+  from public.contacts
+  where id = p_contact_id;
+
+  if target_user_id is null then
+    raise exception 'Contact not found';
+  end if;
+
+  if target_user_id <> auth.uid() then
+    raise exception 'Not allowed to update this contact';
+  end if;
+
+  update public.contacts
+  set is_primary = false
+  where user_id = target_user_id
+    and id <> p_contact_id
+    and is_primary;
+
+  update public.contacts
+  set is_primary = true
+  where id = p_contact_id
+    and user_id = target_user_id;
+end;
+$$;
+
+grant execute on function public.set_primary_contact(uuid) to authenticated;
 
 -- In Supabase Dashboard > Authentication > Sign In / Providers > Email:
 -- set the minimum password length to 8. Flutter additionally requires an

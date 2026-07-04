@@ -6,18 +6,25 @@ class AiService {
 
   final SupabaseClient client;
 
-  Future<String> ask(String question) async {
+  Future<String> ask(String question) => askGuidance(question);
+
+  Future<String> askGuidance(String question) async {
     final trimmed = question.trim();
     if (trimmed.isEmpty) return 'Please enter a question.';
 
     try {
-      final response = await client.functions.invoke(
-        'ai-guidance',
-        body: {'question': trimmed},
-      );
+      final response = await client.functions
+          .invoke('ai-guidance', body: {'question': trimmed})
+          .timeout(const Duration(seconds: 25));
       final data = response.data;
-      if (data is Map && data['answer'] != null) {
-        return data['answer'].toString();
+      if (data is Map) {
+        final answer = data['answer']?.toString().trim();
+        if (answer != null && answer.isNotEmpty) return answer;
+
+        final error = data['error']?.toString().trim();
+        if (error != null && error.isNotEmpty) {
+          return 'AI guidance is unavailable right now: $error';
+        }
       }
     } catch (_) {
       // Fall back to offline guidance when the Edge Function is unavailable.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/malaysia_locations.dart';
+import '../../../models/emergency_escalation_target.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
@@ -27,11 +28,11 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
   late final TextEditingController nameController;
   late final TextEditingController phoneController;
   late final TextEditingController addressController;
-  late final TextEditingController ageController;
-  late final TextEditingController bloodTypeController;
   late final TextEditingController thresholdController;
   String? selectedState;
   String? selectedRegion;
+  String? selectedBloodType;
+  String escalationTarget = EmergencyEscalationTarget.trustedContacts;
   late String phoneDialCode;
   bool acceptedTerms = false;
   bool saving = false;
@@ -50,14 +51,12 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     addressController = TextEditingController(
       text: widget.profile['address']?.toString() ?? '',
     );
-    ageController = TextEditingController(
-      text: widget.profile['age']?.toString() ?? '',
-    );
-    bloodTypeController = TextEditingController(
-      text: widget.profile['blood_type']?.toString() ?? '',
-    );
+    selectedBloodType = _initialBloodType();
     thresholdController = TextEditingController(
       text: widget.profile['inactivity_threshold']?.toString() ?? '24',
+    );
+    escalationTarget = EmergencyEscalationTarget.normalize(
+      widget.profile['emergency_escalation_target'],
     );
     selectedState = _initialState();
     selectedRegion = _initialRegion(selectedState);
@@ -76,13 +75,16 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     return regions.any((location) => location.region == value) ? value : null;
   }
 
+  String? _initialBloodType() {
+    final value = widget.profile['blood_type']?.toString().toUpperCase();
+    return AppValidators.bloodTypes.contains(value) ? value : null;
+  }
+
   @override
   void dispose() {
     nameController.dispose();
     phoneController.dispose();
     addressController.dispose();
-    ageController.dispose();
-    bloodTypeController.dispose();
     thresholdController.dispose();
     super.dispose();
   }
@@ -105,9 +107,9 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
         'address': AppValidators.normalizeSpaces(addressController.text),
         'address_state': selectedState,
         'address_region': selectedRegion,
-        'age': int.parse(ageController.text.trim()),
-        'blood_type': bloodTypeController.text.trim().toUpperCase(),
+        'blood_type': selectedBloodType,
         'inactivity_threshold': int.parse(thresholdController.text.trim()),
+        'emergency_escalation_target': escalationTarget,
       });
       if (mounted) widget.onComplete();
     } catch (error) {
@@ -186,32 +188,22 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                         setState(() => selectedRegion = value),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: ageController,
-                          keyboardType: TextInputType.number,
-                          validator: (value) =>
-                              AppValidators.age(value ?? '', required: true),
-                          decoration: const InputDecoration(labelText: 'Age'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: bloodTypeController,
-                          textCapitalization: TextCapitalization.characters,
-                          validator: (value) => AppValidators.bloodType(
-                            value ?? '',
-                            required: true,
+                  DropdownButtonFormField<String>(
+                    value: selectedBloodType,
+                    items: AppValidators.bloodTypes
+                        .map(
+                          (type) => DropdownMenuItem(
+                            value: type,
+                            child: Text(type),
                           ),
-                          decoration: const InputDecoration(
-                            labelText: 'Blood type',
-                          ),
-                        ),
-                      ),
-                    ],
+                        )
+                        .toList(),
+                    onChanged: saving
+                        ? null
+                        : (value) => setState(() => selectedBloodType = value),
+                    validator: (value) =>
+                        AppValidators.bloodType(value ?? '', required: true),
+                    decoration: const InputDecoration(labelText: 'Blood type'),
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
@@ -222,6 +214,36 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Inactivity threshold (hours)',
                       helperText: 'Between 1 and 168 hours',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: escalationTarget,
+                    items: EmergencyEscalationTarget.values
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text(EmergencyEscalationTarget.label(value)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: saving
+                        ? null
+                        : (value) => setState(
+                            () => escalationTarget =
+                                EmergencyEscalationTarget.normalize(value),
+                          ),
+                    decoration: const InputDecoration(
+                      labelText: 'Inactivity escalation',
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    EmergencyEscalationTarget.description(escalationTarget),
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      height: 1.35,
                     ),
                   ),
                 ],

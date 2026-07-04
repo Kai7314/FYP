@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../models/emergency_escalation_target.dart';
 import '../../../models/location_model.dart';
 import '../../../models/oren_care_model.dart';
 import '../../../models/reward_model.dart';
@@ -14,6 +15,7 @@ import '../../../services/inactivity_service.dart';
 import '../../../services/oren_care_service.dart';
 import '../../../services/oren_sound_service.dart';
 import '../../../services/reward_service.dart';
+import '../../../services/user_service.dart';
 import '../../../services/weather_service.dart';
 import '../checkin/checkin_history_screen.dart';
 import '../contacts/contacts_screen.dart';
@@ -36,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final weatherService = WeatherService();
   final orenCareService = OrenCareService();
   final orenSoundService = OrenSoundService();
+  final userService = UserService();
 
   int selectedIndex = 0;
   bool loading = false;
@@ -48,6 +51,9 @@ class _HomeScreenState extends State<HomeScreen> {
   RewardSnapshot? rewardSnapshot;
   WeatherSnapshot? weather;
   OrenCareState orenCare = OrenCareState.initial();
+  Timer? testAlarmTimer;
+  bool testAlarmArmed = false;
+  int testAlarmSecondsRemaining = 0;
   late final List<Widget> persistentPages;
 
   @override
@@ -82,7 +88,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() => orenCare = careState);
       unawaited(orenSoundService.playPet());
       final created = await CheckinService().addCheckin();
-      if (created) await RewardService().checkReward();
+      if (created) {
+        final rewardedState = await orenCareService.awardDailyCheckInTokens();
+        if (mounted) setState(() => orenCare = rewardedState);
+        await RewardService().checkReward();
+      }
       await _loadDashboard();
       if (!mounted) return;
       _showMessage(
@@ -210,16 +220,134 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      final sent = await EmergencyService().triggerEmergency();
+      final result = await EmergencyService().triggerEmergencyDetailed(
+        openPrimarySmsComposer: false,
+        sendAutomatedSms: true,
+        allow999Dialer: true,
+      );
       if (!mounted) return;
       _showMessage(
-        sent
-            ? 'Emergency alert recorded for your trusted contacts.'
+        result.alertRecorded
+            ? _emergencyResultMessage(result)
             : 'Add a primary emergency contact before sending an alert.',
       );
     } catch (error) {
       if (mounted) _showMessage('Could not send emergency alert: $error');
     }
+  }
+
+  Future<void> _testPrimarySms() async {
+    try {
+      final sent = await EmergencyService().sendPrimaryContactTestSms();
+      if (!mounted) return;
+      _showMessage(
+        sent
+            ? 'Automated test SMS sent to your primary contact.'
+            : 'Add a primary emergency contact before testing SMS.',
+      );
+    } catch (error) {
+      if (mounted) _showMessage('Could not send test SMS: $error');
+    }
+  }
+
+  Future<void> _armInactivityAlarmTest() async {
+    if (testAlarmArmed) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(
+          Icons.alarm_on_outlined,
+          color: AppColors.accent,
+          size: 38,
+        ),
+        title: const Text('Test inactivity alarm?'),
+        content: const Text(
+          'This waits 10 seconds, records a test inactivity alert, and sends an automated SMS to your primary contact. It will not open or call 999.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start 10s Test'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    testAlarmTimer?.cancel();
+    setState(() {
+      testAlarmArmed = true;
+      testAlarmSecondsRemaining = 10;
+    });
+    _showMessage('Safe inactivity alarm test armed for 10 seconds.');
+
+    testAlarmTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (testAlarmSecondsRemaining <= 1) {
+        timer.cancel();
+        unawaited(_fireInactivityAlarmTest());
+        return;
+      }
+      setState(() => testAlarmSecondsRemaining -= 1);
+    });
+  }
+
+  Future<void> _fireInactivityAlarmTest() async {
+    if (mounted) {
+      setState(() {
+        testAlarmArmed = false;
+        testAlarmSecondsRemaining = 0;
+      });
+    }
+
+    try {
+      final result = await EmergencyService().triggerEmergencyDetailed(
+        openPrimarySmsComposer: false,
+        sendAutomatedSms: true,
+        allow999Dialer: false,
+        escalationTarget: EmergencyEscalationTarget.primaryContact,
+      );
+      if (!mounted) return;
+      await _loadDashboard();
+      _showMessage(
+        result.alertRecorded
+            ? 'Test inactivity alarm triggered safely. ${_emergencyResultMessage(result)}'
+            : 'Add a primary emergency contact before testing the alarm.',
+      );
+    } catch (error) {
+      if (mounted) {
+        _showMessage('Could not trigger test inactivity alarm: $error');
+      }
+    }
+  }
+
+  String _emergencyResultMessage(EmergencyTriggerResult result) {
+    if (result.official999Selected) {
+      return result.dialerOpened
+          ? 'Emergency alert recorded. The 999 dialer is open for you to place the call.'
+          : 'Emergency alert recorded. Call 999 directly for immediate help.';
+    }
+    if (result.autoSmsSent > 0) {
+      return 'Emergency alert recorded. Automated SMS sent to your primary contact.';
+    }
+    if (result.autoSmsAttempted) {
+      final error = result.autoSmsError;
+      if (error != null && error.trim().isNotEmpty) {
+        return 'Emergency alert recorded, but automated SMS did not send: $error';
+      }
+      return 'Emergency alert recorded. SMS is queued for automated delivery.';
+    }
+    if (result.primarySmsComposerOpened) {
+      return 'Emergency alert recorded. SMS composer opened for your primary contact.';
+    }
+    return 'Emergency alert recorded. SMS is queued for your primary contact.';
   }
 
   void _showMessage(String message) {
@@ -228,8 +356,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _signOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.logout),
+        title: const Text('Sign out?'),
+        content: const Text('You will return to the login screen.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await userService.signOut();
+    } catch (error) {
+      if (mounted) _showMessage('Could not sign out: $error');
+    }
+  }
+
   @override
   void dispose() {
+    testAlarmTimer?.cancel();
     unawaited(orenSoundService.dispose());
     super.dispose();
   }
@@ -253,6 +409,11 @@ class _HomeScreenState extends State<HomeScreen> {
       onBuyToy: _buyToy,
       onPlayToy: _playWithToy,
       onSos: _triggerSos,
+      onTestSms: _testPrimarySms,
+      onTestInactivityAlarm: _armInactivityAlarmTest,
+      testAlarmArmed: testAlarmArmed,
+      testAlarmSecondsRemaining: testAlarmSecondsRemaining,
+      onSignOut: _signOut,
       onRefresh: _loadDashboard,
     );
 
@@ -324,6 +485,11 @@ class _HomeDashboard extends StatelessWidget {
     required this.onBuyToy,
     required this.onPlayToy,
     required this.onSos,
+    required this.onTestSms,
+    required this.onTestInactivityAlarm,
+    required this.testAlarmArmed,
+    required this.testAlarmSecondsRemaining,
+    required this.onSignOut,
     required this.onRefresh,
   });
 
@@ -342,10 +508,16 @@ class _HomeDashboard extends StatelessWidget {
   final void Function(OrenToy toy) onBuyToy;
   final void Function(OrenToy toy) onPlayToy;
   final VoidCallback onSos;
+  final VoidCallback onTestSms;
+  final VoidCallback onTestInactivityAlarm;
+  final bool testAlarmArmed;
+  final int testAlarmSecondsRemaining;
+  final VoidCallback onSignOut;
   final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
+    final horizontalPadding = MediaQuery.sizeOf(context).width < 360 ? 14.0 : 20.0;
     final checkedToday =
         lastCheckin != null && DateUtils.isSameDay(lastCheckin, DateTime.now());
     final greeting = DateTime.now().hour < 12
@@ -362,7 +534,7 @@ class _HomeDashboard extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+        padding: EdgeInsets.fromLTRB(horizontalPadding, 18, horizontalPadding, 24),
         children: [
           Row(
             children: [
@@ -391,21 +563,36 @@ class _HomeDashboard extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: AppColors.heroGradient),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x3500B884),
-                      blurRadius: 12,
-                      offset: Offset(0, 5),
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: AppColors.heroGradient,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x3500B884),
+                          blurRadius: 12,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Icon(Icons.shield_outlined, color: Colors.white),
+                    child: const Icon(
+                      Icons.shield_outlined,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: onSignOut,
+                    icon: const Icon(Icons.logout),
+                    tooltip: 'Sign out',
+                  ),
+                ],
               ),
             ],
           ),
@@ -527,7 +714,12 @@ class _HomeDashboard extends StatelessWidget {
             hasCheckedInToday: checkedToday,
             weather: weather,
             mood: orenCare.mood,
-            lastAction: orenCare.lastAction,
+          ),
+          const SizedBox(height: 12),
+          _OrenStatusBar(
+            message: orenCare.lastAction,
+            mood: orenCare.mood,
+            energy: orenCare.energy,
           ),
           const SizedBox(height: 12),
           _OrenCarePanel(
@@ -617,6 +809,36 @@ class _HomeDashboard extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: onTestSms,
+            icon: const Icon(Icons.sms_outlined),
+            label: const Text('Send Test SMS Automatically'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: testAlarmArmed ? null : onTestInactivityAlarm,
+            icon: const Icon(Icons.alarm_on_outlined),
+            label: Text(
+              testAlarmArmed
+                  ? 'Test alarm in ${testAlarmSecondsRemaining}s'
+                  : 'Test Inactivity Alarm (10s)',
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              minimumSize: const Size.fromHeight(52),
+              side: const BorderSide(color: AppColors.accent),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -641,28 +863,90 @@ class _MiniStat extends StatelessWidget {
     return GlassPanel(
       padding: const EdgeInsets.all(13),
       child: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: color.withValues(alpha: .12),
-              foregroundColor: color,
-              child: Icon(icon, size: 20),
-            ),
-            const SizedBox(width: 10),
-            Column(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: color.withValues(alpha: .12),
+            foregroundColor: color,
+            child: Icon(icon, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
                 Text(
                   value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ],
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrenStatusBar extends StatelessWidget {
+  const _OrenStatusBar({
+    required this.message,
+    required this.mood,
+    required this.energy,
+  });
+
+  final String message;
+  final String mood;
+  final int energy;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassPanel(
+      color: Colors.white.withValues(alpha: .78),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            radius: 18,
+            backgroundColor: AppColors.primarySoft,
+            foregroundColor: AppColors.primaryDark,
+            child: Icon(Icons.pets, size: 19),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message.trim().isEmpty ? 'Oren is ready for today.' : message,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Mood: $mood - Energy: $energy%',
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -721,30 +1005,44 @@ class _OrenCarePanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onFeedFish,
-                    icon: const Icon(Icons.set_meal_outlined),
-                    label: const Text('Feed Fish'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: state.ownedToyIds.isEmpty
-                        ? null
-                        : () => onPlayToy(
-                            OrenCareService.toyCatalog.firstWhere(
-                              (toy) => state.ownedToyIds.contains(toy.id),
-                            ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final feedButton = OutlinedButton.icon(
+                  onPressed: onFeedFish,
+                  icon: const Icon(Icons.set_meal_outlined),
+                  label: const Text('Feed Fish'),
+                );
+                final playButton = OutlinedButton.icon(
+                  onPressed: state.ownedToyIds.isEmpty
+                      ? null
+                      : () => onPlayToy(
+                          OrenCareService.toyCatalog.firstWhere(
+                            (toy) => state.ownedToyIds.contains(toy.id),
                           ),
-                    icon: const Icon(Icons.sports_esports_outlined),
-                    label: const Text('Play'),
-                  ),
-                ),
-              ],
+                        ),
+                  icon: const Icon(Icons.sports_esports_outlined),
+                  label: const Text('Play'),
+                );
+
+                if (constraints.maxWidth < 310) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      feedButton,
+                      const SizedBox(height: 10),
+                      playButton,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: feedButton),
+                    const SizedBox(width: 10),
+                    Expanded(child: playButton),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 14),
             const Text(

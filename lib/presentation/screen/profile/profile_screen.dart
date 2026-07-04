@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/malaysia_locations.dart';
+import '../../../models/emergency_escalation_target.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
@@ -66,8 +67,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context, snapshot) {
         final profile = snapshot.data ?? {};
         final name = profile['name']?.toString() ?? 'EthernaCare User';
-        final age = profile['age']?.toString() ?? '--';
-        final bloodType = profile['blood_type']?.toString() ?? '--';
+        final bloodType = profile['blood_type']?.toString();
+        final bloodTypeLabel = (bloodType == null || bloodType.isEmpty)
+            ? 'Not provided'
+            : bloodType;
+        final escalationTarget = EmergencyEscalationTarget.normalize(
+          profile['emergency_escalation_target'],
+        );
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
@@ -129,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         Text(
-                          '$age years old - $bloodType',
+                          'Blood type: $bloodTypeLabel',
                           style: const TextStyle(color: Colors.white),
                         ),
                         const SizedBox(height: 5),
@@ -195,17 +201,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 17),
             _InfoSection(
-              title: 'MEDICAL INFORMATION',
+              title: 'SAFETY SETTINGS',
               children: [
                 _InfoTile(
                   icon: Icons.bloodtype_outlined,
                   label: 'Blood Type',
-                  value: bloodType,
+                  value: bloodTypeLabel,
                 ),
                 _InfoTile(
                   icon: Icons.timer_outlined,
                   label: 'Inactivity Threshold',
                   value: '${profile['inactivity_threshold'] ?? 24} hours',
+                ),
+                _InfoTile(
+                  icon: Icons.emergency_share_outlined,
+                  iconColor: AppColors.danger,
+                  label: 'Escalation Target',
+                  value: EmergencyEscalationTarget.label(escalationTarget),
                 ),
               ],
             ),
@@ -375,11 +387,11 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   late final TextEditingController nameController;
   late final TextEditingController phoneController;
   late final TextEditingController addressController;
-  late final TextEditingController ageController;
-  late final TextEditingController bloodTypeController;
   late final TextEditingController thresholdController;
   String? selectedState;
   String? selectedRegion;
+  String? selectedBloodType;
+  late String escalationTarget;
   late String phoneDialCode;
 
   @override
@@ -396,14 +408,12 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     addressController = TextEditingController(
       text: widget.profile['address']?.toString() ?? '',
     );
-    ageController = TextEditingController(
-      text: widget.profile['age']?.toString() ?? '',
-    );
-    bloodTypeController = TextEditingController(
-      text: widget.profile['blood_type']?.toString() ?? '',
-    );
+    selectedBloodType = _initialBloodType();
     thresholdController = TextEditingController(
       text: widget.profile['inactivity_threshold']?.toString() ?? '24',
+    );
+    escalationTarget = EmergencyEscalationTarget.normalize(
+      widget.profile['emergency_escalation_target'],
     );
     selectedState = _initialState();
     selectedRegion = _initialRegion(selectedState);
@@ -420,13 +430,16 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     return regions.any((location) => location.region == value) ? value : null;
   }
 
+  String? _initialBloodType() {
+    final value = widget.profile['blood_type']?.toString().toUpperCase();
+    return AppValidators.bloodTypes.contains(value) ? value : null;
+  }
+
   @override
   void dispose() {
     nameController.dispose();
     phoneController.dispose();
     addressController.dispose();
-    ageController.dispose();
-    bloodTypeController.dispose();
     thresholdController.dispose();
     super.dispose();
   }
@@ -435,7 +448,6 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
     final name = AppValidators.normalizeSpaces(nameController.text);
-    final age = int.tryParse(ageController.text.trim());
     final threshold = int.tryParse(thresholdController.text.trim());
 
     Navigator.pop(context, {
@@ -447,9 +459,9 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       'address': AppValidators.normalizeSpaces(addressController.text),
       'address_state': selectedState,
       'address_region': selectedRegion,
-      'age': age,
-      'blood_type': bloodTypeController.text.trim().toUpperCase(),
+      'blood_type': selectedBloodType,
       'inactivity_threshold': threshold,
+      'emergency_escalation_target': escalationTarget,
     });
   }
 
@@ -491,15 +503,18 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                     setState(() => selectedRegion = value),
               ),
               const SizedBox(height: 10),
-              TextFormField(
-                controller: ageController,
-                keyboardType: TextInputType.number,
-                validator: (value) => AppValidators.age(value ?? ''),
-                decoration: const InputDecoration(labelText: 'Age'),
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: bloodTypeController,
+              DropdownButtonFormField<String>(
+                value: selectedBloodType,
+                items: AppValidators.bloodTypes
+                    .map(
+                      (type) => DropdownMenuItem(
+                        value: type,
+                        child: Text(type),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    setState(() => selectedBloodType = value),
                 validator: (value) => AppValidators.bloodType(value ?? ''),
                 decoration: const InputDecoration(labelText: 'Blood type'),
               ),
@@ -512,6 +527,34 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Inactivity threshold (hours)',
                   helperText: 'Between 1 and 168 hours',
+                ),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: escalationTarget,
+                items: EmergencyEscalationTarget.values
+                    .map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(EmergencyEscalationTarget.label(value)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(
+                  () => escalationTarget =
+                      EmergencyEscalationTarget.normalize(value),
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Inactivity escalation',
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                EmergencyEscalationTarget.description(escalationTarget),
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  height: 1.35,
                 ),
               ),
             ],

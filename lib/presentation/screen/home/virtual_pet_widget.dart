@@ -98,7 +98,7 @@ class VirtualPetWidget extends StatelessWidget {
                   child: _Badge(
                     text: weather == null
                         ? 'Weather unavailable'
-                        : '${weather!.malaysiaRegion}: ${weather!.description} ${weather!.temperatureCelsius.round()} C',
+                        : '${weather!.compactMalaysiaRegion} - ${weather!.description} - ${weather!.temperatureCelsius.round()} C',
                     icon: Icons.cloud_outlined,
                     alignRight: true,
                   ),

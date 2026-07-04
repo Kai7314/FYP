@@ -32,6 +32,9 @@ class AppErrorDialog {
     if (lowered.contains('you can add up to')) {
       return 'You can add up to 5 emergency contacts only.';
     }
+    if (lowered.contains('contacts_one_primary_per_user')) {
+      return 'The primary contact was changed on the server. Refresh the contacts list and try again if it does not update.';
+    }
     if (lowered.contains('already an emergency contact') ||
         lowered.contains('duplicate key')) {
       return 'This phone number is already saved as an emergency contact.';

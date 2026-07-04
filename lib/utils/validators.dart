@@ -24,6 +24,16 @@ class AppValidators {
   static const maxDisplayNameLength = 50;
   static const maxPhoneDigits = 15;
   static const maxAddressLength = 200;
+  static const bloodTypes = [
+    'A+',
+    'A-',
+    'B+',
+    'B-',
+    'AB+',
+    'AB-',
+    'O+',
+    'O-',
+  ];
   static const defaultPhoneCountry = PhoneCountry(
     name: 'Malaysia',
     isoCode: 'MY',
@@ -303,21 +313,11 @@ class AppValidators {
     return null;
   }
 
-  static String? age(String value, {bool required = false}) {
-    if (value.trim().isEmpty) return required ? 'Age is required.' : null;
-    final age = int.tryParse(value.trim());
-    if (age == null || age < 18 || age > 120) {
-      return 'Age must be between 18 and 120.';
-    }
-    return null;
-  }
-
   static String? bloodType(String value, {bool required = false}) {
     if (value.trim().isEmpty) {
       return required ? 'Blood type is required.' : null;
     }
-    const allowed = {'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'};
-    if (!allowed.contains(value.trim().toUpperCase())) {
+    if (!bloodTypes.contains(value.trim().toUpperCase())) {
       return 'Use A+, A-, B+, B-, AB+, AB-, O+, or O-.';
     }
     return null;

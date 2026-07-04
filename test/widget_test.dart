@@ -213,29 +213,23 @@ void main() {
     expect(find.byType(AddContactDialog), findsOneWidget);
   });
 
-  testWidgets('profile dialog validates age and accepts valid details', (
+  testWidgets('profile dialog accepts selected blood type and valid details', (
     tester,
   ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
           body: EditProfileDialog(
-            profile: {'name': 'Kai Heng', 'inactivity_threshold': 24},
+            profile: {
+              'name': 'Kai Heng',
+              'blood_type': 'O+',
+              'inactivity_threshold': 24,
+            },
           ),
         ),
       ),
     );
 
-    await tester.enterText(find.widgetWithText(TextFormField, 'Age'), '10');
-    await tester.tap(find.text('Save'));
-    await tester.pump();
-    expect(find.text('Age must be between 18 and 120.'), findsOneWidget);
-
-    await tester.enterText(find.widgetWithText(TextFormField, 'Age'), '70');
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Blood type'),
-      'O+',
-    );
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.byType(EditProfileDialog), findsNothing);
@@ -290,6 +284,7 @@ void main() {
     expect(rainy.backgroundAsset, endsWith('raining.jpg'));
     expect(night.backgroundAsset, endsWith('night.jpg'));
     expect(rainy.malaysiaRegion, 'Klang Valley');
+    expect(rainy.compactMalaysiaRegion, 'KV');
   });
 
   test('validation rules enforce account and contact limits', () {
@@ -331,7 +326,6 @@ void main() {
         'address': 'Kuala Lumpur',
         'address_state': 'Selangor',
         'address_region': 'Klang Valley',
-        'age': 72,
         'blood_type': 'O+',
         'inactivity_threshold': 24,
       }),
@@ -345,7 +339,6 @@ void main() {
         'address': 'Kuala Lumpur',
         'address_state': 'Selangor',
         'address_region': 'Klang Valley',
-        'age': 72,
         'blood_type': 'O+',
         'inactivity_threshold': 24,
         'terms_accepted_at': '2026-06-24T00:00:00Z',

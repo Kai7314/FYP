@@ -82,6 +82,73 @@ class WeatherSnapshot {
     return 'Malaysia';
   }
 
+  String get compactMalaysiaRegion {
+    final region = malaysiaRegion.trim();
+    if (region.isEmpty) return 'MY';
+    const aliases = {
+      'Current location': 'Current',
+      'Kedah / Perlis': 'KD/PLS',
+      'Melaka / Johor': 'MLK/JHR',
+      'Negeri Sembilan / Pahang': 'NS/PHG',
+      'Sabah / Labuan': 'SBH/LBN',
+      'Klang Valley': 'KV',
+      'Kuala Lumpur': 'KL',
+      'Johor Bahru': 'JB',
+      'Batu Pahat': 'BP',
+      'Kota Tinggi': 'KTG',
+      'Alor Setar': 'AS',
+      'Sungai Petani': 'SP',
+      'Gua Musang': 'GM',
+      'Kota Bharu': 'KB',
+      'Kuala Krai': 'KK',
+      'Pasir Mas': 'PM',
+      'Tanah Merah': 'TM',
+      'Alor Gajah': 'AG',
+      'Melaka Tengah': 'MT',
+      'Negeri Sembilan': 'NS',
+      'Kuala Pilah': 'KP',
+      'Port Dickson': 'PD',
+      'Cameron Highlands': 'CH',
+      'Bukit Mertajam': 'BM',
+      'George Town': 'GT',
+      'Nibong Tebal': 'NT',
+      'Kuala Kangsar': 'KKG',
+      'Teluk Intan': 'TI',
+      'Padang Besar': 'PB',
+      'Kota Kinabalu': 'KK',
+      'Lahad Datu': 'LD',
+      'Sri Aman': 'SA',
+      'Kuala Selangor': 'KS',
+      'Petaling Jaya': 'PJ',
+      'Shah Alam': 'SA',
+      'Kuala Terengganu': 'KT',
+    };
+    final alias = aliases[region];
+    if (alias != null) return alias;
+    if (region.length <= 10) return region;
+    if (region.contains('/')) {
+      return region
+          .split('/')
+          .map((part) => _abbreviatePlace(part.trim()))
+          .join('/');
+    }
+    return _abbreviatePlace(region);
+  }
+
+  String _abbreviatePlace(String value) {
+    final words = value
+        .split(RegExp(r'\s+'))
+        .where((word) => word.trim().isNotEmpty)
+        .toList();
+    if (words.length >= 2) {
+      final abbreviation = words.map((word) => word[0].toUpperCase()).join();
+      return abbreviation.length <= 4
+          ? abbreviation
+          : abbreviation.substring(0, 4);
+    }
+    return value.length <= 10 ? value : value.substring(0, 10);
+  }
+
   bool get _isInMalaysia {
     final inPeninsular =
         latitude >= 0.8 &&

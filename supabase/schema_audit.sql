@@ -7,9 +7,9 @@ with expected(table_name, column_name) as (
     ('users', 'name'),
     ('users', 'phone'),
     ('users', 'address'),
-    ('users', 'age'),
     ('users', 'blood_type'),
     ('users', 'inactivity_threshold'),
+    ('users', 'emergency_escalation_target'),
     ('users', 'terms_version'),
     ('users', 'terms_accepted_at'),
     ('users', 'profile_completed_at'),
@@ -67,8 +67,14 @@ with expected(table_name, column_name) as (
     ('emergency_delivery_outbox', 'user_id'),
     ('emergency_delivery_outbox', 'contact_name'),
     ('emergency_delivery_outbox', 'contact_phone'),
+    ('emergency_delivery_outbox', 'message_body'),
     ('emergency_delivery_outbox', 'status'),
-    ('emergency_delivery_outbox', 'attempt_count')
+    ('emergency_delivery_outbox', 'attempt_count'),
+    ('emergency_delivery_outbox', 'provider'),
+    ('emergency_delivery_outbox', 'provider_message_id'),
+    ('emergency_delivery_outbox', 'last_error'),
+    ('emergency_delivery_outbox', 'created_at'),
+    ('emergency_delivery_outbox', 'processed_at')
 )
 select
   expected.table_name,

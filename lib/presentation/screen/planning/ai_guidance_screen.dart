@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../businessLogicLayer/controllers/ai_controller.dart';
 import '../../../core/constants/colors.dart';
-import '../../../services/ai_service.dart';
 
 class AiGuidanceScreen extends StatefulWidget {
   const AiGuidanceScreen({super.key});
@@ -11,20 +11,20 @@ class AiGuidanceScreen extends StatefulWidget {
 }
 
 class _AiGuidanceScreenState extends State<AiGuidanceScreen> {
-  final service = AiService();
-  final controller = TextEditingController();
+  final aiController = AiController();
+  final inputController = TextEditingController();
   final messages = <({bool user, String text})>[];
   bool loading = false;
 
   Future<void> _send() async {
-    final question = controller.text.trim();
+    final question = inputController.text.trim();
     if (question.isEmpty || loading) return;
     setState(() {
       messages.add((user: true, text: question));
       loading = true;
-      controller.clear();
+      inputController.clear();
     });
-    final answer = await service.ask(question);
+    final answer = await aiController.ask(question);
     if (!mounted) return;
     setState(() {
       messages.add((user: false, text: answer));
@@ -34,7 +34,7 @@ class _AiGuidanceScreenState extends State<AiGuidanceScreen> {
 
   @override
   void dispose() {
-    controller.dispose();
+    inputController.dispose();
     super.dispose();
   }
 
@@ -105,7 +105,7 @@ class _AiGuidanceScreenState extends State<AiGuidanceScreen> {
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: controller,
+                      controller: inputController,
                       maxLength: 500,
                       maxLines: 3,
                       minLines: 1,

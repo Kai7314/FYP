@@ -12,6 +12,9 @@ class OrenCareService {
   final AuthRepository authRepository;
   final LocalCacheService cache;
 
+  static const dailyLoginTokenReward = 5;
+  static const dailyCheckInTokenReward = 3;
+
   static const toyCatalog = <OrenToy>[
     OrenToy(
       id: 'yarn_ball',
@@ -53,11 +56,25 @@ class OrenCareService {
     if (state.lastDailyTokenDate == today) return state;
     return _save(
       state.copyWith(
-        tokens: state.tokens + 5,
+        tokens: state.tokens + dailyLoginTokenReward,
         lastDailyTokenDate: today,
         mood: 'Happy',
         energy: (state.energy + 5).clamp(0, 100),
-        lastAction: 'Daily login bonus earned: 5 Oren tokens.',
+        lastAction:
+            'Daily login bonus earned: $dailyLoginTokenReward Oren tokens.',
+      ),
+    );
+  }
+
+  Future<OrenCareState> awardDailyCheckInTokens() async {
+    final state = await load();
+    return _save(
+      state.copyWith(
+        tokens: state.tokens + dailyCheckInTokenReward,
+        mood: 'Happy',
+        energy: (state.energy + 8).clamp(0, 100),
+        lastAction:
+            'Daily check-in bonus earned: $dailyCheckInTokenReward Oren tokens.',
       ),
     );
   }

@@ -21,7 +21,7 @@ class PremiumScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: bottomNavigationBar != null,
+      extendBody: false,
       body: SizedBox.expand(
         child: DecoratedBox(
           decoration: const BoxDecoration(

@@ -80,6 +80,28 @@ class ContactRepository {
     return List<Map<String, dynamic>>.from(rows);
   }
 
+  Future<Map<String, dynamic>?> getPrimaryContact(String userId) async {
+    try {
+      final rows = await client
+          .from('contacts')
+          .select('name,phone,is_primary')
+          .eq('user_id', userId)
+          .eq('is_primary', true)
+          .limit(1);
+      if (rows.isNotEmpty) return Map<String, dynamic>.from(rows.first);
+    } on PostgrestException catch (error) {
+      if (!error.message.toLowerCase().contains('is_primary')) rethrow;
+    }
+
+    final rows = await client
+        .from('contacts')
+        .select('name,phone')
+        .eq('user_id', userId)
+        .order('name', ascending: true)
+        .limit(1);
+    return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
+  }
+
   Future<void> addContact({
     required String userId,
     required String name,
@@ -105,26 +127,42 @@ class ContactRepository {
     }
 
     final shouldBePrimary = isPrimary || existing.isEmpty;
-    if (shouldBePrimary && existing.isNotEmpty) {
-      try {
-        await client
-            .from('contacts')
-            .update({'is_primary': false})
-            .eq('user_id', userId);
-      } on PostgrestException catch (error) {
-        if (!error.message.toLowerCase().contains('is_primary')) rethrow;
-      }
-    }
+    final insertAsPrimary = existing.isEmpty;
 
     final payload = <String, dynamic>{
       'user_id': userId,
       'name': name,
       'relationship': relationship,
       'phone': phone,
-      'is_primary': shouldBePrimary,
+      'is_primary': insertAsPrimary,
     };
     if (address != null && address.isNotEmpty) payload['address'] = address;
-    await _insertWithColumnFallback(payload, {'address', 'is_primary'});
+
+    Map<String, dynamic> inserted;
+    try {
+      inserted = await _insertWithColumnFallback(payload, {
+        'address',
+        'is_primary',
+      });
+    } on PostgrestException catch (error) {
+      if (_isPrimaryConflict(error) &&
+          shouldBePrimary &&
+          await _phoneBelongsToPrimaryContact(userId: userId, phone: phone)) {
+        return;
+      }
+      rethrow;
+    }
+
+    if (shouldBePrimary && existing.isNotEmpty) {
+      try {
+        await setPrimaryContact(userId: userId, row: inserted);
+      } on Object {
+        if (await _phoneBelongsToPrimaryContact(userId: userId, phone: phone)) {
+          return;
+        }
+        rethrow;
+      }
+    }
   }
 
   Future<void> deleteContact({
@@ -178,6 +216,12 @@ class ContactRepository {
     required Map<String, dynamic> row,
   }) async {
     final id = row['id'] ?? row['contact_id'];
+    if (id != null &&
+        _looksLikeUuid(id.toString()) &&
+        await _trySetPrimaryWithRpc(id)) {
+      return;
+    }
+
     try {
       await client
           .from('contacts')
@@ -201,6 +245,10 @@ class ContactRepository {
       }
       await query.eq('phone', phone);
     } on PostgrestException catch (error) {
+      if (_isPrimaryConflict(error) &&
+          await _rowIsPrimaryContact(userId: userId, row: row)) {
+        return;
+      }
       if (error.message.toLowerCase().contains('is_primary')) {
         throw StateError(
           'Supabase contacts table is missing is_primary. Run supabase/quick_fix_contacts_columns.sql.',
@@ -210,15 +258,19 @@ class ContactRepository {
     }
   }
 
-  Future<void> _insertWithColumnFallback(
+  Future<Map<String, dynamic>> _insertWithColumnFallback(
     Map<String, dynamic> payload,
     Set<String> optionalColumns,
   ) async {
     final compatiblePayload = {...payload};
     while (true) {
       try {
-        await client.from('contacts').insert(compatiblePayload);
-        return;
+        final row = await client
+            .from('contacts')
+            .insert(compatiblePayload)
+            .select()
+            .single();
+        return Map<String, dynamic>.from(row);
       } on PostgrestException catch (error) {
         final message = error.message.toLowerCase();
         String? missingColumn;
@@ -232,6 +284,22 @@ class ContactRepository {
         if (missingColumn == null) rethrow;
         compatiblePayload.remove(missingColumn);
       }
+    }
+  }
+
+  Future<bool> _trySetPrimaryWithRpc(Object id) async {
+    try {
+      await client.rpc('set_primary_contact', params: {'p_contact_id': id});
+      return true;
+    } on PostgrestException catch (error) {
+      final message = error.message.toLowerCase();
+      if (error.code == 'PGRST202' ||
+          error.code == '42883' ||
+          message.contains('set_primary_contact') ||
+          message.contains('function')) {
+        return false;
+      }
+      rethrow;
     }
   }
 
@@ -309,6 +377,63 @@ class ContactRepository {
       );
     }
     throw error;
+  }
+
+  Future<bool> _phoneBelongsToPrimaryContact({
+    required String userId,
+    required String phone,
+  }) async {
+    final contact = await _findContactByPhone(userId: userId, phone: phone);
+    return contact?['is_primary'] == true;
+  }
+
+  Future<bool> _rowIsPrimaryContact({
+    required String userId,
+    required Map<String, dynamic> row,
+  }) async {
+    final id = row['id'] ?? row['contact_id'];
+    if (id != null) {
+      final rows = await client
+          .from('contacts')
+          .select('is_primary')
+          .eq('user_id', userId)
+          .eq(row.containsKey('id') ? 'id' : 'contact_id', id)
+          .limit(1);
+      return rows.isNotEmpty && rows.first['is_primary'] == true;
+    }
+
+    final phone = row['phone']?.toString();
+    if (phone == null || phone.trim().isEmpty) return false;
+    return _phoneBelongsToPrimaryContact(userId: userId, phone: phone);
+  }
+
+  Future<Map<String, dynamic>?> _findContactByPhone({
+    required String userId,
+    required String phone,
+  }) async {
+    final normalizedPhone = _digits(phone);
+    final rows = await client.from('contacts').select().eq('user_id', userId);
+    for (final row in rows) {
+      final contact = Map<String, dynamic>.from(row);
+      if (_digits(contact['phone']?.toString() ?? '') == normalizedPhone) {
+        return contact;
+      }
+    }
+    return null;
+  }
+
+  bool _isPrimaryConflict(PostgrestException error) {
+    final message = error.message.toLowerCase();
+    return error.code == '23505' &&
+        (message.contains('contacts_one_primary_per_user') ||
+            message.contains('is_primary') ||
+            message.contains('duplicate key'));
+  }
+
+  bool _looksLikeUuid(String value) {
+    return RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    ).hasMatch(value);
   }
 
   String _digits(String value) => value.replaceAll(RegExp(r'\D'), '');

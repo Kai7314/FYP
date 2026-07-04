@@ -77,4 +77,31 @@ class NotificationService {
       ),
     );
   }
+
+  Future<void> showOfficial999EscalationNotice() async {
+    if (kIsWeb) return;
+    await initialize();
+    await plugin.show(
+      id: missedCheckInNotificationId + 1,
+      title: 'Emergency escalation recorded',
+      body:
+          'Your setting is 999. EthernaCare recorded the alert, but emergency services require a direct call to 999.',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'official_999_escalation',
+          '999 escalation notices',
+          channelDescription:
+              'Explains when an inactivity alert is configured for 999.',
+          importance: Importance.max,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.alarm,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+    );
+  }
 }

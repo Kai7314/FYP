@@ -18,6 +18,9 @@ class CheckinHistoryScreen extends StatelessWidget {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _loadCheckins(),
       builder: (context, snapshot) {
+        final horizontalPadding = MediaQuery.sizeOf(context).width < 360
+            ? 14.0
+            : 20.0;
         final rows = snapshot.data ?? [];
         final checkedDates = rows
             .map((row) => DateTime.tryParse(row['checkin_time'].toString()))
@@ -38,7 +41,12 @@ class CheckinHistoryScreen extends StatelessWidget {
         );
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            20,
+            horizontalPadding,
+            24,
+          ),
           children: [
             const Text(
               'Check-In History',
@@ -232,6 +240,8 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: foreground,
               fontSize: 24,
@@ -241,6 +251,8 @@ class _SummaryCard extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: color == null ? AppColors.muted : Colors.white,
               fontSize: 10,
@@ -269,44 +281,58 @@ class _WeekCard extends StatelessWidget {
           children: [
             const _SectionLabel(icon: Icons.trending_up, label: 'THIS WEEK'),
             const SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(7, (index) {
-                final date = start.add(Duration(days: index));
-                final checked = checkedDates.any(
-                  (value) => DateUtils.isSameDay(value, date),
-                );
-                final isToday = DateUtils.isSameDay(date, today);
-                return Column(
-                  children: [
-                    Text(
-                      DateFormat('E').format(date).substring(0, 1),
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final dayWidth = constraints.maxWidth / 7;
+                final radius = ((dayWidth - 8) / 2)
+                    .clamp(12.0, 18.0)
+                    .toDouble();
+
+                return Row(
+                  children: List.generate(7, (index) {
+                    final date = start.add(Duration(days: index));
+                    final checked = checkedDates.any(
+                      (value) => DateUtils.isSameDay(value, date),
+                    );
+                    final isToday = DateUtils.isSameDay(date, today);
+                    return SizedBox(
+                      width: dayWidth,
+                      child: Column(
+                        children: [
+                          Text(
+                            DateFormat('E').format(date).substring(0, 1),
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          CircleAvatar(
+                            radius: radius,
+                            backgroundColor: checked
+                                ? AppColors.primary
+                                : isToday
+                                ? AppColors.warningSoft
+                                : AppColors.surface,
+                            foregroundColor: checked
+                                ? Colors.white
+                                : isToday
+                                ? AppColors.accent
+                                : AppColors.muted,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${date.day}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 7),
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: checked
-                          ? AppColors.primary
-                          : isToday
-                          ? AppColors.warningSoft
-                          : AppColors.surface,
-                      foregroundColor: checked
-                          ? Colors.white
-                          : isToday
-                          ? AppColors.accent
-                          : AppColors.muted,
-                      child: Text(
-                        '${date.day}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
+                    );
+                  }),
                 );
-              }),
+              },
             ),
           ],
         ),
@@ -327,13 +353,17 @@ class _SectionLabel extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: AppColors.muted),
         const SizedBox(width: 7),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.muted,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: .6,
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: .6,
+            ),
           ),
         ),
       ],
@@ -361,6 +391,8 @@ class _CheckinTile extends StatelessWidget {
             time == null
                 ? 'Recorded check-in'
                 : DateFormat('EEE, MMM d').format(time),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           trailing: Container(

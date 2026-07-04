@@ -58,6 +58,7 @@ class EmergencyRepository {
     required dynamic alertId,
     required String userId,
     required List<Map<String, dynamic>> contacts,
+    String? messageBody,
   }) async {
     if (contacts.isEmpty) return;
     final rows = contacts
@@ -69,9 +70,29 @@ class EmergencyRepository {
             'contact_phone': contact['phone'],
             'status': 'pending',
             'attempt_count': 0,
+            if (messageBody != null) 'message_body': messageBody,
           },
         )
         .toList();
-    await client.from('emergency_delivery_outbox').insert(rows);
+    try {
+      await client.from('emergency_delivery_outbox').insert(rows);
+    } on PostgrestException catch (error) {
+      if (!error.message.toLowerCase().contains('message_body')) rethrow;
+      final compatibleRows = rows.map((row) {
+        final compatible = {...row};
+        compatible.remove('message_body');
+        return compatible;
+      }).toList();
+      await client.from('emergency_delivery_outbox').insert(compatibleRows);
+    }
+  }
+
+  Future<Map<String, dynamic>> processPendingSms() async {
+    final response = await client.functions
+        .invoke('send-emergency-sms')
+        .timeout(const Duration(seconds: 30));
+    final data = response.data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return <String, dynamic>{};
   }
 }

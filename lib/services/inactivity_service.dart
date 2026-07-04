@@ -88,6 +88,12 @@ class InactivityService {
       return;
     }
 
-    await emergencyService.triggerEmergency();
+    final result = await emergencyService.triggerEmergencyDetailed(
+      allow999Dialer: false,
+      sendAutomatedSms: true,
+    );
+    if (result.official999Selected) {
+      await notificationService.showOfficial999EscalationNotice();
+    }
   }
 }
