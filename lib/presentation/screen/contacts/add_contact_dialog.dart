@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
+import '../../widgets/malaysia_address_fields.dart';
 
 class AddContactDialog extends StatefulWidget {
   const AddContactDialog({super.key});
@@ -17,6 +18,8 @@ class _AddContactDialogState extends State<AddContactDialog> {
   final phoneController = TextEditingController();
   final addressController = TextEditingController();
   String phoneDialCode = AppValidators.defaultPhoneCountry.dialCode;
+  String? selectedState = 'Kuala Lumpur';
+  String? selectedRegion = 'Kuala Lumpur';
   bool isPrimary = false;
 
   @override
@@ -39,6 +42,8 @@ class _AddContactDialogState extends State<AddContactDialog> {
         phoneDialCode,
       ),
       'address': AppValidators.normalizeSpaces(addressController.text),
+      'address_state': selectedState,
+      'address_region': selectedRegion,
       'is_primary': isPrimary,
     });
   }
@@ -85,13 +90,20 @@ class _AddContactDialogState extends State<AddContactDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: addressController,
-                maxLength: AppValidators.maxAddressLength,
-                maxLines: 2,
-                validator: (value) =>
-                    AppValidators.address(value ?? '', required: true),
-                decoration: const InputDecoration(labelText: 'Address'),
+              MalaysiaAddressFields(
+                addressController: addressController,
+                selectedState: selectedState,
+                selectedRegion: selectedRegion,
+                onStateChanged: (value) => setState(() {
+                  selectedState = value;
+                  selectedRegion = null;
+                }),
+                onRegionChanged: (value) =>
+                    setState(() => selectedRegion = value),
+                addressRequired: true,
+                addressLabel: 'Contact address',
+                addressHelperText: 'House/unit, street, building, or landmark',
+                regionHelperText: 'Used for contact location context',
               ),
               const SizedBox(height: 8),
               SwitchListTile.adaptive(

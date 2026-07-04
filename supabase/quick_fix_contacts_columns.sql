@@ -4,6 +4,8 @@
 alter table public.contacts
   add column if not exists relationship text not null default 'Trusted contact',
   add column if not exists address text not null default '',
+  add column if not exists address_state text,
+  add column if not exists address_region text,
   add column if not exists is_primary boolean not null default false;
 
 create unique index if not exists contacts_one_primary_per_user
@@ -51,5 +53,11 @@ select column_name, data_type
 from information_schema.columns
 where table_schema = 'public'
   and table_name = 'contacts'
-  and column_name in ('relationship', 'address', 'is_primary')
+  and column_name in (
+    'relationship',
+    'address',
+    'address_state',
+    'address_region',
+    'is_primary'
+  )
 order by column_name;

@@ -22,6 +22,7 @@ class OrenCareService {
       description: 'A soft rolling toy for gentle play.',
       price: 8,
       iconCodePoint: 0xe3e6,
+      imageAsset: 'lib/assets/images/oren_toy_yarn_ball.png',
     ),
     OrenToy(
       id: 'fish_plush',
@@ -29,6 +30,7 @@ class OrenCareService {
       description: 'Oren can nap beside this tiny fish.',
       price: 12,
       iconCodePoint: 0xe545,
+      imageAsset: 'lib/assets/images/oren_toy_fish_plush.png',
     ),
     OrenToy(
       id: 'feather_wand',
@@ -36,6 +38,7 @@ class OrenCareService {
       description: 'A playful wand for quick energy boosts.',
       price: 16,
       iconCodePoint: 0xe3b7,
+      imageAsset: 'lib/assets/images/oren_toy_feather_wand.png',
     ),
   ];
 
@@ -68,9 +71,16 @@ class OrenCareService {
 
   Future<OrenCareState> awardDailyCheckInTokens() async {
     final state = await load();
+    final today = _todayKey();
+    if (state.lastCheckInTokenDate == today) {
+      return state.copyWith(
+        lastAction: 'Daily check-in bonus already claimed today.',
+      );
+    }
     return _save(
       state.copyWith(
         tokens: state.tokens + dailyCheckInTokenReward,
+        lastCheckInTokenDate: today,
         mood: 'Happy',
         energy: (state.energy + 8).clamp(0, 100),
         lastAction:
@@ -131,6 +141,16 @@ class OrenCareService {
         mood: 'Playful',
         energy: (state.energy + 10).clamp(0, 100),
         lastAction: 'Oren played with ${toy.name}.',
+      ),
+    );
+  }
+
+  Future<OrenCareState> resetMood() async {
+    final state = await load();
+    return _save(
+      state.copyWith(
+        mood: 'Calm',
+        lastAction: 'Oren is ready for today.',
       ),
     );
   }

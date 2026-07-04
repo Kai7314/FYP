@@ -5,6 +5,8 @@ class ContactModel {
     required this.relationship,
     required this.phone,
     required this.address,
+    this.addressState,
+    this.addressRegion,
     this.id,
     this.isPrimary = false,
   });
@@ -15,6 +17,8 @@ class ContactModel {
   final String relationship;
   final String phone;
   final String address;
+  final String? addressState;
+  final String? addressRegion;
   final bool isPrimary;
 
   factory ContactModel.fromJson(Map<String, dynamic> json) {
@@ -25,6 +29,8 @@ class ContactModel {
       relationship: json['relationship']?.toString() ?? 'Trusted contact',
       phone: json['phone']?.toString() ?? '',
       address: json['address']?.toString() ?? '',
+      addressState: json['address_state']?.toString(),
+      addressRegion: json['address_region']?.toString(),
       isPrimary:
           json['is_primary'] == true || json['is_primary']?.toString() == '1',
     );
@@ -37,6 +43,8 @@ class ContactModel {
     'relationship': relationship,
     'phone': phone,
     'address': address,
+    if (addressState != null) 'address_state': addressState,
+    if (addressRegion != null) 'address_region': addressRegion,
     'is_primary': isPrimary,
   };
 }

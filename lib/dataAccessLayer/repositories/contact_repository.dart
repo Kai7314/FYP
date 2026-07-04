@@ -108,6 +108,8 @@ class ContactRepository {
     required String relationship,
     required String phone,
     String? address,
+    String? addressState,
+    String? addressRegion,
     bool isPrimary = false,
   }) async {
     final existing = await client
@@ -128,20 +130,37 @@ class ContactRepository {
 
     final shouldBePrimary = isPrimary || existing.isEmpty;
     final insertAsPrimary = existing.isEmpty;
+    final cleanAddress = address?.trim() ?? '';
+    final cleanAddressState = addressState?.trim() ?? '';
+    final cleanAddressRegion = addressRegion?.trim() ?? '';
+
+    if (cleanAddress.isEmpty) {
+      throw StateError('Contact address is required.');
+    }
+    if (cleanAddress.length > 200) {
+      throw StateError('Contact address must not exceed 200 characters.');
+    }
 
     final payload = <String, dynamic>{
       'user_id': userId,
       'name': name,
       'relationship': relationship,
       'phone': phone,
+      'address': cleanAddress,
       'is_primary': insertAsPrimary,
     };
-    if (address != null && address.isNotEmpty) payload['address'] = address;
+    if (cleanAddressState.isNotEmpty) {
+      payload['address_state'] = cleanAddressState;
+    }
+    if (cleanAddressRegion.isNotEmpty) {
+      payload['address_region'] = cleanAddressRegion;
+    }
 
     Map<String, dynamic> inserted;
     try {
       inserted = await _insertWithColumnFallback(payload, {
-        'address',
+        'address_state',
+        'address_region',
         'is_primary',
       });
     } on PostgrestException catch (error) {
@@ -157,10 +176,17 @@ class ContactRepository {
       try {
         await setPrimaryContact(userId: userId, row: inserted);
       } on Object {
-        if (await _phoneBelongsToPrimaryContact(userId: userId, phone: phone)) {
-          return;
-        }
-        rethrow;
+        try {
+          if (await _phoneBelongsToPrimaryContact(
+            userId: userId,
+            phone: phone,
+          )) {
+            return;
+          }
+        } catch (_) {}
+        // The contact was inserted successfully. Do not surface a false add
+        // failure just because primary promotion lagged or hit an RLS/schema
+        // edge case; the user can retry Set Primary from the contact list.
       }
     }
   }
@@ -177,7 +203,7 @@ class ContactRepository {
         column: idColumn,
         value: id,
       )) {
-        await _ensurePrimaryContact(userId);
+        await _ensurePrimaryContactBestEffort(userId);
         return;
       }
     }
@@ -189,7 +215,7 @@ class ContactRepository {
         column: 'phone',
         value: phone,
       )) {
-        await _ensurePrimaryContact(userId);
+        await _ensurePrimaryContactBestEffort(userId);
         return;
       }
     }
@@ -201,7 +227,7 @@ class ContactRepository {
         name: name,
         phone: phone,
       )) {
-        await _ensurePrimaryContact(userId);
+        await _ensurePrimaryContactBestEffort(userId);
         return;
       }
     }
@@ -265,20 +291,26 @@ class ContactRepository {
     final compatiblePayload = {...payload};
     while (true) {
       try {
-        final row = await client
-            .from('contacts')
-            .insert(compatiblePayload)
-            .select()
-            .single();
-        return Map<String, dynamic>.from(row);
+        await client.from('contacts').insert(compatiblePayload);
+        final userId = compatiblePayload['user_id']?.toString();
+        final phone = compatiblePayload['phone']?.toString();
+        if (userId != null && phone != null) {
+          final inserted = await _findContactByPhone(
+            userId: userId,
+            phone: phone,
+          );
+          if (inserted != null) return inserted;
+        }
+        return Map<String, dynamic>.from(compatiblePayload);
       } on PostgrestException catch (error) {
-        final message = error.message.toLowerCase();
         String? missingColumn;
-        for (final column in optionalColumns) {
-          if (compatiblePayload.containsKey(column) &&
-              message.contains(column.toLowerCase())) {
-            missingColumn = column;
-            break;
+        if (_isMissingColumnError(error)) {
+          for (final column in optionalColumns) {
+            if (compatiblePayload.containsKey(column) &&
+                _errorMentionsColumn(error, column)) {
+              missingColumn = column;
+              break;
+            }
           }
         }
         if (missingColumn == null) rethrow;
@@ -309,13 +341,25 @@ class ContactRepository {
     required Object value,
   }) async {
     try {
-      final rows = await client
+      final existed = await _existsByColumn(
+        userId: userId,
+        column: column,
+        value: value,
+      );
+      if (!existed) return false;
+
+      await client
           .from('contacts')
           .delete()
           .eq('user_id', userId)
-          .eq(column, value)
-          .select('user_id');
-      return rows.isNotEmpty;
+          .eq(column, value);
+
+      final stillExists = await _existsByColumn(
+        userId: userId,
+        column: column,
+        value: value,
+      );
+      return !stillExists;
     } on PostgrestException catch (error) {
       _throwHelpfulDeleteError(error);
     }
@@ -327,16 +371,66 @@ class ContactRepository {
     required String phone,
   }) async {
     try {
-      final rows = await client
+      final existed = await _existsByNameAndPhone(
+        userId: userId,
+        name: name,
+        phone: phone,
+      );
+      if (!existed) return false;
+
+      await client
           .from('contacts')
           .delete()
           .eq('user_id', userId)
           .eq('name', name)
-          .eq('phone', phone)
-          .select('user_id');
-      return rows.isNotEmpty;
+          .eq('phone', phone);
+
+      final stillExists = await _existsByNameAndPhone(
+        userId: userId,
+        name: name,
+        phone: phone,
+      );
+      return !stillExists;
     } on PostgrestException catch (error) {
       _throwHelpfulDeleteError(error);
+    }
+  }
+
+  Future<bool> _existsByColumn({
+    required String userId,
+    required String column,
+    required Object value,
+  }) async {
+    final rows = await client
+        .from('contacts')
+        .select('user_id')
+        .eq('user_id', userId)
+        .eq(column, value)
+        .limit(1);
+    return rows.isNotEmpty;
+  }
+
+  Future<bool> _existsByNameAndPhone({
+    required String userId,
+    required String name,
+    required String phone,
+  }) async {
+    final rows = await client
+        .from('contacts')
+        .select('user_id')
+        .eq('user_id', userId)
+        .eq('name', name)
+        .eq('phone', phone)
+        .limit(1);
+    return rows.isNotEmpty;
+  }
+
+  Future<void> _ensurePrimaryContactBestEffort(String userId) async {
+    try {
+      await _ensurePrimaryContact(userId);
+    } catch (_) {
+      // Deletion already succeeded. A future add/set-primary action can repair
+      // primary status if the optional primary-contact columns/RPC lag behind.
     }
   }
 
@@ -428,6 +522,22 @@ class ContactRepository {
         (message.contains('contacts_one_primary_per_user') ||
             message.contains('is_primary') ||
             message.contains('duplicate key'));
+  }
+
+  bool _isMissingColumnError(PostgrestException error) {
+    final message = error.message.toLowerCase();
+    return error.code == 'PGRST204' ||
+        (message.contains('could not find') &&
+            (message.contains('schema cache') || message.contains('column')));
+  }
+
+  bool _errorMentionsColumn(PostgrestException error, String column) {
+    final text =
+        '${error.message} ${error.details ?? ''} ${error.hint ?? ''}'
+            .toLowerCase();
+    final escaped = RegExp.escape(column.toLowerCase());
+    return RegExp("['\"]$escaped['\"]").hasMatch(text) ||
+        RegExp('(?:^|[^a-z0-9_])$escaped(?:[^a-z0-9_]|\\z)').hasMatch(text);
   }
 
   bool _looksLikeUuid(String value) {

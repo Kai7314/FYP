@@ -50,6 +50,8 @@ class ContactService {
     required String relationship,
     required String phone,
     String? address,
+    String? addressState,
+    String? addressRegion,
     bool isPrimary = false,
   }) async {
     final user = authRepository.currentUser;
@@ -60,22 +62,34 @@ class ContactService {
       phone: phone,
       relationship: relationship,
       address: address,
+      addressState: addressState,
+      addressRegion: addressRegion,
       isPrimary: isPrimary,
     );
-    await getContacts(forceRefresh: true);
+    await _refreshCacheBestEffort(user.id);
   }
 
   Future<void> deleteContact(Map<String, dynamic> row) async {
     final user = authRepository.currentUser;
     if (user == null) throw StateError('You must be signed in.');
     await contactRepository.deleteContact(userId: user.id, row: row);
-    await getContacts(forceRefresh: true);
+    await _refreshCacheBestEffort(user.id);
   }
 
   Future<void> setPrimaryContact(Map<String, dynamic> row) async {
     final user = authRepository.currentUser;
     if (user == null) throw StateError('You must be signed in.');
     await contactRepository.setPrimaryContact(userId: user.id, row: row);
-    await getContacts(forceRefresh: true);
+    await _refreshCacheBestEffort(user.id);
+  }
+
+  Future<void> _refreshCacheBestEffort(String userId) async {
+    try {
+      final rows = await contactRepository.getContacts(userId);
+      await cache.writeMap(_cacheKey(userId), {'rows': rows});
+    } catch (_) {
+      // The database operation already succeeded. The UI performs its own
+      // forced reload and can show a load-state message if refresh is slow.
+    }
   }
 }

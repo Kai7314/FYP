@@ -23,8 +23,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
     contactsFuture = _loadContacts();
   }
 
-  Future<List<Map<String, dynamic>>> _loadContacts() async {
-    return contactService.getContacts();
+  Future<List<Map<String, dynamic>>> _loadContacts({
+    bool forceRefresh = false,
+  }) async {
+    return contactService.getContacts(forceRefresh: forceRefresh);
   }
 
   Future<void> _addContact() async {
@@ -34,19 +36,29 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
     if (result == null) return;
 
+    final phone = result['phone']?.toString() ?? '';
     try {
       await contactService.addContact(
         name: result['name']!,
         relationship: result['relationship']!,
         phone: result['phone']!,
         address: result['address'],
+        addressState: result['address_state'],
+        addressRegion: result['address_region'],
         isPrimary: result['is_primary'] == true,
       );
-      if (mounted) {
-        setState(() => contactsFuture = _loadContacts());
-        _showMessage('Emergency contact added.');
-      }
+      await _refreshContacts();
+      if (!mounted) return;
+      _showMessage('Emergency contact added.');
     } catch (error) {
+      final added = await _refreshAndCheck(
+        (rows) => _containsPhone(rows, phone),
+      );
+      if (added) {
+        if (!mounted) return;
+        _showMessage('Emergency contact added.');
+        return;
+      }
       if (mounted) {
         AppErrorDialog.show(
           context,
@@ -60,11 +72,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Future<void> _setPrimaryContact(Map<String, dynamic> row) async {
     try {
       await contactService.setPrimaryContact(row);
-      if (mounted) {
-        setState(() => contactsFuture = _loadContacts());
-        _showMessage('${row['name'] ?? 'Contact'} set as primary.');
-      }
+      await _refreshContacts();
+      if (!mounted) return;
+      _showMessage('${row['name'] ?? 'Contact'} set as primary.');
     } catch (error) {
+      final updated = await _refreshAndCheck(
+        (rows) => _rowIsPrimary(rows, row),
+      );
+      if (updated) {
+        if (!mounted) return;
+        _showMessage('${row['name'] ?? 'Contact'} set as primary.');
+        return;
+      }
       if (mounted) {
         AppErrorDialog.show(
           context,
@@ -100,11 +119,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
     try {
       await contactService.deleteContact(row);
-      if (mounted) {
-        setState(() => contactsFuture = _loadContacts());
-        _showMessage('Emergency contact deleted.');
-      }
+      await _refreshContacts();
+      if (!mounted) return;
+      _showMessage('Emergency contact deleted.');
     } catch (error) {
+      final deleted = await _refreshAndCheck(
+        (rows) => !_containsRow(rows, row),
+      );
+      if (deleted) {
+        if (!mounted) return;
+        _showMessage('Emergency contact deleted.');
+        return;
+      }
       if (mounted) {
         AppErrorDialog.show(
           context,
@@ -113,6 +139,75 @@ class _ContactsScreenState extends State<ContactsScreen> {
         );
       }
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _refreshContacts() async {
+    final rows = await _loadContacts(forceRefresh: true);
+    if (mounted) {
+      setState(() {
+        contactsFuture = Future.value(rows);
+      });
+    }
+    return rows;
+  }
+
+  Future<bool> _refreshAndCheck(
+    bool Function(List<Map<String, dynamic>> rows) predicate,
+  ) async {
+    try {
+      final rows = await _refreshContacts();
+      return predicate(rows);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _containsPhone(List<Map<String, dynamic>> rows, String phone) {
+    final digits = _digits(phone);
+    if (digits.isEmpty) return false;
+    return rows.any((row) => _digits(row['phone']) == digits);
+  }
+
+  bool _containsRow(
+    List<Map<String, dynamic>> rows,
+    Map<String, dynamic> target,
+  ) {
+    final targetId = target['id'] ?? target['contact_id'];
+    if (targetId != null) {
+      return rows.any(
+        (row) => (row['id'] ?? row['contact_id'])?.toString() ==
+            targetId.toString(),
+      );
+    }
+
+    final targetPhone = _digits(target['phone']);
+    if (targetPhone.isNotEmpty) {
+      return rows.any((row) => _digits(row['phone']) == targetPhone);
+    }
+
+    final targetName = target['name']?.toString();
+    return targetName != null &&
+        rows.any((row) => row['name']?.toString() == targetName);
+  }
+
+  bool _rowIsPrimary(
+    List<Map<String, dynamic>> rows,
+    Map<String, dynamic> target,
+  ) {
+    final targetId = target['id'] ?? target['contact_id'];
+    final targetPhone = _digits(target['phone']);
+    return rows.any((row) {
+      if (row['is_primary'] != true) return false;
+      if (targetId != null) {
+        return (row['id'] ?? row['contact_id'])?.toString() ==
+            targetId.toString();
+      }
+      return targetPhone.isNotEmpty && _digits(row['phone']) == targetPhone;
+    });
+  }
+
+  String _digits(Object? value) {
+    return value?.toString().replaceAll(RegExp(r'\D'), '') ?? '';
   }
 
   void _showMessage(String message) {
@@ -209,6 +304,7 @@ class _ContactCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = row['name']?.toString() ?? 'Unnamed';
     final isPrimary = row['is_primary'] == true;
+    final address = _addressText(row);
     final color = row['color'] is Color
         ? row['color'] as Color
         : AppColors.primary;
@@ -325,7 +421,7 @@ class _ContactCard extends StatelessWidget {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              row['address']?.toString() ?? 'No address',
+                              address,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -363,5 +459,17 @@ class _ContactCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _addressText(Map<String, dynamic> row) {
+    final address = row['address']?.toString().trim() ?? '';
+    final region = row['address_region']?.toString().trim() ?? '';
+    final state = row['address_state']?.toString().trim() ?? '';
+    final parts = [
+      if (address.isNotEmpty) address,
+      if (region.isNotEmpty) region,
+      if (state.isNotEmpty) state,
+    ];
+    return parts.isEmpty ? 'No address' : parts.join(', ');
   }
 }

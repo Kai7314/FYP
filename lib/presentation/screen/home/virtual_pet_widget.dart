@@ -1,9 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../models/location_model.dart';
 
-class VirtualPetWidget extends StatelessWidget {
+class VirtualPetWidget extends StatefulWidget {
   const VirtualPetWidget({
     super.key,
     required this.streak,
@@ -11,6 +13,7 @@ class VirtualPetWidget extends StatelessWidget {
     this.weather,
     this.mood = 'Calm',
     this.lastAction,
+    this.activeToyAsset,
   });
 
   final int streak;
@@ -18,16 +21,40 @@ class VirtualPetWidget extends StatelessWidget {
   final WeatherSnapshot? weather;
   final String mood;
   final String? lastAction;
+  final String? activeToyAsset;
+
+  @override
+  State<VirtualPetWidget> createState() => _VirtualPetWidgetState();
+}
+
+class _VirtualPetWidgetState extends State<VirtualPetWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController idleController;
+
+  @override
+  void initState() {
+    super.initState();
+    idleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    idleController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final moodText = mood.toLowerCase();
+    final moodText = widget.mood.toLowerCase();
     final eating = moodText == 'eating';
     final playful = moodText == 'playful';
-    final loved = moodText == 'loved' || hasCheckedInToday;
+    final loved = moodText == 'loved' || moodText == 'happy';
     final catAsset = eating
         ? 'lib/assets/images/eating.png'
-        : loved
+        : loved || playful
         ? 'lib/assets/images/smile.png'
         : 'lib/assets/images/oren.png';
 
@@ -50,8 +77,8 @@ class VirtualPetWidget extends StatelessWidget {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 500),
             child: Image.asset(
-              weather?.backgroundAsset ?? 'lib/assets/images/day.jpg',
-              key: ValueKey(weather?.backgroundAsset ?? 'day'),
+              widget.weather?.backgroundAsset ?? 'lib/assets/images/day.jpg',
+              key: ValueKey(widget.weather?.backgroundAsset ?? 'day'),
               fit: BoxFit.cover,
             ),
           ),
@@ -66,22 +93,51 @@ class VirtualPetWidget extends StatelessWidget {
           ),
           Align(
             alignment: const Alignment(0, .28),
-            child: AnimatedRotation(
-              duration: const Duration(milliseconds: 350),
-              turns: playful ? -.025 : 0,
-              child: AnimatedScale(
+            child: AnimatedBuilder(
+              animation: idleController,
+              builder: (context, child) {
+                final bob =
+                    math.sin(idleController.value * math.pi * 2) * 4.0;
+                return Transform.translate(
+                  offset: Offset(0, bob),
+                  child: child,
+                );
+              },
+              child: AnimatedRotation(
                 duration: const Duration(milliseconds: 350),
-                scale: eating
-                    ? 1.16
-                    : playful
-                    ? 1.12
-                    : loved
-                    ? 1.08
-                    : 1,
-                child: Image.asset(catAsset, height: 150, fit: BoxFit.contain),
+                turns: playful ? -.025 : 0,
+                child: AnimatedScale(
+                  duration: const Duration(milliseconds: 350),
+                  scale: eating
+                      ? 1.16
+                      : playful
+                      ? 1.12
+                      : loved
+                      ? 1.08
+                      : 1,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 260),
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(scale: animation, child: child),
+                    ),
+                    child: Image.asset(
+                      catAsset,
+                      key: ValueKey(catAsset),
+                      height: 150,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
+          if (widget.activeToyAsset != null)
+            Positioned(
+              right: 30,
+              bottom: 62,
+              child: _FloatingToy(asset: widget.activeToyAsset!),
+            ),
           Positioned(
             top: 12,
             left: 12,
@@ -96,9 +152,9 @@ class VirtualPetWidget extends StatelessWidget {
                 const Spacer(),
                 Flexible(
                   child: _Badge(
-                    text: weather == null
+                    text: widget.weather == null
                         ? 'Weather unavailable'
-                        : '${weather!.compactMalaysiaRegion} - ${weather!.description} - ${weather!.temperatureCelsius.round()} C',
+                        : '${widget.weather!.compactMalaysiaRegion} - ${widget.weather!.description} - ${widget.weather!.temperatureCelsius.round()} C',
                     icon: Icons.cloud_outlined,
                     alignRight: true,
                   ),
@@ -106,13 +162,13 @@ class VirtualPetWidget extends StatelessWidget {
               ],
             ),
           ),
-          if (lastAction != null && lastAction!.trim().isNotEmpty)
+          if (widget.lastAction != null && widget.lastAction!.trim().isNotEmpty)
             Positioned(
               left: 12,
               right: 12,
               bottom: 52,
               child: Center(
-                child: _SpeechBubble(text: lastAction!),
+                child: _SpeechBubble(text: widget.lastAction!),
               ),
             ),
           Positioned(
@@ -121,7 +177,7 @@ class VirtualPetWidget extends StatelessWidget {
             right: 0,
             child: Center(
               child: _Badge(
-                text: 'Oren care streak: $streak days',
+                text: 'Oren care streak: ${widget.streak} days',
                 icon: Icons.pets,
               ),
             ),
@@ -183,6 +239,51 @@ class _Badge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FloatingToy extends StatelessWidget {
+  const _FloatingToy({required this.asset});
+
+  final String asset;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(asset),
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value.clamp(0, 1),
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 16),
+            child: Transform.rotate(
+              angle: math.sin(value * math.pi) * .12,
+              child: Transform.scale(scale: .82 + value * .18, child: child),
+            ),
+          ),
+        );
+      },
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .72),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x22000000),
+              blurRadius: 12,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Image.asset(asset, width: 78, height: 78, fit: BoxFit.cover),
+        ),
       ),
     );
   }

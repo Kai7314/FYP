@@ -42,7 +42,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await userService.updateCurrentProfile(updates);
       if (!mounted) return;
-      setState(() => profileFuture = _loadProfile());
+      setState(() {
+        profileFuture = _loadProfile();
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profile updated.'),

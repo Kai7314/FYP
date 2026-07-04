@@ -82,6 +82,8 @@ create table if not exists public.contacts (
   relationship text not null default 'Trusted contact',
   phone text not null,
   address text not null default '',
+  address_state text,
+  address_region text,
   is_primary boolean not null default false
 );
 
@@ -92,6 +94,8 @@ alter table public.contacts
   add column if not exists relationship text not null default 'Trusted contact',
   add column if not exists phone text,
   add column if not exists address text not null default '',
+  add column if not exists address_state text,
+  add column if not exists address_region text,
   add column if not exists is_primary boolean not null default false;
 
 alter table public.contacts
@@ -106,6 +110,24 @@ alter table public.contacts
   add constraint contacts_address_required
   check (
     char_length(btrim(coalesce(address, ''))) between 1 and 200
+  ) not valid;
+
+alter table public.contacts
+  drop constraint if exists contacts_address_state_length;
+alter table public.contacts
+  add constraint contacts_address_state_length
+  check (
+    address_state is null
+    or char_length(btrim(address_state)) between 1 and 80
+  ) not valid;
+
+alter table public.contacts
+  drop constraint if exists contacts_address_region_length;
+alter table public.contacts
+  add constraint contacts_address_region_length
+  check (
+    address_region is null
+    or char_length(btrim(address_region)) between 1 and 80
   ) not valid;
 
 create unique index if not exists contacts_one_primary_per_user
@@ -138,9 +160,22 @@ begin
     raise exception 'Contact relationship must contain 2 to 30 characters';
   end if;
 
-  if char_length(btrim(coalesce(new.address, ''))) < 1
-     or char_length(btrim(coalesce(new.address, ''))) > 200 then
-    raise exception 'Contact address is required and must not exceed 200 characters';
+  if char_length(btrim(coalesce(new.address, ''))) < 1 then
+    raise exception 'Contact address is required';
+  end if;
+
+  if char_length(btrim(new.address)) > 200 then
+    raise exception 'Contact address must not exceed 200 characters';
+  end if;
+
+  if char_length(btrim(coalesce(new.address_state, ''))) < 1
+     or char_length(btrim(coalesce(new.address_state, ''))) > 80 then
+    raise exception 'Contact state is required and must not exceed 80 characters';
+  end if;
+
+  if char_length(btrim(coalesce(new.address_region, ''))) < 1
+     or char_length(btrim(coalesce(new.address_region, ''))) > 80 then
+    raise exception 'Contact region is required and must not exceed 80 characters';
   end if;
 
   if exists (

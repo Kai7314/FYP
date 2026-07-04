@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/colors.dart';
@@ -39,6 +40,13 @@ class AppErrorDialog {
         lowered.contains('duplicate key')) {
       return 'This phone number is already saved as an emergency contact.';
     }
+    if (lowered.contains('contact address is required')) {
+      return 'Please enter the contact address. If you already entered it, run the contacts validation SQL in Supabase and hot restart the app.';
+    }
+    if (lowered.contains('contact address must not exceed') ||
+        lowered.contains('address must not exceed')) {
+      return 'Contact address must be 200 characters or fewer.';
+    }
     if (lowered.contains('contacts table is missing') ||
         lowered.contains('is_primary') ||
         lowered.contains('pgrst204') ||
@@ -60,6 +68,11 @@ class AppErrorDialog {
     }
     if (lowered.contains('contact could not be deleted')) {
       return 'The contact could not be deleted. Refresh the contacts list and try again.';
+    }
+
+    if (kDebugMode) {
+      final details = text.length > 240 ? '${text.substring(0, 240)}...' : text;
+      return 'Something went wrong. Please try again.\n\nTechnical detail: $details';
     }
 
     return 'Something went wrong. Please try again.';

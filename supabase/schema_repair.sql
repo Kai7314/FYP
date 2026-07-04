@@ -54,6 +54,8 @@ create table if not exists public.contacts (
   relationship text not null default 'Trusted contact',
   phone text not null,
   address text not null default '',
+  address_state text,
+  address_region text,
   is_primary boolean not null default false
 );
 
@@ -63,6 +65,8 @@ alter table public.contacts
   add column if not exists relationship text not null default 'Trusted contact',
   add column if not exists phone text,
   add column if not exists address text not null default '',
+  add column if not exists address_state text,
+  add column if not exists address_region text,
   add column if not exists is_primary boolean not null default false;
 
 create table if not exists public.rewards (

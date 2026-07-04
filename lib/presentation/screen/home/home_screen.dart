@@ -52,6 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
   WeatherSnapshot? weather;
   OrenCareState orenCare = OrenCareState.initial();
   Timer? testAlarmTimer;
+  Timer? orenResetTimer;
+  String? activeToyAsset;
   bool testAlarmArmed = false;
   int testAlarmSecondsRemaining = 0;
   late final List<Widget> persistentPages;
@@ -88,17 +90,16 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() => orenCare = careState);
       unawaited(orenSoundService.playPet());
       final created = await CheckinService().addCheckin();
+      final rewardedState = await orenCareService.awardDailyCheckInTokens();
+      final tokenAwarded = rewardedState.tokens > careState.tokens;
+      _showTemporaryOrenState(rewardedState);
       if (created) {
-        final rewardedState = await orenCareService.awardDailyCheckInTokens();
-        if (mounted) setState(() => orenCare = rewardedState);
         await RewardService().checkReward();
       }
       await _loadDashboard();
       if (!mounted) return;
       _showMessage(
-        created
-            ? 'Check-in recorded. Your safety signal was sent.'
-            : 'You have already checked in today.',
+        _checkInMessage(created: created, tokenAwarded: tokenAwarded),
       );
     } catch (error) {
       if (mounted) _showMessage('Could not record check-in: $error');
@@ -110,7 +111,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _feedFish() async {
     final state = await orenCareService.feedFish();
     if (!mounted) return;
-    setState(() => orenCare = state);
+    _showTemporaryOrenState(
+      state,
+      toyAsset: 'lib/assets/images/oren_toy_fish_plush.png',
+    );
     unawaited(orenSoundService.playFeed());
     _showMessage('Oren enjoyed the fish snack.');
   }
@@ -118,7 +122,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _buyToy(OrenToy toy) async {
     final state = await orenCareService.buyToy(toy);
     if (!mounted) return;
-    setState(() => orenCare = state);
+    _showTemporaryOrenState(
+      state,
+      toyAsset: state.ownedToyIds.contains(toy.id) ? toy.imageAsset : null,
+    );
     if (state.ownedToyIds.contains(toy.id)) {
       unawaited(orenSoundService.playPlayful());
     }
@@ -128,11 +135,34 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _playWithToy(OrenToy toy) async {
     final state = await orenCareService.playWithToy(toy);
     if (!mounted) return;
-    setState(() => orenCare = state);
+    _showTemporaryOrenState(
+      state,
+      toyAsset: state.ownedToyIds.contains(toy.id) ? toy.imageAsset : null,
+    );
     if (state.ownedToyIds.contains(toy.id)) {
       unawaited(orenSoundService.playPlayful());
     }
     _showMessage(state.lastAction);
+  }
+
+  void _showTemporaryOrenState(
+    OrenCareState state, {
+    String? toyAsset,
+  }) {
+    if (!mounted) return;
+    orenResetTimer?.cancel();
+    setState(() {
+      orenCare = state;
+      activeToyAsset = toyAsset;
+    });
+    orenResetTimer = Timer(const Duration(seconds: 4), () async {
+      final calmState = await orenCareService.resetMood();
+      if (!mounted) return;
+      setState(() {
+        orenCare = calmState;
+        activeToyAsset = null;
+      });
+    });
   }
 
   Future<void> _loadDashboard() async {
@@ -234,6 +264,20 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (error) {
       if (mounted) _showMessage('Could not send emergency alert: $error');
     }
+  }
+
+  String _checkInMessage({
+    required bool created,
+    required bool tokenAwarded,
+  }) {
+    if (created && tokenAwarded) {
+      return 'Check-in recorded. +${OrenCareService.dailyCheckInTokenReward} Oren tokens earned.';
+    }
+    if (created) return 'Check-in recorded. Your safety signal was sent.';
+    if (tokenAwarded) {
+      return 'Today\'s check-in already exists. +${OrenCareService.dailyCheckInTokenReward} Oren tokens added.';
+    }
+    return 'You have already checked in today. Oren token bonus is once per day.';
   }
 
   Future<void> _testPrimarySms() async {
@@ -386,6 +430,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     testAlarmTimer?.cancel();
+    orenResetTimer?.cancel();
     unawaited(orenSoundService.dispose());
     super.dispose();
   }
@@ -404,6 +449,7 @@ class _HomeScreenState extends State<HomeScreen> {
       rewardSnapshot: rewardSnapshot,
       weather: weather,
       orenCare: orenCare,
+      activeToyAsset: activeToyAsset,
       onPet: petCat,
       onFeedFish: _feedFish,
       onBuyToy: _buyToy,
@@ -480,6 +526,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.rewardSnapshot,
     required this.weather,
     required this.orenCare,
+    required this.activeToyAsset,
     required this.onPet,
     required this.onFeedFish,
     required this.onBuyToy,
@@ -503,6 +550,7 @@ class _HomeDashboard extends StatelessWidget {
   final RewardSnapshot? rewardSnapshot;
   final WeatherSnapshot? weather;
   final OrenCareState orenCare;
+  final String? activeToyAsset;
   final VoidCallback onPet;
   final VoidCallback onFeedFish;
   final void Function(OrenToy toy) onBuyToy;
@@ -714,6 +762,7 @@ class _HomeDashboard extends StatelessWidget {
             hasCheckedInToday: checkedToday,
             weather: weather,
             mood: orenCare.mood,
+            activeToyAsset: activeToyAsset,
           ),
           const SizedBox(height: 12),
           _OrenStatusBar(
@@ -1056,7 +1105,7 @@ class _OrenCarePanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: 126,
+              height: 172,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: OrenCareService.toyCatalog.length,
@@ -1096,12 +1145,12 @@ class _ToyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 156,
+      width: 164,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: owned ? AppColors.primarySoft : AppColors.surface,
             borderRadius: BorderRadius.circular(8),
@@ -1114,26 +1163,36 @@ class _ToyCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              SizedBox(
+                height: 64,
+                width: double.infinity,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset(toy.imageAsset, fit: BoxFit.cover),
+                ),
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(_toyIcon(toy.id), color: AppColors.primaryDark),
-                  const Spacer(),
+                  Expanded(
+                    child: Text(
+                      toy.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
                   Text(
                     owned ? 'Owned' : '${toy.price} tok',
                     style: TextStyle(
-                      color: owned || canBuy ? AppColors.primaryDark : AppColors.muted,
+                      color: owned || canBuy
+                          ? AppColors.primaryDark
+                          : AppColors.muted,
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                toy.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1147,14 +1206,6 @@ class _ToyCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  IconData _toyIcon(String id) {
-    return switch (id) {
-      'fish_plush' => Icons.set_meal_outlined,
-      'feather_wand' => Icons.auto_fix_high_outlined,
-      _ => Icons.toys_outlined,
-    };
   }
 }
 

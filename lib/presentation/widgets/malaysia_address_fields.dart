@@ -12,6 +12,9 @@ class MalaysiaAddressFields extends StatelessWidget {
     required this.onStateChanged,
     required this.onRegionChanged,
     this.addressRequired = false,
+    this.addressLabel = 'Home address',
+    this.addressHelperText = 'House/unit, street, building, or nearby landmark',
+    this.regionHelperText = 'Used to request weather forecasts from data.gov.my',
   });
 
   final TextEditingController addressController;
@@ -20,6 +23,9 @@ class MalaysiaAddressFields extends StatelessWidget {
   final ValueChanged<String?> onStateChanged;
   final ValueChanged<String?> onRegionChanged;
   final bool addressRequired;
+  final String addressLabel;
+  final String addressHelperText;
+  final String regionHelperText;
 
   @override
   Widget build(BuildContext context) {
@@ -39,16 +45,18 @@ class MalaysiaAddressFields extends StatelessWidget {
             value ?? '',
             required: addressRequired,
           ),
-          decoration: const InputDecoration(
-            labelText: 'Home address',
-            helperText: 'House/unit, street, building, or nearby landmark',
+          decoration: InputDecoration(
+            labelText: addressLabel,
+            helperText: addressHelperText,
           ),
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
           initialValue: selectedState?.isEmpty == true ? null : selectedState,
           isExpanded: true,
-          validator: (_) => addressRequired && selectedState == null
+          validator: (_) =>
+              addressRequired &&
+                  (selectedState == null || selectedState!.trim().isEmpty)
               ? 'Select your state.'
               : null,
           decoration: const InputDecoration(
@@ -64,12 +72,14 @@ class MalaysiaAddressFields extends StatelessWidget {
         DropdownButtonFormField<String>(
           initialValue: hasSelectedRegion ? selectedRegion : null,
           isExpanded: true,
-          validator: (_) => addressRequired && selectedRegion == null
+          validator: (_) =>
+              addressRequired &&
+                  (selectedRegion == null || selectedRegion!.trim().isEmpty)
               ? 'Select your region or district.'
               : null,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Region / district',
-            helperText: 'Used to request weather forecasts from data.gov.my',
+            helperText: regionHelperText,
           ),
           items: [
             for (final location in regions)

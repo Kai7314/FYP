@@ -130,7 +130,11 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: VirtualPetWidget(streak: 7, hasCheckedInToday: true),
+          body: VirtualPetWidget(
+            streak: 7,
+            hasCheckedInToday: true,
+            mood: 'Loved',
+          ),
         ),
       ),
     );
@@ -175,7 +179,7 @@ void main() {
       '0123456789',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Address'),
+      find.widgetWithText(TextFormField, 'Contact address'),
       'Kuala Lumpur',
     );
     await tester.ensureVisible(find.byType(SwitchListTile));
@@ -203,7 +207,7 @@ void main() {
       '123',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Address'),
+      find.widgetWithText(TextFormField, 'Contact address'),
       'Kuala Lumpur',
     );
     await tester.tap(find.text('Save'));

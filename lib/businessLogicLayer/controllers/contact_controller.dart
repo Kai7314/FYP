@@ -15,6 +15,8 @@ class ContactController {
     required String relationship,
     required String phone,
     String? address,
+    String? addressState,
+    String? addressRegion,
     bool isPrimary = false,
   }) {
     return contactService.addContact(
@@ -22,6 +24,8 @@ class ContactController {
       relationship: relationship,
       phone: phone,
       address: address,
+      addressState: addressState,
+      addressRegion: addressRegion,
       isPrimary: isPrimary,
     );
   }

@@ -5,6 +5,7 @@ class OrenToy {
     required this.description,
     required this.price,
     required this.iconCodePoint,
+    required this.imageAsset,
   });
 
   final String id;
@@ -12,6 +13,7 @@ class OrenToy {
   final String description;
   final int price;
   final int iconCodePoint;
+  final String imageAsset;
 }
 
 class OrenCareState {
@@ -19,6 +21,7 @@ class OrenCareState {
     required this.tokens,
     required this.ownedToyIds,
     required this.lastDailyTokenDate,
+    required this.lastCheckInTokenDate,
     required this.lastAction,
     required this.mood,
     required this.energy,
@@ -28,6 +31,7 @@ class OrenCareState {
   final int tokens;
   final Set<String> ownedToyIds;
   final String lastDailyTokenDate;
+  final String lastCheckInTokenDate;
   final String lastAction;
   final String mood;
   final int energy;
@@ -38,6 +42,7 @@ class OrenCareState {
       tokens: 0,
       ownedToyIds: const {},
       lastDailyTokenDate: '',
+      lastCheckInTokenDate: '',
       lastAction: 'Oren is ready for today.',
       mood: 'Calm',
       energy: 65,
@@ -52,6 +57,8 @@ class OrenCareState {
           .map((value) => value.toString())
           .toSet(),
       lastDailyTokenDate: json['last_daily_token_date']?.toString() ?? '',
+      lastCheckInTokenDate:
+          json['last_checkin_token_date']?.toString() ?? '',
       lastAction: json['last_action']?.toString() ?? 'Oren is ready.',
       mood: json['mood']?.toString() ?? 'Calm',
       energy: int.tryParse(json['energy']?.toString() ?? '') ?? 65,
@@ -65,6 +72,7 @@ class OrenCareState {
     int? tokens,
     Set<String>? ownedToyIds,
     String? lastDailyTokenDate,
+    String? lastCheckInTokenDate,
     String? lastAction,
     String? mood,
     int? energy,
@@ -74,6 +82,8 @@ class OrenCareState {
       tokens: tokens ?? this.tokens,
       ownedToyIds: ownedToyIds ?? this.ownedToyIds,
       lastDailyTokenDate: lastDailyTokenDate ?? this.lastDailyTokenDate,
+      lastCheckInTokenDate:
+          lastCheckInTokenDate ?? this.lastCheckInTokenDate,
       lastAction: lastAction ?? this.lastAction,
       mood: mood ?? this.mood,
       energy: energy ?? this.energy,
@@ -85,6 +95,7 @@ class OrenCareState {
     'tokens': tokens,
     'owned_toy_ids': ownedToyIds.toList(),
     'last_daily_token_date': lastDailyTokenDate,
+    'last_checkin_token_date': lastCheckInTokenDate,
     'last_action': lastAction,
     'mood': mood,
     'energy': energy,

@@ -6,6 +6,7 @@ import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
 import '../../widgets/error_dialog.dart';
+import '../../widgets/malaysia_address_fields.dart';
 
 class PrimaryContactSetupScreen extends StatefulWidget {
   const PrimaryContactSetupScreen({super.key, required this.onComplete});
@@ -26,6 +27,8 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
   final phoneController = TextEditingController();
   final addressController = TextEditingController();
   String phoneDialCode = AppValidators.defaultPhoneCountry.dialCode;
+  String? selectedState = 'Kuala Lumpur';
+  String? selectedRegion = 'Kuala Lumpur';
   late Future<List<Map<String, dynamic>>> contactsFuture;
   bool saving = false;
 
@@ -58,6 +61,8 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
           phoneDialCode,
         ),
         address: AppValidators.normalizeSpaces(addressController.text),
+        addressState: selectedState,
+        addressRegion: selectedRegion,
         isPrimary: true,
       );
       if (mounted) widget.onComplete();
@@ -179,6 +184,14 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
                   onPhoneDialCodeChanged: (value) =>
                       setState(() => phoneDialCode = value),
                   addressController: addressController,
+                  selectedState: selectedState,
+                  selectedRegion: selectedRegion,
+                  onStateChanged: (value) => setState(() {
+                    selectedState = value;
+                    selectedRegion = null;
+                  }),
+                  onRegionChanged: (value) =>
+                      setState(() => selectedRegion = value),
                 );
               },
             ),
@@ -251,6 +264,10 @@ class _NewPrimaryContactForm extends StatelessWidget {
     required this.phoneDialCode,
     required this.onPhoneDialCodeChanged,
     required this.addressController,
+    required this.selectedState,
+    required this.selectedRegion,
+    required this.onStateChanged,
+    required this.onRegionChanged,
   });
 
   final GlobalKey<FormState> formKey;
@@ -260,6 +277,10 @@ class _NewPrimaryContactForm extends StatelessWidget {
   final String phoneDialCode;
   final ValueChanged<String> onPhoneDialCodeChanged;
   final TextEditingController addressController;
+  final String? selectedState;
+  final String? selectedRegion;
+  final ValueChanged<String?> onStateChanged;
+  final ValueChanged<String?> onRegionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -290,14 +311,16 @@ class _NewPrimaryContactForm extends StatelessWidget {
             onDialCodeChanged: onPhoneDialCodeChanged,
           ),
           const SizedBox(height: 10),
-          TextFormField(
-            controller: addressController,
-            maxLength: AppValidators.maxAddressLength,
-            maxLines: 2,
-            textCapitalization: TextCapitalization.sentences,
-            validator: (value) =>
-                AppValidators.address(value ?? '', required: true),
-            decoration: const InputDecoration(labelText: 'Address'),
+          MalaysiaAddressFields(
+            addressController: addressController,
+            selectedState: selectedState,
+            selectedRegion: selectedRegion,
+            onStateChanged: onStateChanged,
+            onRegionChanged: onRegionChanged,
+            addressRequired: true,
+            addressLabel: 'Contact address',
+            addressHelperText: 'House/unit, street, building, or landmark',
+            regionHelperText: 'Used for contact location context',
           ),
         ],
       ),

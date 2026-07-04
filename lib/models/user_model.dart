@@ -7,6 +7,8 @@ class UserModel {
     this.email,
     this.phone,
     this.address,
+    this.addressState,
+    this.addressRegion,
     this.bloodType,
     this.inactivityThreshold = 24,
     this.emergencyEscalationTarget = EmergencyEscalationTarget.primaryContact,
@@ -18,6 +20,8 @@ class UserModel {
   final String? email;
   final String? phone;
   final String? address;
+  final String? addressState;
+  final String? addressRegion;
   final String? bloodType;
   final int inactivityThreshold;
   final String emergencyEscalationTarget;
@@ -30,6 +34,8 @@ class UserModel {
       email: json['email']?.toString(),
       phone: json['phone']?.toString(),
       address: json['address']?.toString(),
+      addressState: json['address_state']?.toString(),
+      addressRegion: json['address_region']?.toString(),
       bloodType: json['blood_type']?.toString(),
       inactivityThreshold:
           int.tryParse(json['inactivity_threshold']?.toString() ?? '') ?? 24,
@@ -48,6 +54,8 @@ class UserModel {
     if (email != null) 'email': email,
     if (phone != null) 'phone': phone,
     if (address != null) 'address': address,
+    if (addressState != null) 'address_state': addressState,
+    if (addressRegion != null) 'address_region': addressRegion,
     if (bloodType != null) 'blood_type': bloodType,
     'inactivity_threshold': inactivityThreshold,
     'emergency_escalation_target': emergencyEscalationTarget,
