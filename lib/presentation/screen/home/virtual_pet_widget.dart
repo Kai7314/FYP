@@ -268,23 +268,7 @@ class _FloatingToy extends StatelessWidget {
           ),
         );
       },
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .72),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x22000000),
-              blurRadius: 12,
-              offset: Offset(0, 5),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: Image.asset(asset, width: 78, height: 78, fit: BoxFit.cover),
-        ),
-      ),
+      child: Image.asset(asset, width: 86, height: 86, fit: BoxFit.contain),
     );
   }
 }

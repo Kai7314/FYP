@@ -1168,7 +1168,10 @@ class _ToyCard extends StatelessWidget {
                 width: double.infinity,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(toy.imageAsset, fit: BoxFit.cover),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Image.asset(toy.imageAsset, fit: BoxFit.contain),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
