@@ -83,12 +83,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'My Profile',
               subtitle: 'Personal & medical info',
               action: IconButton.filled(
-                  onPressed: snapshot.connectionState == ConnectionState.done
-                      ? () => _editProfile(profile)
-                      : null,
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'Edit profile',
-                ),
+                onPressed: snapshot.connectionState == ConnectionState.done
+                    ? () => _editProfile(profile)
+                    : null,
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edit profile',
+              ),
             ),
             const SizedBox(height: 18),
             Container(
@@ -437,6 +437,13 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     return AppValidators.bloodTypes.contains(value) ? value : null;
   }
 
+  String _compactEscalationLabel(String value) {
+    return switch (EmergencyEscalationTarget.normalize(value)) {
+      EmergencyEscalationTarget.official999 => '999 emergency',
+      _ => 'Primary contact',
+    };
+  }
+
   @override
   void dispose() {
     nameController.dispose();
@@ -469,106 +476,250 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Edit Profile'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: nameController,
-                maxLength: AppValidators.maxDisplayNameLength,
-                validator: (value) => AppValidators.displayName(value ?? ''),
-                decoration: const InputDecoration(labelText: 'Name'),
+    final size = MediaQuery.sizeOf(context);
+    final horizontalInset = size.width < 390 ? 14.0 : 24.0;
+
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: horizontalInset,
+        vertical: 20,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 440,
+          maxHeight: size.height * .88,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(22, 22, 22, 10),
+              child: Text(
+                'Edit Profile',
+                style: TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  height: 1.05,
+                ),
               ),
-              const SizedBox(height: 10),
-              CountryPhoneField(
-                controller: phoneController,
-                dialCode: phoneDialCode,
-                onDialCodeChanged: (value) =>
-                    setState(() => phoneDialCode = value),
-                labelText: 'Phone',
-                required: false,
-              ),
-              const SizedBox(height: 10),
-              MalaysiaAddressFields(
-                addressController: addressController,
-                selectedState: selectedState,
-                selectedRegion: selectedRegion,
-                onStateChanged: (value) => setState(() {
-                  selectedState = value;
-                  selectedRegion = null;
-                }),
-                onRegionChanged: (value) =>
-                    setState(() => selectedRegion = value),
-              ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: selectedBloodType,
-                items: AppValidators.bloodTypes
-                    .map(
-                      (type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _ProfileFieldShell(
+                        label: 'Name',
+                        child: TextFormField(
+                          controller: nameController,
+                          maxLength: AppValidators.maxDisplayNameLength,
+                          validator: (value) =>
+                              AppValidators.displayName(value ?? ''),
+                          decoration: const InputDecoration(
+                            hintText: 'Full name',
+                          ),
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setState(() => selectedBloodType = value),
-                validator: (value) => AppValidators.bloodType(value ?? ''),
-                decoration: const InputDecoration(labelText: 'Blood type'),
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: thresholdController,
-                keyboardType: TextInputType.number,
-                validator: (value) =>
-                    AppValidators.inactivityThreshold(value ?? ''),
-                decoration: const InputDecoration(
-                  labelText: 'Inactivity threshold (hours)',
-                  helperText: 'Between 1 and 168 hours',
-                ),
-              ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: escalationTarget,
-                items: EmergencyEscalationTarget.values
-                    .map(
-                      (value) => DropdownMenuItem(
-                        value: value,
-                        child: Text(EmergencyEscalationTarget.label(value)),
+                      const SizedBox(height: 10),
+                      CountryPhoneField(
+                        controller: phoneController,
+                        dialCode: phoneDialCode,
+                        onDialCodeChanged: (value) =>
+                            setState(() => phoneDialCode = value),
+                        labelText: 'Phone',
+                        required: false,
+                        externalLabels: true,
                       ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(
-                  () => escalationTarget =
-                      EmergencyEscalationTarget.normalize(value),
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Inactivity escalation',
+                      const SizedBox(height: 10),
+                      MalaysiaAddressFields(
+                        addressController: addressController,
+                        selectedState: selectedState,
+                        selectedRegion: selectedRegion,
+                        externalLabels: true,
+                        addressLabel: 'House / unit, street',
+                        addressHelperText: null,
+                        stateLabel: 'State',
+                        regionLabel: 'Region / district',
+                        regionHelperText: null,
+                        onStateChanged: (value) => setState(() {
+                          selectedState = value;
+                          selectedRegion = null;
+                        }),
+                        onRegionChanged: (value) =>
+                            setState(() => selectedRegion = value),
+                      ),
+                      const SizedBox(height: 10),
+                      _ProfileFieldShell(
+                        label: 'Blood type',
+                        child: DropdownButtonFormField<String>(
+                          value: selectedBloodType,
+                          isExpanded: true,
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          items: AppValidators.bloodTypes
+                              .map(
+                                (type) => DropdownMenuItem(
+                                  value: type,
+                                  child: Text(
+                                    type,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) =>
+                              setState(() => selectedBloodType = value),
+                          validator: (value) =>
+                              AppValidators.bloodType(value ?? ''),
+                          decoration: const InputDecoration(
+                            hintText: 'Select blood type',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _ProfileFieldShell(
+                        label: 'Inactivity threshold (hours)',
+                        child: TextFormField(
+                          controller: thresholdController,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          validator: (value) =>
+                              AppValidators.inactivityThreshold(value ?? ''),
+                          decoration: const InputDecoration(
+                            hintText: '24',
+                            helperText: 'Between 1 and 168 hours',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _ProfileFieldShell(
+                        label: 'Inactivity escalation',
+                        child: DropdownButtonFormField<String>(
+                          value: escalationTarget,
+                          isExpanded: true,
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          selectedItemBuilder: (context) =>
+                              EmergencyEscalationTarget.values
+                                  .map(
+                                    (value) => Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        _compactEscalationLabel(value),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                          items: EmergencyEscalationTarget.values
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(
+                                    EmergencyEscalationTarget.label(value),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) => setState(
+                            () => escalationTarget =
+                                EmergencyEscalationTarget.normalize(value),
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'Select alert target',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        EmergencyEscalationTarget.description(escalationTarget),
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                EmergencyEscalationTarget.description(escalationTarget),
-                style: const TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 12,
-                  height: 1.35,
-                ),
+            ),
+            SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(22, 8, 22, 18),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _save,
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+    );
+  }
+}
+
+class _ProfileFieldShell extends StatelessWidget {
+  const _ProfileFieldShell({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 6),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
-        FilledButton(onPressed: _save, child: const Text('Save')),
+        child,
       ],
     );
   }
