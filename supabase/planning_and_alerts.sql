@@ -18,6 +18,15 @@ create table if not exists public.documents (
   uploaded_at timestamptz not null default now()
 );
 
+create table if not exists public.legacy_notes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null check (char_length(btrim(title)) between 2 and 80),
+  content text not null check (char_length(btrim(content)) between 2 and 1000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.emergency_delivery_outbox (
   id bigint generated always as identity primary key,
   alert_id text not null,
@@ -34,6 +43,7 @@ create table if not exists public.emergency_delivery_outbox (
 
 alter table public.funeral_preferences enable row level security;
 alter table public.documents enable row level security;
+alter table public.legacy_notes enable row level security;
 alter table public.emergency_delivery_outbox enable row level security;
 
 drop policy if exists "preferences_own_all" on public.funeral_preferences;
@@ -46,6 +56,13 @@ with check ((select auth.uid()) = user_id);
 drop policy if exists "documents_own_all" on public.documents;
 create policy "documents_own_all"
 on public.documents for all
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+drop policy if exists "legacy_notes_own_all" on public.legacy_notes;
+create policy "legacy_notes_own_all"
+on public.legacy_notes for all
 to authenticated
 using ((select auth.uid()) = user_id)
 with check ((select auth.uid()) = user_id);

@@ -111,10 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _feedFish() async {
     final state = await orenCareService.feedFish();
     if (!mounted) return;
-    _showTemporaryOrenState(
-      state,
-      toyAsset: 'lib/assets/images/oren_toy_fish_plush.png',
-    );
+    _showTemporaryOrenState(state);
     unawaited(orenSoundService.playFeed());
     _showMessage('Oren enjoyed the fish snack.');
   }

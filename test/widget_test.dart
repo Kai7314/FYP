@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fyp/main.dart' as app;
+import 'package:fyp/models/ai_chat_message.dart';
 import 'package:fyp/models/location_model.dart';
 import 'package:fyp/models/checkin_model.dart';
 import 'package:fyp/models/contact_model.dart';
 import 'package:fyp/models/document_model.dart';
 import 'package:fyp/models/emergency_alert_model.dart';
+import 'package:fyp/models/legacy_note_model.dart';
 import 'package:fyp/models/oren_care_model.dart';
 import 'package:fyp/models/reward_model.dart';
 import 'package:fyp/models/user_model.dart';
@@ -366,6 +368,21 @@ void main() {
     expect(restored.authorizedContact, 'Daughter');
   });
 
+  test('legacy notes serialize for CRUD persistence', () {
+    final note = LegacyNote(
+      id: 'note-1',
+      title: 'Account reminder',
+      content: 'Important instructions for trusted contacts.',
+      createdAt: DateTime(2026, 7, 6),
+      updatedAt: DateTime(2026, 7, 7),
+    );
+    final restored = LegacyNote.fromJson(note.toJson());
+
+    expect(restored.id, 'note-1');
+    expect(restored.title, 'Account reminder');
+    expect(restored.content, contains('trusted contacts'));
+  });
+
   test('AI guidance has an offline safety fallback', () {
     expect(
       AiService.offlineAnswer('What do I do in an emergency?'),
@@ -375,5 +392,13 @@ void main() {
       AiService.offlineAnswer('Can the app create my will?'),
       contains('does not create'),
     );
+  });
+
+  test('AI chat messages serialize for local chat history', () {
+    final message = AiChatMessage.user('How do daily check-ins work?');
+    final restored = AiChatMessage.fromJson(message.toJson());
+
+    expect(restored.isUser, isTrue);
+    expect(restored.text, 'How do daily check-ins work?');
   });
 }

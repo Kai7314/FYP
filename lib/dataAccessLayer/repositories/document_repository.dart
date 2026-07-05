@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/document_model.dart';
+import '../../models/legacy_note_model.dart';
 
 class DocumentRepository {
   DocumentRepository({SupabaseClient? client})
@@ -38,6 +39,57 @@ class DocumentRepository {
     return rows
         .map((row) => LegacyDocument.fromJson(Map<String, dynamic>.from(row)))
         .toList();
+  }
+
+  Future<List<LegacyNote>> getNotes(String userId) async {
+    final rows = await client
+        .from('legacy_notes')
+        .select()
+        .eq('user_id', userId)
+        .order('updated_at', ascending: false);
+    return rows
+        .map((row) => LegacyNote.fromJson(Map<String, dynamic>.from(row)))
+        .toList();
+  }
+
+  Future<void> createNote({
+    required String userId,
+    required String title,
+    required String content,
+  }) {
+    return client.from('legacy_notes').insert({
+      'user_id': userId,
+      'title': title,
+      'content': content,
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<void> updateNote({
+    required String userId,
+    required LegacyNote note,
+  }) {
+    return client
+        .from('legacy_notes')
+        .update({
+          'title': note.title,
+          'content': note.content,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', note.id)
+        .eq('user_id', userId);
+  }
+
+  Future<void> deleteNote({
+    required String userId,
+    required String noteId,
+  }) {
+    return client
+        .from('legacy_notes')
+        .delete()
+        .eq('id', noteId)
+        .eq('user_id', userId);
   }
 
   Future<void> uploadDocument({

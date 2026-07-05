@@ -69,6 +69,13 @@ class AppErrorDialog {
     if (lowered.contains('contact could not be deleted')) {
       return 'The contact could not be deleted. Refresh the contacts list and try again.';
     }
+    if (lowered.contains('documents.uploaded_at') ||
+        (lowered.contains('uploaded_at') && lowered.contains('documents'))) {
+      return 'The documents table is missing uploaded_at. Run supabase/quick_fix_documents_uploaded_at.sql in the Supabase SQL Editor, wait a few seconds, then open Legacy Planning again.';
+    }
+    if (lowered.contains('legacy_notes')) {
+      return 'Legacy notes are not set up in Supabase yet. Run supabase/legacy_notes_crud.sql in the Supabase SQL Editor, then try again.';
+    }
 
     if (kDebugMode) {
       final details = text.length > 240 ? '${text.substring(0, 240)}...' : text;
