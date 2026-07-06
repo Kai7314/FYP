@@ -10,12 +10,14 @@ class DashboardSnapshot {
     required this.userName,
     required this.checkinTimes,
     required this.emergencyStatus,
+    required this.latestEmergencyAlertTime,
     required this.syncedAt,
   });
 
   final String userName;
   final List<DateTime> checkinTimes;
   final String emergencyStatus;
+  final DateTime? latestEmergencyAlertTime;
   final DateTime syncedAt;
 
   int get totalCheckins => checkinTimes.length;
@@ -30,6 +32,9 @@ class DashboardSnapshot {
           .whereType<DateTime>()
           .toList(),
       emergencyStatus: json['emergency_status']?.toString() ?? 'safe',
+      latestEmergencyAlertTime: DateTime.tryParse(
+        json['latest_emergency_alert_time']?.toString() ?? '',
+      ),
       syncedAt:
           DateTime.tryParse(json['synced_at']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
@@ -42,6 +47,7 @@ class DashboardSnapshot {
         .map((value) => value.toIso8601String())
         .toList(),
     'emergency_status': emergencyStatus,
+    'latest_emergency_alert_time': latestEmergencyAlertTime?.toIso8601String(),
     'synced_at': syncedAt.toIso8601String(),
   };
 }
@@ -89,12 +95,19 @@ class DashboardService {
     final profile = results[1] as Map<String, dynamic>?;
     final alert = results[2] as Map<String, dynamic>?;
     final profileName = profile?['name']?.toString();
+    final alertStatus = alert?['status']?.toString().trim();
+    final latestAlertTime = DateTime.tryParse(
+      alert?['triggered_time']?.toString() ?? '',
+    );
     final snapshot = DashboardSnapshot(
       userName: profileName == null || profileName.trim().isEmpty
           ? (user.email?.split('@').first ?? 'EthernaCare User')
           : profileName,
       checkinTimes: checkinTimes,
-      emergencyStatus: alert?['status']?.toString() ?? 'safe',
+      emergencyStatus: alertStatus == null || alertStatus.isEmpty
+          ? 'safe'
+          : alertStatus,
+      latestEmergencyAlertTime: latestAlertTime,
       syncedAt: DateTime.now(),
     );
     await cache.writeMap(_cacheKey(user.id), snapshot.toJson());

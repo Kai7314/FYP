@@ -22,7 +22,6 @@ import '../contacts/contacts_screen.dart';
 import '../profile/profile_screen.dart';
 import '../rewards/rewards_screen.dart';
 import '../../widgets/premium_shell.dart';
-import 'pet_button.dart';
 import 'virtual_pet_widget.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -45,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int streak = 0;
   int totalCheckins = 0;
   DateTime? lastCheckin;
+  DateTime? latestEmergencyAlertTime;
   String userName = 'EthernaCare User';
   String emergencyStatus = 'safe';
   String? loadError;
@@ -56,18 +56,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String? activeToyAsset;
   bool testAlarmArmed = false;
   int testAlarmSecondsRemaining = 0;
-  late final List<Widget> persistentPages;
+  int dataRefreshTick = 0;
 
   @override
   void initState() {
     super.initState();
-    persistentPages = [
-      const SizedBox.shrink(),
-      CheckinHistoryScreen(),
-      const ContactsScreen(),
-      const RewardsScreen(),
-      const ProfileScreen(),
-    ];
     _loadDashboard();
     _loadOrenCare();
     InactivityService().checkInactivity().catchError((_) {});
@@ -204,6 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
       lastCheckin = snapshot.lastCheckin;
       streak = snapshot.streak;
       emergencyStatus = snapshot.emergencyStatus;
+      latestEmergencyAlertTime = snapshot.latestEmergencyAlertTime;
     });
   }
 
@@ -211,26 +205,51 @@ class _HomeScreenState extends State<HomeScreen> {
     final action = await showDialog<_SosAction>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: AppColors.glassStrong,
         icon: const Icon(Icons.sos, color: AppColors.danger, size: 40),
         title: const Text('Emergency help'),
         content: const Text(
           'For immediate danger in Malaysia, call 999. EthernaCare can also record an SOS alert for your primary contact and trusted contacts.',
           textAlign: TextAlign.center,
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.pop(context, _SosAction.call999),
-            icon: const Icon(Icons.call_outlined),
-            label: const Text('Call 999'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, _SosAction.sendAlert),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('Send Alert'),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(context, _SosAction.sendAlert),
+                icon: const Icon(Icons.sms_outlined),
+                label: const Text('Send Emergency Alert'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(context, _SosAction.call999),
+                icon: const Icon(Icons.call_outlined),
+                label: const Text('Open 999 Dialer'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  minimumSize: const Size.fromHeight(50),
+                  side: const BorderSide(color: AppColors.danger),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+            ],
           ),
         ],
       ),
@@ -354,6 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
         sendAutomatedSms: true,
         allow999Dialer: false,
         escalationTarget: EmergencyEscalationTarget.primaryContact,
+        testMode: true,
       );
       if (!mounted) return;
       await _loadDashboard();
@@ -434,31 +454,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = List<Widget>.of(persistentPages);
-    pages[0] = _HomeDashboard(
-      loading: loading,
-      streak: streak,
-      totalCheckins: totalCheckins,
-      lastCheckin: lastCheckin,
-      userName: userName,
-      loadError: loadError,
-      emergencyStatus: emergencyStatus,
-      rewardSnapshot: rewardSnapshot,
-      weather: weather,
-      orenCare: orenCare,
-      activeToyAsset: activeToyAsset,
-      onPet: petCat,
-      onFeedFish: _feedFish,
-      onBuyToy: _buyToy,
-      onPlayToy: _playWithToy,
-      onSos: _triggerSos,
-      onTestSms: _testPrimarySms,
-      onTestInactivityAlarm: _armInactivityAlarmTest,
-      testAlarmArmed: testAlarmArmed,
-      testAlarmSecondsRemaining: testAlarmSecondsRemaining,
-      onSignOut: _signOut,
-      onRefresh: _loadDashboard,
-    );
+    final pages = [
+      _HomeDashboard(
+        loading: loading,
+        streak: streak,
+        totalCheckins: totalCheckins,
+        lastCheckin: lastCheckin,
+        userName: userName,
+        loadError: loadError,
+        emergencyStatus: emergencyStatus,
+        latestEmergencyAlertTime: latestEmergencyAlertTime,
+        rewardSnapshot: rewardSnapshot,
+        weather: weather,
+        orenCare: orenCare,
+        activeToyAsset: activeToyAsset,
+        onPet: petCat,
+        onFeedFish: _feedFish,
+        onBuyToy: _buyToy,
+        onPlayToy: _playWithToy,
+        onSos: _triggerSos,
+        onTestSms: _testPrimarySms,
+        onTestInactivityAlarm: _armInactivityAlarmTest,
+        testAlarmArmed: testAlarmArmed,
+        testAlarmSecondsRemaining: testAlarmSecondsRemaining,
+        onSignOut: _signOut,
+        onRefresh: _loadDashboard,
+      ),
+      CheckinHistoryScreen(key: ValueKey('history-$dataRefreshTick')),
+      ContactsScreen(key: ValueKey('contacts-$dataRefreshTick')),
+      RewardsScreen(key: ValueKey('rewards-$dataRefreshTick')),
+      ProfileScreen(key: ValueKey('profile-$dataRefreshTick')),
+    ];
 
     return PremiumScaffold(
       padding: EdgeInsets.zero,
@@ -471,7 +497,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: NavigationBar(
             selectedIndex: selectedIndex,
             onDestinationSelected: (value) {
-              setState(() => selectedIndex = value);
+              setState(() {
+                selectedIndex = value;
+                dataRefreshTick += 1;
+              });
               if (value == 0) _loadDashboard();
             },
             destinations: const [
@@ -520,6 +549,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.userName,
     required this.loadError,
     required this.emergencyStatus,
+    required this.latestEmergencyAlertTime,
     required this.rewardSnapshot,
     required this.weather,
     required this.orenCare,
@@ -544,6 +574,7 @@ class _HomeDashboard extends StatelessWidget {
   final String userName;
   final String? loadError;
   final String emergencyStatus;
+  final DateTime? latestEmergencyAlertTime;
   final RewardSnapshot? rewardSnapshot;
   final WeatherSnapshot? weather;
   final OrenCareState orenCare;
@@ -668,24 +699,9 @@ class _HomeDashboard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Card(
-            child: ListTile(
-              leading: Icon(
-                emergencyStatus.toLowerCase() == 'triggered'
-                    ? Icons.warning_amber_rounded
-                    : Icons.shield_outlined,
-                color: emergencyStatus.toLowerCase() == 'triggered'
-                    ? AppColors.danger
-                    : AppColors.primary,
-              ),
-              title: const Text('Emergency status'),
-              subtitle: Text(
-                emergencyStatus.toLowerCase() == 'triggered'
-                    ? 'Alert triggered - contact follow-up pending'
-                    : 'No active emergency alert',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
+          _EmergencyStatusCard(
+            status: emergencyStatus,
+            latestAlertTime: latestEmergencyAlertTime,
           ),
           const SizedBox(height: 12),
           Card(
@@ -753,13 +769,18 @@ class _HomeDashboard extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          const _ScrollCue(),
           const SizedBox(height: 14),
           VirtualPetWidget(
             streak: streak,
             hasCheckedInToday: checkedToday,
             weather: weather,
             mood: orenCare.mood,
+            energy: orenCare.energy,
             activeToyAsset: activeToyAsset,
+            onTap: onPet,
+            loading: loading,
           ),
           const SizedBox(height: 12),
           _OrenStatusBar(
@@ -815,7 +836,7 @@ class _HomeDashboard extends StatelessWidget {
                       Text(
                         checkedToday
                             ? 'Safety heartbeat sent ${DateFormat('h:mm a').format(lastCheckin!)}'
-                            : 'Interact with Oren to check in today',
+                            : 'Tap Oren to check in today',
                         style: TextStyle(
                           color: checkedToday
                               ? AppColors.primaryDark
@@ -829,63 +850,345 @@ class _HomeDashboard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          const Text(
-            'INTERACT WITH OREN',
-            style: TextStyle(
-              color: AppColors.muted,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .8,
-            ),
-          ),
-          const SizedBox(height: 8),
-          PetButton(onPressed: onPet, loading: loading),
           const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: onSos,
-            icon: const Icon(Icons.sos),
-            label: const Text('SOS Emergency'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.danger,
-              minimumSize: const Size.fromHeight(52),
-              side: const BorderSide(color: AppColors.danger),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: onTestSms,
-            icon: const Icon(Icons.sms_outlined),
-            label: const Text('Send Test SMS Automatically'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: testAlarmArmed ? null : onTestInactivityAlarm,
-            icon: const Icon(Icons.alarm_on_outlined),
-            label: Text(
-              testAlarmArmed
-                  ? 'Test alarm in ${testAlarmSecondsRemaining}s'
-                  : 'Test Inactivity Alarm (10s)',
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.accent,
-              minimumSize: const Size.fromHeight(52),
-              side: const BorderSide(color: AppColors.accent),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+          _SafetyActionPanel(
+            onSos: onSos,
+            onTestSms: onTestSms,
+            onTestInactivityAlarm: onTestInactivityAlarm,
+            testAlarmArmed: testAlarmArmed,
+            testAlarmSecondsRemaining: testAlarmSecondsRemaining,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmergencyStatusCard extends StatelessWidget {
+  const _EmergencyStatusCard({
+    required this.status,
+    required this.latestAlertTime,
+  });
+
+  final String status;
+  final DateTime? latestAlertTime;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedStatus = status.toLowerCase().trim();
+    final isRealAlert = normalizedStatus == 'triggered';
+    final isTestAlert = normalizedStatus.contains('test');
+    final color = isRealAlert
+        ? AppColors.danger
+        : isTestAlert
+        ? AppColors.blue
+        : AppColors.primary;
+    final icon = isRealAlert
+        ? Icons.warning_amber_rounded
+        : isTestAlert
+        ? Icons.task_alt_rounded
+        : Icons.shield_outlined;
+    final timeText = latestAlertTime == null
+        ? null
+        : DateFormat('MMM d, h:mm a').format(latestAlertTime!.toLocal());
+    final title = isRealAlert ? 'Latest emergency alert' : 'Safety monitor';
+    final statusText = isRealAlert
+        ? 'Emergency alert recorded'
+        : isTestAlert
+        ? 'Last alarm test completed'
+        : 'No active emergency alert';
+    final detailText = isRealAlert
+        ? [
+            if (timeText != null) 'Recorded $timeText.',
+            'Use Safety Actions below if follow-up is still needed.',
+          ].join(' ')
+        : isTestAlert
+        ? [
+            if (timeText != null) 'Test recorded $timeText.',
+            'No real emergency is active.',
+          ].join(' ')
+        : 'Tap Oren daily to keep your safety heartbeat updated.';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    statusText,
+                    style: const TextStyle(
+                      color: AppColors.ink,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    detailText,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScrollCue extends StatelessWidget {
+  const _ScrollCue();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.center,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .72),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+            SizedBox(width: 4),
+            Text(
+              'More tools below',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SafetyActionPanel extends StatelessWidget {
+  const _SafetyActionPanel({
+    required this.onSos,
+    required this.onTestSms,
+    required this.onTestInactivityAlarm,
+    required this.testAlarmArmed,
+    required this.testAlarmSecondsRemaining,
+  });
+
+  final VoidCallback onSos;
+  final VoidCallback onTestSms;
+  final VoidCallback onTestInactivityAlarm;
+  final bool testAlarmArmed;
+  final int testAlarmSecondsRemaining;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassPanel(
+      color: AppColors.glassStrong,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.health_and_safety_outlined,
+                  color: AppColors.danger,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Safety Actions',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    Text(
+                      'Emergency and testing controls',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SafetyActionTile(
+            icon: Icons.sos,
+            color: AppColors.danger,
+            title: 'SOS emergency',
+            subtitle: 'Record an alert and notify your primary contact.',
+            onTap: onSos,
+          ),
+          const SizedBox(height: 10),
+          _SafetyActionTile(
+            icon: Icons.sms_outlined,
+            color: AppColors.blue,
+            title: 'Test primary SMS',
+            subtitle: 'Send a safe automated test message.',
+            onTap: onTestSms,
+          ),
+          const SizedBox(height: 10),
+          _SafetyActionTile(
+            icon: Icons.alarm_on_outlined,
+            color: AppColors.accent,
+            title: 'Test inactivity alarm',
+            subtitle: testAlarmArmed
+                ? 'Safe test armed. Waiting for the timer.'
+                : 'Trigger a safe 10 second alarm test.',
+            trailingText: testAlarmArmed ? '${testAlarmSecondsRemaining}s' : null,
+            onTap: testAlarmArmed ? null : onTestInactivityAlarm,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SafetyActionTile extends StatelessWidget {
+  const _SafetyActionTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailingText,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  final String? trailingText;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: enabled
+                ? color.withValues(alpha: .07)
+                : AppColors.surface.withValues(alpha: .72),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: enabled
+                  ? color.withValues(alpha: .22)
+                  : AppColors.border.withValues(alpha: .8),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: enabled ? .14 : .08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  icon,
+                  color: enabled ? color : AppColors.muted,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: enabled ? AppColors.ink : AppColors.muted,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              if (trailingText != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .14),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    trailingText!,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: enabled ? color : AppColors.muted,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -955,16 +1258,23 @@ class _OrenStatusBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final status = _statusLabel;
+    final statusColor = energy >= 90
+        ? AppColors.accent
+        : energy <= 25
+        ? AppColors.muted
+        : AppColors.primary;
+
     return GlassPanel(
       color: Colors.white.withValues(alpha: .78),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 18,
-            backgroundColor: AppColors.primarySoft,
-            foregroundColor: AppColors.primaryDark,
-            child: Icon(Icons.pets, size: 19),
+            backgroundColor: statusColor.withValues(alpha: .14),
+            foregroundColor: statusColor,
+            child: Icon(_statusIcon, size: 19),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -982,7 +1292,7 @@ class _OrenStatusBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Mood: $mood - Energy: $energy%',
+                  'Status: $status - Energy: $energy%',
                   style: const TextStyle(
                     color: AppColors.muted,
                     fontSize: 12,
@@ -995,6 +1305,34 @@ class _OrenStatusBar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String get _statusLabel {
+    final moodText = mood.toLowerCase();
+    if (moodText == 'eating') return 'Eating';
+    if (energy >= 90 || moodText == 'energetic') return 'Full energy';
+    if (energy <= 25 || moodText == 'tired') return 'Tired';
+    if (moodText == 'playful') return 'Playful';
+    if (moodText == 'loved' || moodText == 'happy') return 'Loved';
+    if (moodText == 'curious') return 'Curious';
+    return 'Calm';
+  }
+
+  IconData get _statusIcon {
+    switch (_statusLabel) {
+      case 'Full energy':
+        return Icons.bolt_rounded;
+      case 'Tired':
+        return Icons.bedtime_outlined;
+      case 'Eating':
+        return Icons.set_meal_outlined;
+      case 'Playful':
+        return Icons.auto_awesome;
+      case 'Loved':
+        return Icons.favorite_border;
+      default:
+        return Icons.pets;
+    }
   }
 }
 

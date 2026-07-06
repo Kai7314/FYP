@@ -141,8 +141,58 @@ void main() {
       ),
     );
 
-    expect(find.text('Mood: Loved'), findsOneWidget);
+    expect(find.text('Status: Loved'), findsOneWidget);
     expect(find.byType(Image), findsNWidgets(2));
+  });
+
+  testWidgets('virtual pet supports tapping Oren to check in', (tester) async {
+    var tapped = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: VirtualPetWidget(
+            streak: 2,
+            hasCheckedInToday: false,
+            onTap: () => tapped = true,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(VirtualPetWidget));
+    expect(tapped, isTrue);
+  });
+
+  testWidgets('virtual pet reflects energy status differences', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: VirtualPetWidget(
+            streak: 3,
+            hasCheckedInToday: true,
+            mood: 'Energetic',
+            energy: 96,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Status: Full energy'), findsOneWidget);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: VirtualPetWidget(
+            streak: 3,
+            hasCheckedInToday: true,
+            mood: 'Tired',
+            energy: 12,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Status: Tired'), findsOneWidget);
   });
 
   test('oren care state serializes tokens and toys', () {
@@ -168,24 +218,11 @@ void main() {
     await tester.pump();
     expect(find.byType(AddContactDialog), findsOneWidget);
 
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Name'),
-      'Family Member',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Relationship'),
-      'Daughter',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Phone number'),
-      '0123456789',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Contact address'),
-      'Kuala Lumpur',
-    );
-    await tester.ensureVisible(find.byType(SwitchListTile));
-    await tester.tap(find.byType(SwitchListTile));
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Family Member');
+    await tester.enterText(fields.at(1), 'Daughter');
+    await tester.enterText(fields.at(2), '0123456789');
+    await tester.enterText(fields.at(3), 'Kuala Lumpur');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.byType(AddContactDialog), findsNothing);
@@ -196,22 +233,11 @@ void main() {
       const MaterialApp(home: Scaffold(body: AddContactDialog())),
     );
 
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Name'),
-      'Daughter',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Relationship'),
-      'Daughter',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Phone number'),
-      '123',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Contact address'),
-      'Kuala Lumpur',
-    );
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Daughter');
+    await tester.enterText(fields.at(1), 'Daughter');
+    await tester.enterText(fields.at(2), '123');
+    await tester.enterText(fields.at(3), 'Kuala Lumpur');
     await tester.tap(find.text('Save'));
     await tester.pump();
 
@@ -287,10 +313,21 @@ void main() {
       fetchedAt: DateTime.now(),
     );
 
-    expect(rainy.backgroundAsset, endsWith('raining.jpg'));
-    expect(night.backgroundAsset, endsWith('night.jpg'));
+    expect(rainy.backgroundAsset, endsWith('pixel_raining.png'));
+    expect(night.backgroundAsset, endsWith('pixel_night.png'));
     expect(rainy.malaysiaRegion, 'Klang Valley');
     expect(rainy.compactMalaysiaRegion, 'KV');
+
+    final johor = WeatherSnapshot(
+      temperatureCelsius: 29,
+      weatherCode: 3,
+      isDay: true,
+      latitude: 0,
+      longitude: 0,
+      fetchedAt: DateTime.now(),
+      locationName: 'Johor Bahru, Johor',
+    );
+    expect(johor.compactMalaysiaRegion, 'JB');
   });
 
   test('validation rules enforce account and contact limits', () {

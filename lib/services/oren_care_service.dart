@@ -22,7 +22,7 @@ class OrenCareService {
       description: 'A soft rolling toy for gentle play.',
       price: 8,
       iconCodePoint: 0xe3e6,
-      imageAsset: 'lib/assets/images/oren_toy_yarn_ball.png',
+      imageAsset: 'lib/assets/images/pixel/oren_pixel_yarn_ball.png',
     ),
     OrenToy(
       id: 'fish_plush',
@@ -30,7 +30,7 @@ class OrenCareService {
       description: 'Oren can nap beside this tiny fish.',
       price: 12,
       iconCodePoint: 0xe545,
-      imageAsset: 'lib/assets/images/oren_toy_fish_plush.png',
+      imageAsset: 'lib/assets/images/pixel/oren_pixel_fish_plush.png',
     ),
     OrenToy(
       id: 'feather_wand',
@@ -38,7 +38,7 @@ class OrenCareService {
       description: 'A playful wand for quick energy boosts.',
       price: 16,
       iconCodePoint: 0xe3b7,
-      imageAsset: 'lib/assets/images/oren_toy_feather_wand.png',
+      imageAsset: 'lib/assets/images/pixel/oren_pixel_feather_wand.png',
     ),
   ];
 
@@ -57,12 +57,13 @@ class OrenCareService {
     final state = await load();
     final today = _todayKey();
     if (state.lastDailyTokenDate == today) return state;
+    final nextEnergy = (state.energy + 5).clamp(0, 100);
     return _save(
       state.copyWith(
         tokens: state.tokens + dailyLoginTokenReward,
         lastDailyTokenDate: today,
-        mood: 'Happy',
-        energy: (state.energy + 5).clamp(0, 100),
+        mood: nextEnergy >= 90 ? 'Energetic' : 'Happy',
+        energy: nextEnergy,
         lastAction:
             'Daily login bonus earned: $dailyLoginTokenReward Oren tokens.',
       ),
@@ -77,12 +78,13 @@ class OrenCareService {
         lastAction: 'Daily check-in bonus already claimed today.',
       );
     }
+    final nextEnergy = (state.energy + 8).clamp(0, 100);
     return _save(
       state.copyWith(
         tokens: state.tokens + dailyCheckInTokenReward,
         lastCheckInTokenDate: today,
-        mood: 'Happy',
-        energy: (state.energy + 8).clamp(0, 100),
+        mood: nextEnergy >= 90 ? 'Energetic' : 'Happy',
+        energy: nextEnergy,
         lastAction:
             'Daily check-in bonus earned: $dailyCheckInTokenReward Oren tokens.',
       ),
@@ -136,11 +138,33 @@ class OrenCareService {
     if (!state.ownedToyIds.contains(toy.id)) {
       return state.copyWith(lastAction: 'Buy ${toy.name} before using it.');
     }
+    if (state.energy <= 15) {
+      return _save(
+        state.copyWith(
+          mood: 'Tired',
+          lastAction: 'Oren is too tired to play. Feed Oren first.',
+        ),
+      );
+    }
+
+    final fullEnergy = state.energy >= 90;
+    final nextEnergy = (state.energy - (fullEnergy ? 16 : 10)).clamp(0, 100);
+    final nextMood = fullEnergy
+        ? 'Energetic'
+        : nextEnergy <= 25
+        ? 'Tired'
+        : 'Playful';
+    final action = fullEnergy
+        ? 'Oren zoomed around with ${toy.name}.'
+        : nextEnergy <= 25
+        ? 'Oren played with ${toy.name} and got sleepy.'
+        : 'Oren played with ${toy.name}.';
+
     return _save(
       state.copyWith(
-        mood: 'Playful',
-        energy: (state.energy + 10).clamp(0, 100),
-        lastAction: 'Oren played with ${toy.name}.',
+        mood: nextMood,
+        energy: nextEnergy,
+        lastAction: action,
       ),
     );
   }
@@ -149,8 +173,8 @@ class OrenCareService {
     final state = await load();
     return _save(
       state.copyWith(
-        mood: 'Calm',
-        lastAction: 'Oren is ready for today.',
+        mood: _restingMoodForEnergy(state.energy),
+        lastAction: _restingActionForEnergy(state.energy),
       ),
     );
   }
@@ -166,5 +190,17 @@ class OrenCareService {
   String _todayKey() {
     final now = DateTime.now();
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  String _restingMoodForEnergy(int energy) {
+    if (energy >= 90) return 'Energetic';
+    if (energy <= 25) return 'Tired';
+    return 'Calm';
+  }
+
+  String _restingActionForEnergy(int energy) {
+    if (energy >= 90) return 'Oren is full of energy.';
+    if (energy <= 25) return 'Oren is sleepy. A snack would help.';
+    return 'Oren is ready for today.';
   }
 }

@@ -53,11 +53,10 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<Map<String, dynamic>> _loadProfile(String userId) async {
-    if (initializedProfileUserId == userId) {
-      return userService.getCurrentProfile();
+    if (initializedProfileUserId != userId) {
+      await authService.handleUserProfile();
+      initializedProfileUserId = userId;
     }
-    initializedProfileUserId = userId;
-    await authService.handleUserProfile();
     return userService.getCurrentProfile(forceRefresh: true);
   }
 

@@ -10,7 +10,7 @@ class CheckinHistoryScreen extends StatelessWidget {
   final checkinService = CheckinService();
 
   Future<List<Map<String, dynamic>>> _loadCheckins() async {
-    return checkinService.getCheckins();
+    return checkinService.getCheckins(forceRefresh: true);
   }
 
   @override

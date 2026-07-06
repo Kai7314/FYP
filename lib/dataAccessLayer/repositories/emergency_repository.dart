@@ -8,13 +8,16 @@ class EmergencyRepository {
 
   final SupabaseClient client;
 
-  Future<Map<String, dynamic>> createAlert(String userId) async {
+  Future<Map<String, dynamic>> createAlert(
+    String userId, {
+    String status = 'triggered',
+  }) async {
     final row = await client
         .from('emergency_alerts')
         .insert({
           'user_id': userId,
           'triggered_time': DateTime.now().toIso8601String(),
-          'status': 'triggered',
+          'status': status,
         })
         .select()
         .single();

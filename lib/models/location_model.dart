@@ -83,7 +83,7 @@ class WeatherSnapshot {
   }
 
   String get compactMalaysiaRegion {
-    final region = malaysiaRegion.trim();
+    final region = _regionOnly(malaysiaRegion.trim());
     if (region.isEmpty) return 'MY';
     const aliases = {
       'Current location': 'Current',
@@ -135,6 +135,13 @@ class WeatherSnapshot {
     return _abbreviatePlace(region);
   }
 
+  String _regionOnly(String value) {
+    if (value.isEmpty) return value;
+    final firstLine = value.split(RegExp(r'[\r\n]')).first.trim();
+    final beforeComma = firstLine.split(',').first.trim();
+    return beforeComma.isEmpty ? firstLine : beforeComma;
+  }
+
   String _abbreviatePlace(String value) {
     final words = value
         .split(RegExp(r'\s+'))
@@ -164,12 +171,14 @@ class WeatherSnapshot {
   }
 
   String get backgroundAsset {
-    if (isRainy) return 'lib/assets/images/raining.jpg';
-    if (!isDay) return 'lib/assets/images/night.jpg';
+    if (isRainy) return 'lib/assets/images/pixel/pixel_raining.png';
+    if (!isDay) return 'lib/assets/images/pixel/pixel_night.png';
 
     final hour = DateTime.now().hour;
-    if (hour >= 17 && hour < 20) return 'lib/assets/images/sunset.jpg';
-    return 'lib/assets/images/day.jpg';
+    if (hour >= 17 && hour < 20) {
+      return 'lib/assets/images/pixel/pixel_sunset.png';
+    }
+    return 'lib/assets/images/pixel/pixel_day.png';
   }
 
   factory WeatherSnapshot.fromJson(Map<String, dynamic> json) {

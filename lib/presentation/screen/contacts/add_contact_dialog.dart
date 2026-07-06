@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/colors.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
 import '../../widgets/malaysia_address_fields.dart';
 
-class AddContactDialog extends StatefulWidget {
-  const AddContactDialog({super.key});
+class AddContactPage extends StatefulWidget {
+  const AddContactPage({super.key});
 
   @override
-  State<AddContactDialog> createState() => _AddContactDialogState();
+  State<AddContactPage> createState() => _AddContactPageState();
 }
 
-class _AddContactDialogState extends State<AddContactDialog> {
+class AddContactDialog extends AddContactPage {
+  const AddContactDialog({super.key});
+}
+
+class _AddContactPageState extends State<AddContactPage> {
   final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
   final relationshipController = TextEditingController();
@@ -50,30 +55,51 @@ class _AddContactDialogState extends State<AddContactDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Emergency Contact'),
-      icon: const Icon(Icons.person_add_alt_1),
-      content: SingleChildScrollView(
+    return Scaffold(
+      appBar: AppBar(title: const Text('Add Contact')),
+      body: SafeArea(
         child: Form(
           key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             children: [
-              TextFormField(
-                controller: nameController,
-                maxLength: AppValidators.maxDisplayNameLength,
-                textCapitalization: TextCapitalization.words,
-                validator: (value) => AppValidators.displayName(value ?? ''),
-                decoration: const InputDecoration(labelText: 'Name'),
+              const Text(
+                'Emergency contact',
+                style: TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Add someone who should receive your emergency alerts.',
+                style: TextStyle(color: AppColors.muted),
+              ),
+              const SizedBox(height: 22),
+              _ContactFieldShell(
+                label: 'Name',
+                child: TextFormField(
+                  controller: nameController,
+                  maxLength: AppValidators.maxDisplayNameLength,
+                  textCapitalization: TextCapitalization.words,
+                  validator: (value) => AppValidators.displayName(value ?? ''),
+                  decoration: const InputDecoration(hintText: 'Full name'),
+                ),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: relationshipController,
-                maxLength: 30,
-                textCapitalization: TextCapitalization.words,
-                validator: (value) =>
-                    AppValidators.relationship(value ?? '', required: true),
-                decoration: const InputDecoration(labelText: 'Relationship'),
+              _ContactFieldShell(
+                label: 'Relationship',
+                child: TextFormField(
+                  controller: relationshipController,
+                  maxLength: 30,
+                  textCapitalization: TextCapitalization.words,
+                  validator: (value) =>
+                      AppValidators.relationship(value ?? '', required: true),
+                  decoration: const InputDecoration(
+                    hintText: 'Family, friend, caregiver',
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               CountryPhoneField(
@@ -81,15 +107,15 @@ class _AddContactDialogState extends State<AddContactDialog> {
                 dialCode: phoneDialCode,
                 onDialCodeChanged: (value) =>
                     setState(() => phoneDialCode = value),
+                labelText: 'Phone',
+                externalLabels: true,
               ),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Maximum 5 contacts. Duplicate phone numbers are not allowed.',
-                  style: TextStyle(fontSize: 11, color: Colors.black54),
-                ),
+              const SizedBox(height: 6),
+              const Text(
+                'Maximum 5 contacts. Duplicate phone numbers are not allowed.',
+                style: TextStyle(fontSize: 12, color: AppColors.muted),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               MalaysiaAddressFields(
                 addressController: addressController,
                 selectedState: selectedState,
@@ -101,16 +127,22 @@ class _AddContactDialogState extends State<AddContactDialog> {
                 onRegionChanged: (value) =>
                     setState(() => selectedRegion = value),
                 addressRequired: true,
-                addressLabel: 'Contact address',
-                addressHelperText: 'House/unit, street, building, or landmark',
-                regionHelperText: 'Used for contact location context',
+                externalLabels: true,
+                addressLabel: 'House / unit, street',
+                addressHelperText: null,
+                stateLabel: 'State',
+                regionLabel: 'Region / district',
+                regionHelperText: null,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 14),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 value: isPrimary,
                 onChanged: (value) => setState(() => isPrimary = value),
-                title: const Text('Primary emergency contact'),
+                title: const Text(
+                  'Primary emergency contact',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
                 subtitle: const Text(
                   'This person is prioritized for emergency alerts.',
                 ),
@@ -119,12 +151,54 @@ class _AddContactDialogState extends State<AddContactDialog> {
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: _submit,
+                child: const Text('Save'),
+              ),
+            ),
+          ],
         ),
-        FilledButton(onPressed: _submit, child: const Text('Save')),
+      ),
+    );
+  }
+}
+
+class _ContactFieldShell extends StatelessWidget {
+  const _ContactFieldShell({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 6),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        child,
       ],
     );
   }

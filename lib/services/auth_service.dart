@@ -74,17 +74,39 @@ class AuthService {
     final user = currentUser;
     if (user == null) return;
 
-    try {
-      await userRepository.createProfileIfMissing(
-        userId: user.id,
-        name:
-            user.userMetadata?['full_name']?.toString().trim().isNotEmpty ==
-                true
-            ? user.userMetadata!['full_name'].toString()
-            : (user.email?.split('@').first ?? 'EthernaCare User'),
-      );
-    } catch (_) {
-      // Authentication remains valid if optional profile setup fails.
+    await userRepository.createProfileIfMissing(
+      userId: user.id,
+      name: _safeDisplayName(user),
+    );
+  }
+
+  String _safeDisplayName(User user) {
+    final metadata = user.userMetadata ?? const <String, dynamic>{};
+    final candidates = [
+      metadata['full_name'],
+      metadata['name'],
+      metadata['display_name'],
+      metadata['preferred_username'],
+      user.email?.split('@').first,
+      'EthernaCare User',
+    ];
+
+    for (final candidate in candidates) {
+      final cleaned = _cleanProfileName(candidate?.toString() ?? '');
+      if (cleaned != null) return cleaned;
     }
+    return 'EthernaCare User';
+  }
+
+  String? _cleanProfileName(String value) {
+    final cleaned = value
+        .replaceAll(RegExp(r"[^A-Za-z .'-]"), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (cleaned.length < 2 || !RegExp(r'^[A-Za-z]').hasMatch(cleaned)) {
+      return null;
+    }
+    if (cleaned.length <= 50) return cleaned;
+    return cleaned.substring(0, 50).trim();
   }
 }

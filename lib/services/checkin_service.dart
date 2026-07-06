@@ -46,7 +46,7 @@ class CheckinService {
       user.id,
       DateTime.now(),
     );
-    if (created) await getCheckins(forceRefresh: true);
+    await getCheckins(forceRefresh: true);
     return created;
   }
 }

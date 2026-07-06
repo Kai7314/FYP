@@ -30,9 +30,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<void> _addContact() async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (_) => const AddContactDialog(),
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(builder: (_) => const AddContactPage()),
     );
     if (result == null) return;
 

@@ -24,7 +24,7 @@ class UserRepository {
   }) async {
     final profile = await getProfile(userId);
     if (profile != null) return;
-    await client.from('users').insert({'id': userId, 'name': name});
+    await client.from('users').upsert({'id': userId, 'name': name});
   }
 
   Future<void> updateProfile({

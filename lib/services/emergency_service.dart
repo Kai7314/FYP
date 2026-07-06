@@ -107,6 +107,7 @@ class EmergencyService {
     bool sendAutomatedSms = true,
     bool allow999Dialer = false,
     String? escalationTarget,
+    bool testMode = false,
   }) async {
     final user = authRepository.currentUser;
     if (user == null) {
@@ -140,7 +141,10 @@ class EmergencyService {
     }
 
     final alert = await _retry(
-      () => emergencyRepository.createAlert(user.id),
+      () => emergencyRepository.createAlert(
+        user.id,
+        status: testMode ? 'test_triggered' : 'triggered',
+      ),
       attempts: 3,
     );
     final position = await locationService.getCurrentPosition();
