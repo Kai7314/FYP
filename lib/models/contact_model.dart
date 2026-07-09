@@ -7,6 +7,7 @@ class ContactModel {
     required this.address,
     this.addressState,
     this.addressRegion,
+    this.phoneVerifiedAt,
     this.id,
     this.isPrimary = false,
   });
@@ -19,6 +20,7 @@ class ContactModel {
   final String address;
   final String? addressState;
   final String? addressRegion;
+  final DateTime? phoneVerifiedAt;
   final bool isPrimary;
 
   factory ContactModel.fromJson(Map<String, dynamic> json) {
@@ -31,6 +33,9 @@ class ContactModel {
       address: json['address']?.toString() ?? '',
       addressState: json['address_state']?.toString(),
       addressRegion: json['address_region']?.toString(),
+      phoneVerifiedAt: DateTime.tryParse(
+        json['phone_verified_at']?.toString() ?? '',
+      ),
       isPrimary:
           json['is_primary'] == true || json['is_primary']?.toString() == '1',
     );
@@ -45,6 +50,8 @@ class ContactModel {
     'address': address,
     if (addressState != null) 'address_state': addressState,
     if (addressRegion != null) 'address_region': addressRegion,
+    if (phoneVerifiedAt != null)
+      'phone_verified_at': phoneVerifiedAt!.toIso8601String(),
     'is_primary': isPrimary,
   };
 }

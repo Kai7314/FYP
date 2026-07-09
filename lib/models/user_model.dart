@@ -6,6 +6,7 @@ class UserModel {
     required this.name,
     this.email,
     this.phone,
+    this.phoneVerifiedAt,
     this.address,
     this.addressState,
     this.addressRegion,
@@ -19,6 +20,7 @@ class UserModel {
   final String name;
   final String? email;
   final String? phone;
+  final DateTime? phoneVerifiedAt;
   final String? address;
   final String? addressState;
   final String? addressRegion;
@@ -33,6 +35,9 @@ class UserModel {
       name: json['name']?.toString() ?? 'EthernaCare User',
       email: json['email']?.toString(),
       phone: json['phone']?.toString(),
+      phoneVerifiedAt: DateTime.tryParse(
+        json['phone_verified_at']?.toString() ?? '',
+      ),
       address: json['address']?.toString(),
       addressState: json['address_state']?.toString(),
       addressRegion: json['address_region']?.toString(),
@@ -53,6 +58,8 @@ class UserModel {
     'name': name,
     if (email != null) 'email': email,
     if (phone != null) 'phone': phone,
+    if (phoneVerifiedAt != null)
+      'phone_verified_at': phoneVerifiedAt!.toIso8601String(),
     if (address != null) 'address': address,
     if (addressState != null) 'address_state': addressState,
     if (addressRegion != null) 'address_region': addressRegion,

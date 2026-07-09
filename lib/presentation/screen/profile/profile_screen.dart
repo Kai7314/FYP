@@ -6,8 +6,11 @@ import '../../../models/emergency_escalation_target.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
+import '../../widgets/error_dialog.dart';
 import '../../widgets/malaysia_address_fields.dart';
+import '../../widgets/phone_otp_verification_card.dart';
 import '../../widgets/premium_shell.dart';
+import '../../../services/phone_verification_service.dart';
 import '../planning/ai_guidance_screen.dart';
 import '../planning/legacy_planning_screen.dart';
 
@@ -52,11 +55,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not update profile: $error'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppErrorDialog.show(
+        context,
+        title: 'Could not update profile',
+        error: error,
       );
     }
   }
@@ -394,6 +396,8 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   String? selectedBloodType;
   late String escalationTarget;
   late String phoneDialCode;
+  late String initialPhone;
+  String? verifiedPhone;
 
   @override
   void initState() {
@@ -402,6 +406,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       text: widget.profile['name']?.toString() ?? '',
     );
     final profilePhone = widget.profile['phone']?.toString() ?? '';
+    initialPhone = AppValidators.normalizePhone(profilePhone);
     phoneDialCode = AppValidators.detectPhoneCountry(profilePhone).dialCode;
     phoneController = TextEditingController(
       text: AppValidators.localPhoneForCountry(profilePhone, phoneDialCode),
@@ -457,13 +462,15 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
 
     final name = AppValidators.normalizeSpaces(nameController.text);
     final threshold = int.tryParse(thresholdController.text.trim());
+    final phone = _normalizedPhone();
+    if (phone.isNotEmpty && phone != initialPhone && verifiedPhone != phone) {
+      _showMessage('Please verify your new phone number first.');
+      return;
+    }
 
     Navigator.pop(context, {
       'name': name,
-      'phone': AppValidators.normalizePhoneWithCountry(
-        phoneController.text,
-        phoneDialCode,
-      ),
+      'phone': phone,
       'address': AppValidators.normalizeSpaces(addressController.text),
       'address_state': selectedState,
       'address_region': selectedRegion,
@@ -471,6 +478,19 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       'inactivity_threshold': threshold,
       'emergency_escalation_target': escalationTarget,
     });
+  }
+
+  String _normalizedPhone() {
+    return AppValidators.normalizePhoneWithCountry(
+      phoneController.text,
+      phoneDialCode,
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
@@ -520,6 +540,21 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                 labelText: 'Phone',
                 required: false,
                 externalLabels: true,
+              ),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: phoneController,
+                builder: (context, value, child) {
+                  final phone = _normalizedPhone();
+                  if (phone.isEmpty || phone == initialPhone) {
+                    return const SizedBox.shrink();
+                  }
+                  return PhoneOtpVerificationCard(
+                    phone: phone,
+                    purpose: PhoneVerificationPurpose.userPhone,
+                    onVerified: (phone) =>
+                        setState(() => verifiedPhone = phone),
+                  );
+                },
               ),
               const SizedBox(height: 16),
               MalaysiaAddressFields(

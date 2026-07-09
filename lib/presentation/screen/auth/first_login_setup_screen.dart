@@ -7,6 +7,8 @@ import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
 import '../../widgets/malaysia_address_fields.dart';
+import '../../widgets/phone_otp_verification_card.dart';
+import '../../../services/phone_verification_service.dart';
 
 class FirstLoginSetupScreen extends StatefulWidget {
   const FirstLoginSetupScreen({
@@ -34,6 +36,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
   String? selectedBloodType;
   String escalationTarget = EmergencyEscalationTarget.trustedContacts;
   late String phoneDialCode;
+  String? verifiedPhone;
   bool acceptedTerms = false;
   bool saving = false;
 
@@ -95,15 +98,17 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
       _showMessage('Please accept the Terms and Conditions to continue.');
       return;
     }
+    final phone = _normalizedPhone();
+    if (verifiedPhone != phone) {
+      _showMessage('Please verify your phone number first.');
+      return;
+    }
 
     setState(() => saving = true);
     try {
       await userService.completeFirstLoginSetup({
         'name': AppValidators.normalizeSpaces(nameController.text),
-        'phone': AppValidators.normalizePhoneWithCountry(
-          phoneController.text,
-          phoneDialCode,
-        ),
+        'phone': phone,
         'address': AppValidators.normalizeSpaces(addressController.text),
         'address_state': selectedState,
         'address_region': selectedRegion,
@@ -119,10 +124,20 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     }
   }
 
+  String _normalizedPhone() {
+    return AppValidators.normalizePhoneWithCountry(
+      phoneController.text,
+      phoneDialCode,
+    );
+  }
+
   String _setupErrorMessage(Object error) {
     final text = error.toString();
     if (text.contains('PGRST204') || text.contains('schema cache')) {
       return 'Supabase users table is missing profile columns. Run supabase/quick_fix_users_profile_columns.sql, then retry.';
+    }
+    if (text.toLowerCase().contains('verify your phone number')) {
+      return 'Please send and enter the SMS verification code before saving your phone number.';
     }
     return 'Could not save setup: $error';
   }
@@ -173,6 +188,18 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                     onDialCodeChanged: (value) =>
                         setState(() => phoneDialCode = value),
                     labelText: 'Phone',
+                  ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: phoneController,
+                    builder: (context, value, child) {
+                      return PhoneOtpVerificationCard(
+                        phone: _normalizedPhone(),
+                        purpose: PhoneVerificationPurpose.userPhone,
+                        enabled: !saving,
+                        onVerified: (phone) =>
+                            setState(() => verifiedPhone = phone),
+                      );
+                    },
                   ),
                   const SizedBox(height: 10),
                   MalaysiaAddressFields(

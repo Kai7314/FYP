@@ -7,6 +7,8 @@ import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
 import '../../widgets/error_dialog.dart';
 import '../../widgets/malaysia_address_fields.dart';
+import '../../widgets/phone_otp_verification_card.dart';
+import '../../../services/phone_verification_service.dart';
 
 class PrimaryContactSetupScreen extends StatefulWidget {
   const PrimaryContactSetupScreen({super.key, required this.onComplete});
@@ -29,6 +31,7 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
   String phoneDialCode = AppValidators.defaultPhoneCountry.dialCode;
   String? selectedState = 'Kuala Lumpur';
   String? selectedRegion = 'Kuala Lumpur';
+  String? verifiedPhone;
   late Future<List<Map<String, dynamic>>> contactsFuture;
   bool saving = false;
 
@@ -49,6 +52,11 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
 
   Future<void> _save() async {
     if (!(formKey.currentState?.validate() ?? false) || saving) return;
+    final phone = _normalizedPhone();
+    if (verifiedPhone != phone) {
+      _showMessage('Please verify the primary contact phone number first.');
+      return;
+    }
     setState(() => saving = true);
     try {
       await contactService.addContact(
@@ -56,10 +64,7 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
         relationship: AppValidators.normalizeSpaces(
           relationshipController.text,
         ),
-        phone: AppValidators.normalizePhoneWithCountry(
-          phoneController.text,
-          phoneDialCode,
-        ),
+        phone: phone,
         address: AppValidators.normalizeSpaces(addressController.text),
         addressState: selectedState,
         addressRegion: selectedRegion,
@@ -77,6 +82,19 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
     } finally {
       if (mounted) setState(() => saving = false);
     }
+  }
+
+  String _normalizedPhone() {
+    return AppValidators.normalizePhoneWithCountry(
+      phoneController.text,
+      phoneDialCode,
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _setPrimary(Map<String, dynamic> row) async {
@@ -183,6 +201,9 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
                   phoneDialCode: phoneDialCode,
                   onPhoneDialCodeChanged: (value) =>
                       setState(() => phoneDialCode = value),
+                  saving: saving,
+                  onPhoneVerified: (phone) =>
+                      setState(() => verifiedPhone = phone),
                   addressController: addressController,
                   selectedState: selectedState,
                   selectedRegion: selectedRegion,
@@ -263,6 +284,8 @@ class _NewPrimaryContactForm extends StatelessWidget {
     required this.phoneController,
     required this.phoneDialCode,
     required this.onPhoneDialCodeChanged,
+    required this.saving,
+    required this.onPhoneVerified,
     required this.addressController,
     required this.selectedState,
     required this.selectedRegion,
@@ -276,6 +299,8 @@ class _NewPrimaryContactForm extends StatelessWidget {
   final TextEditingController phoneController;
   final String phoneDialCode;
   final ValueChanged<String> onPhoneDialCodeChanged;
+  final bool saving;
+  final ValueChanged<String> onPhoneVerified;
   final TextEditingController addressController;
   final String? selectedState;
   final String? selectedRegion;
@@ -309,6 +334,21 @@ class _NewPrimaryContactForm extends StatelessWidget {
             controller: phoneController,
             dialCode: phoneDialCode,
             onDialCodeChanged: onPhoneDialCodeChanged,
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: phoneController,
+            builder: (context, value, child) {
+              final phone = AppValidators.normalizePhoneWithCountry(
+                phoneController.text,
+                phoneDialCode,
+              );
+              return PhoneOtpVerificationCard(
+                phone: phone,
+                purpose: PhoneVerificationPurpose.contactPhone,
+                enabled: !saving,
+                onVerified: onPhoneVerified,
+              );
+            },
           ),
           const SizedBox(height: 10),
           MalaysiaAddressFields(

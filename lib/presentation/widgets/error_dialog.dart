@@ -40,6 +40,10 @@ class AppErrorDialog {
         lowered.contains('duplicate key')) {
       return 'This phone number is already saved as an emergency contact.';
     }
+    if (lowered.contains('verify your phone number') ||
+        lowered.contains('verify this contact phone number')) {
+      return 'Please send and enter the SMS verification code before saving this phone number.';
+    }
     if (lowered.contains('contact address is required')) {
       return 'Please enter the contact address. If you already entered it, run the contacts validation SQL in Supabase and hot restart the app.';
     }

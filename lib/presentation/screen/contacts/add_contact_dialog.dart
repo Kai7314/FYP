@@ -4,16 +4,20 @@ import '../../../core/constants/colors.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
 import '../../widgets/malaysia_address_fields.dart';
+import '../../widgets/phone_otp_verification_card.dart';
+import '../../../services/phone_verification_service.dart';
 
 class AddContactPage extends StatefulWidget {
-  const AddContactPage({super.key});
+  const AddContactPage({super.key, this.requirePhoneVerification = true});
+
+  final bool requirePhoneVerification;
 
   @override
   State<AddContactPage> createState() => _AddContactPageState();
 }
 
 class AddContactDialog extends AddContactPage {
-  const AddContactDialog({super.key});
+  const AddContactDialog({super.key}) : super(requirePhoneVerification: false);
 }
 
 class _AddContactPageState extends State<AddContactPage> {
@@ -25,6 +29,7 @@ class _AddContactPageState extends State<AddContactPage> {
   String phoneDialCode = AppValidators.defaultPhoneCountry.dialCode;
   String? selectedState = 'Kuala Lumpur';
   String? selectedRegion = 'Kuala Lumpur';
+  String? verifiedPhone;
   bool isPrimary = false;
 
   @override
@@ -36,21 +41,36 @@ class _AddContactPageState extends State<AddContactPage> {
     super.dispose();
   }
 
+  String _normalizedPhone() {
+    return AppValidators.normalizePhoneWithCountry(
+      phoneController.text,
+      phoneDialCode,
+    );
+  }
+
   void _submit() {
     if (!(formKey.currentState?.validate() ?? false)) return;
+    final phone = _normalizedPhone();
+    if (widget.requirePhoneVerification && verifiedPhone != phone) {
+      _showMessage('Please verify this contact phone number first.');
+      return;
+    }
 
     Navigator.of(context).pop({
       'name': AppValidators.normalizeSpaces(nameController.text),
       'relationship': AppValidators.normalizeSpaces(relationshipController.text),
-      'phone': AppValidators.normalizePhoneWithCountry(
-        phoneController.text,
-        phoneDialCode,
-      ),
+      'phone': phone,
       'address': AppValidators.normalizeSpaces(addressController.text),
       'address_state': selectedState,
       'address_region': selectedRegion,
       'is_primary': isPrimary,
     });
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
@@ -115,6 +135,18 @@ class _AddContactPageState extends State<AddContactPage> {
                 'Maximum 5 contacts. Duplicate phone numbers are not allowed.',
                 style: TextStyle(fontSize: 12, color: AppColors.muted),
               ),
+              if (widget.requirePhoneVerification)
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: phoneController,
+                  builder: (context, value, child) {
+                    return PhoneOtpVerificationCard(
+                      phone: _normalizedPhone(),
+                      purpose: PhoneVerificationPurpose.contactPhone,
+                      onVerified: (phone) =>
+                          setState(() => verifiedPhone = phone),
+                    );
+                  },
+                ),
               const SizedBox(height: 16),
               MalaysiaAddressFields(
                 addressController: addressController,
