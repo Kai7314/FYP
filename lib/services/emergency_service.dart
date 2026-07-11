@@ -148,6 +148,9 @@ class EmergencyService {
       attempts: 3,
     );
     final position = await locationService.getCurrentPosition();
+    final message = testMode
+        ? _testEmergencyMessage()
+        : _emergencyMessage(position);
     final alertId = alert['id'] ?? alert['alert_id'];
     var autoSmsAttempted = false;
     var autoSmsSent = 0;
@@ -158,7 +161,7 @@ class EmergencyService {
       autoSmsAttempted = true;
       final directDelivery = await _sendDirectSmsToContacts(
         contacts,
-        _emergencyMessage(position),
+        message,
       );
       autoSmsSent += directDelivery.sent;
       autoSmsFailed += directDelivery.failed;
@@ -173,7 +176,7 @@ class EmergencyService {
             alertId: alertId,
             userId: user.id,
             contacts: contacts,
-            messageBody: _emergencyMessage(position),
+            messageBody: message,
           ),
           attempts: 3,
         );
@@ -224,7 +227,7 @@ class EmergencyService {
       if (primaryContact != null) {
         primarySmsComposerOpened = await _openSmsComposer(
           phone: primaryContact['phone']?.toString() ?? '',
-          message: _emergencyMessage(position),
+          message: message,
         );
       }
     }
@@ -245,6 +248,10 @@ class EmergencyService {
         ? ''
         : '\nLocation: https://maps.google.com/?q=${position.latitude},${position.longitude}';
     return 'Emergency alert from EthernaCare. The user may need help. Please contact them immediately.$locationText';
+  }
+
+  String _testEmergencyMessage() {
+    return 'TEST message from EthernaCare. Three test check-in reminders were triggered. This is not a real emergency and 999 was not contacted.';
   }
 
   Future<bool> _openSmsComposer({

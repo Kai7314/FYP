@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../models/document_model.dart';
 import '../../../models/legacy_note_model.dart';
+import '../../../services/contact_service.dart';
 import '../../../services/document_service.dart';
 import '../../widgets/error_dialog.dart';
 
@@ -16,6 +19,7 @@ class LegacyPlanningScreen extends StatefulWidget {
 
 class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
   final service = DocumentService();
+  final contactService = ContactService();
   late Future<LegacyPlanningSnapshot> future;
 
   @override
@@ -31,9 +35,29 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
   }
 
   Future<void> _edit(FuneralPreferences preferences) async {
+    List<Map<String, dynamic>> contacts;
+    try {
+      contacts = await contactService.getContacts(forceRefresh: true);
+    } catch (error) {
+      try {
+        contacts = await contactService.getContacts();
+      } catch (_) {
+        if (mounted) {
+          await AppErrorDialog.show(
+            context,
+            title: 'Could not load trusted contacts',
+            error: error,
+          );
+        }
+        return;
+      }
+    }
+    if (!mounted) return;
+
     final result = await showDialog<FuneralPreferences>(
       context: context,
-      builder: (_) => _PreferencesDialog(preferences: preferences),
+      builder: (_) =>
+          _PreferencesDialog(preferences: preferences, contacts: contacts),
     );
     if (result == null) return;
     try {
@@ -352,7 +376,7 @@ class _PreferenceRow extends StatelessWidget {
   }
 }
 
-class _LegacyNoteCard extends StatelessWidget {
+class _LegacyNoteCard extends StatefulWidget {
   const _LegacyNoteCard({
     required this.note,
     required this.onEdit,
@@ -362,6 +386,47 @@ class _LegacyNoteCard extends StatelessWidget {
   final LegacyNote note;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+
+  @override
+  State<_LegacyNoteCard> createState() => _LegacyNoteCardState();
+}
+
+class _LegacyNoteCardState extends State<_LegacyNoteCard>
+    with WidgetsBindingObserver {
+  bool contentVisible = false;
+  Timer? hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    hideTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _hideContent();
+  }
+
+  void _toggleContent() {
+    hideTimer?.cancel();
+    setState(() => contentVisible = !contentVisible);
+    if (contentVisible) {
+      hideTimer = Timer(const Duration(seconds: 30), _hideContent);
+    }
+  }
+
+  void _hideContent() {
+    hideTimer?.cancel();
+    if (!mounted || !contentVisible) return;
+    setState(() => contentVisible = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -382,21 +447,39 @@ class _LegacyNoteCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    note.title,
+                    widget.note.title,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    note.content,
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  if (contentVisible)
+                    Text(
+                      widget.note.content,
+                      maxLines: 8,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  else
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.visibility_off_outlined,
+                          size: 16,
+                          color: AppColors.muted,
+                        ),
+                        SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            'Content hidden for privacy',
+                            style: TextStyle(color: AppColors.muted),
+                          ),
+                        ),
+                      ],
+                    ),
                   const SizedBox(height: 8),
                   Text(
-                    'Updated ${DateFormat('dd MMM yyyy, h:mm a').format(note.updatedAt)}',
+                    'Updated ${DateFormat('dd MMM yyyy, h:mm a').format(widget.note.updatedAt)}',
                     style: const TextStyle(
                       color: AppColors.muted,
                       fontSize: 12,
@@ -409,12 +492,23 @@ class _LegacyNoteCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  onPressed: onEdit,
+                  onPressed: _toggleContent,
+                  icon: Icon(
+                    contentVisible
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                  ),
+                  tooltip: contentVisible
+                      ? 'Hide private note'
+                      : 'Reveal private note',
+                ),
+                IconButton(
+                  onPressed: widget.onEdit,
                   icon: const Icon(Icons.edit_outlined),
                   tooltip: 'Edit note',
                 ),
                 IconButton(
-                  onPressed: onDelete,
+                  onPressed: widget.onDelete,
                   icon: const Icon(Icons.delete_outline),
                   color: AppColors.danger,
                   tooltip: 'Delete note',
@@ -429,8 +523,10 @@ class _LegacyNoteCard extends StatelessWidget {
 }
 
 class _PreferencesDialog extends StatefulWidget {
-  const _PreferencesDialog({required this.preferences});
+  const _PreferencesDialog({required this.preferences, required this.contacts});
+
   final FuneralPreferences preferences;
+  final List<Map<String, dynamic>> contacts;
 
   @override
   State<_PreferencesDialog> createState() => _PreferencesDialogState();
@@ -500,8 +596,25 @@ class _LegacyNoteDialogState extends State<_LegacyNoteDialog> {
                 validator: (value) {
                   final text = value?.trim() ?? '';
                   if (text.length < 2) return 'Enter at least 2 characters.';
-                  return null;
+                  return DocumentService.legacyNoteSecurityWarning(
+                    title: titleController.text.trim(),
+                    content: text,
+                  );
                 },
+              ),
+              const SizedBox(height: 4),
+              const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.lock_outline, size: 17, color: AppColors.muted),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Never store passwords, PINs, OTPs, recovery phrases, API keys, or security codes here.',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -531,52 +644,209 @@ class _LegacyNoteDialogState extends State<_LegacyNoteDialog> {
 }
 
 class _PreferencesDialogState extends State<_PreferencesDialog> {
-  late final List<TextEditingController> controllers;
+  final formKey = GlobalKey<FormState>();
+  late final TextEditingController venueController;
+  late final TextEditingController notesController;
+  late final List<String> religionOptions;
+  late final List<String> serviceTypeOptions;
+  late final List<String> contactOptions;
+  String? selectedReligion;
+  String? selectedServiceType;
+  String? selectedAuthorizedContact;
 
   @override
   void initState() {
     super.initState();
-    controllers = [
-      TextEditingController(text: widget.preferences.religion),
-      TextEditingController(text: widget.preferences.serviceType),
-      TextEditingController(text: widget.preferences.venue),
-      TextEditingController(text: widget.preferences.authorizedContact),
-      TextEditingController(text: widget.preferences.notes),
-    ];
+    venueController = TextEditingController(text: widget.preferences.venue);
+    notesController = TextEditingController(text: widget.preferences.notes);
+
+    religionOptions = _withExistingValue(
+      FuneralPreferenceOptions.religions,
+      widget.preferences.religion,
+    );
+    serviceTypeOptions = _withExistingValue(
+      FuneralPreferenceOptions.serviceTypes,
+      widget.preferences.serviceType,
+    );
+    selectedReligion = _selectedValue(
+      religionOptions,
+      widget.preferences.religion,
+    );
+    selectedServiceType = _selectedValue(
+      serviceTypeOptions,
+      widget.preferences.serviceType,
+    );
+
+    contactOptions = widget.contacts.map(_contactLabel).toSet().toList();
+    selectedAuthorizedContact = _initialContactSelection();
   }
 
   @override
   void dispose() {
-    for (final controller in controllers) {
-      controller.dispose();
-    }
+    venueController.dispose();
+    notesController.dispose();
     super.dispose();
+  }
+
+  List<String> _withExistingValue(List<String> options, String existing) {
+    final values = [...options];
+    final trimmed = existing.trim();
+    if (trimmed.isNotEmpty && !values.contains(trimmed)) values.add(trimmed);
+    return values;
+  }
+
+  String? _selectedValue(List<String> options, String existing) {
+    final trimmed = existing.trim();
+    return options.contains(trimmed) ? trimmed : null;
+  }
+
+  String _contactLabel(Map<String, dynamic> contact) {
+    final name = contact['name']?.toString().trim() ?? '';
+    final phone = contact['phone']?.toString().trim() ?? '';
+    if (phone.isEmpty) return name;
+    return '$name - $phone';
+  }
+
+  String? _initialContactSelection() {
+    if (contactOptions.isEmpty) return null;
+    final saved = widget.preferences.authorizedContact.trim();
+    if (contactOptions.contains(saved)) return saved;
+
+    for (final contact in widget.contacts) {
+      final name = contact['name']?.toString().trim() ?? '';
+      if (name == saved) return _contactLabel(contact);
+    }
+    for (final contact in widget.contacts) {
+      if (contact['is_primary'] == true) return _contactLabel(contact);
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    const labels = [
-      'Religion',
-      'Service type',
-      'Venue',
-      'Authorized contact',
-      'Notes',
-    ];
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       title: const Text('Edit Funeral Preferences'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(
-            controllers.length,
-            (index) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: TextField(
-                controller: controllers[index],
-                maxLength: index == 4 ? 500 : 100,
-                maxLines: index == 4 ? 4 : 1,
-                decoration: InputDecoration(labelText: labels[index]),
-              ),
+      content: Form(
+        key: formKey,
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: selectedReligion,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Religion',
+                    hintText: 'Select religion',
+                  ),
+                  items: religionOptions
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(
+                            value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => selectedReligion = value,
+                  validator: (value) =>
+                      value == null ? 'Select a religion or preference.' : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedServiceType,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Service type',
+                    hintText: 'Select service type',
+                  ),
+                  items: serviceTypeOptions
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(
+                            value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => selectedServiceType = value,
+                  validator: (value) => value == null
+                      ? 'Select a service type or Not decided.'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: venueController,
+                  maxLength: 100,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Preferred venue',
+                  ),
+                ),
+                const SizedBox(height: 4),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedAuthorizedContact,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Authorized contact',
+                    hintText: contactOptions.isEmpty
+                        ? 'No trusted contacts available'
+                        : 'Select a trusted contact',
+                    helperText: contactOptions.isEmpty
+                        ? 'Add a contact from the Contacts page first.'
+                        : null,
+                  ),
+                  selectedItemBuilder: (context) => contactOptions
+                      .map(
+                        (value) => Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  items: contactOptions
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(
+                            value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: contactOptions.isEmpty
+                      ? null
+                      : (value) => selectedAuthorizedContact = value,
+                  validator: contactOptions.isEmpty
+                      ? null
+                      : (value) => value == null
+                            ? 'Select an authorized contact.'
+                            : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: notesController,
+                  maxLength: 500,
+                  maxLines: 4,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(labelText: 'Notes'),
+                ),
+              ],
             ),
           ),
         ),
@@ -587,16 +857,19 @@ class _PreferencesDialogState extends State<_PreferencesDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(
-            context,
-            FuneralPreferences(
-              religion: controllers[0].text.trim(),
-              serviceType: controllers[1].text.trim(),
-              venue: controllers[2].text.trim(),
-              authorizedContact: controllers[3].text.trim(),
-              notes: controllers[4].text.trim(),
-            ),
-          ),
+          onPressed: () {
+            if (!formKey.currentState!.validate()) return;
+            Navigator.pop(
+              context,
+              FuneralPreferences(
+                religion: selectedReligion!,
+                serviceType: selectedServiceType!,
+                venue: venueController.text.trim(),
+                authorizedContact: selectedAuthorizedContact ?? '',
+                notes: notesController.text.trim(),
+              ),
+            );
+          },
           child: const Text('Save'),
         ),
       ],

@@ -26,6 +26,8 @@ import 'package:fyp/presentation/widgets/loading_indicator.dart';
 import 'package:fyp/dataAccessLayer/repositories/contact_repository.dart';
 import 'package:fyp/services/reward_service.dart';
 import 'package:fyp/services/ai_service.dart';
+import 'package:fyp/services/document_service.dart';
+import 'package:fyp/services/inactivity_service.dart';
 import 'package:fyp/services/user_service.dart';
 import 'package:fyp/utils/validators.dart';
 
@@ -36,6 +38,29 @@ void main() {
 
   test('auth screen remains available for email and OAuth flows', () {
     expect(LoginScreen, isNotNull);
+  });
+
+  test('inactivity escalates only after three missed threshold windows', () {
+    final lastCheckIn = DateTime.utc(2026, 7, 1, 8);
+
+    int missesAfter(Duration elapsed) =>
+        InactivityService.calculateMissedCheckIns(
+          lastCheckIn: lastCheckIn,
+          now: lastCheckIn.add(elapsed),
+          thresholdHours: 24,
+        );
+
+    expect(missesAfter(const Duration(hours: 23, minutes: 59)), 0);
+    expect(missesAfter(const Duration(hours: 24)), 1);
+    expect(missesAfter(const Duration(hours: 48)), 2);
+    expect(missesAfter(const Duration(hours: 72)), 3);
+  });
+
+  test('inactivity reminder test sends SMS on every third trigger', () {
+    expect(InactivityService.nextTestReminderCount(0), 1);
+    expect(InactivityService.nextTestReminderCount(1), 2);
+    expect(InactivityService.nextTestReminderCount(2), 3);
+    expect(InactivityService.nextTestReminderCount(3), 1);
   });
 
   test('tutorial screen is available for first login guidance', () {
@@ -163,9 +188,7 @@ void main() {
     expect(tapped, isTrue);
   });
 
-  testWidgets('virtual pet reflects energy status differences', (
-    tester,
-  ) async {
+  testWidgets('virtual pet reflects energy status differences', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -418,6 +441,37 @@ void main() {
     expect(restored.id, 'note-1');
     expect(restored.title, 'Account reminder');
     expect(restored.content, contains('trusted contacts'));
+  });
+
+  test('legacy notes reject credentials and authentication secrets', () {
+    expect(
+      DocumentService.legacyNoteSecurityWarning(
+        title: 'Family instructions',
+        content: 'Contact the lawyer listed in my trusted contacts.',
+      ),
+      isNull,
+    );
+    expect(
+      DocumentService.legacyNoteSecurityWarning(
+        title: 'Account password',
+        content: 'Use the value written below.',
+      ),
+      isNotNull,
+    );
+    expect(
+      DocumentService.legacyNoteSecurityWarning(
+        title: 'Temporary access',
+        content: 'OTP: 123456',
+      ),
+      isNotNull,
+    );
+    expect(
+      DocumentService.legacyNoteSecurityWarning(
+        title: 'Developer access',
+        content: 'sk-exampleSecretValue123456789',
+      ),
+      isNotNull,
+    );
   });
 
   test('AI guidance has an offline safety fallback', () {

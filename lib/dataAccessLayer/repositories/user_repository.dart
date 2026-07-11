@@ -22,6 +22,12 @@ class UserRepository {
     required String userId,
     required String name,
   }) async {
+    try {
+      await client.rpc('ensure_current_user_profile');
+    } on PostgrestException catch (error) {
+      if (!_isMissingEnsureProfileRpc(error)) rethrow;
+    }
+
     final profile = await getProfile(userId);
     if (profile != null) return;
     await client.from('users').upsert({'id': userId, 'name': name});
@@ -32,5 +38,13 @@ class UserRepository {
     required Map<String, dynamic> values,
   }) {
     return client.from('users').upsert({'id': userId, ...values});
+  }
+
+  bool _isMissingEnsureProfileRpc(PostgrestException error) {
+    final message = error.message.toLowerCase();
+    return error.code == 'PGRST202' ||
+        error.code == '42883' ||
+        (message.contains('ensure_current_user_profile') &&
+            (message.contains('function') || message.contains('schema cache')));
   }
 }

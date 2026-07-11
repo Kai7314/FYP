@@ -49,16 +49,24 @@ class NotificationService {
   }
 
   Future<void> showMissedCheckInReminder({
-    required int overdueHours,
-    required int graceMinutes,
+    required int missedCheckIns,
+    required int requiredMissedCheckIns,
+    bool testMode = false,
   }) async {
     if (kIsWeb) return;
     await initialize();
     await plugin.show(
       id: missedCheckInNotificationId,
-      title: 'Oren needs your check-in',
-      body:
-          'Your safety check-in is $overdueHours hours overdue. Open EthernaCare within $graceMinutes minutes to prevent an emergency alert.',
+      title: testMode
+          ? 'Test reminder $missedCheckIns of $requiredMissedCheckIns'
+          : 'Oren needs your check-in',
+      body: testMode
+          ? missedCheckIns >= requiredMissedCheckIns
+                ? 'Third test reminder reached. EthernaCare is testing the primary-contact SMS now.'
+                : 'This is a safe notification test. No SMS is sent until test reminder 3 of 3.'
+          : missedCheckIns >= requiredMissedCheckIns
+          ? 'Missed check-in $missedCheckIns of $requiredMissedCheckIns. EthernaCare is starting your configured emergency escalation now.'
+          : 'Missed check-in $missedCheckIns of $requiredMissedCheckIns. Open EthernaCare and tap Oren before the third miss to prevent emergency contact escalation.',
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'missed_check_in',

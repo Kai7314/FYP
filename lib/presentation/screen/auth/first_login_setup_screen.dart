@@ -240,7 +240,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                         AppValidators.inactivityThreshold(value ?? ''),
                     decoration: const InputDecoration(
                       labelText: 'Inactivity threshold (hours)',
-                      helperText: 'Between 1 and 168 hours',
+                      helperText: '1-168 hours for each missed check-in',
                     ),
                   ),
                   const SizedBox(height: 10),

@@ -1,22 +1,77 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../services/checkin_service.dart';
 
-class CheckinHistoryScreen extends StatelessWidget {
-  CheckinHistoryScreen({super.key});
+class CheckinHistoryScreen extends StatefulWidget {
+  const CheckinHistoryScreen({super.key, this.refreshVersion = 0});
 
+  final int refreshVersion;
+
+  @override
+  State<CheckinHistoryScreen> createState() => _CheckinHistoryScreenState();
+}
+
+class _CheckinHistoryScreenState extends State<CheckinHistoryScreen> {
   final checkinService = CheckinService();
+  late Future<List<Map<String, dynamic>>> checkinsFuture;
+  StreamSubscription<void>? checkinSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    checkinsFuture = _loadCheckins();
+    checkinSubscription = CheckinService.updates.listen((_) {
+      if (mounted) unawaited(_showLatestCheckin());
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant CheckinHistoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshVersion != widget.refreshVersion) {
+      scheduleMicrotask(() => unawaited(_refresh()));
+    }
+  }
+
+  @override
+  void dispose() {
+    checkinSubscription?.cancel();
+    super.dispose();
+  }
 
   Future<List<Map<String, dynamic>>> _loadCheckins() async {
-    return checkinService.getCheckins(forceRefresh: true);
+    final cached = await checkinService.getCachedCheckins();
+    try {
+      return await checkinService.getCheckins(forceRefresh: true);
+    } catch (_) {
+      if (cached.isNotEmpty) return cached;
+      rethrow;
+    }
+  }
+
+  Future<void> _refresh() async {
+    final future = _loadCheckins();
+    setState(() => checkinsFuture = future);
+    await future;
+  }
+
+  Future<void> _showLatestCheckin() async {
+    final cached = await checkinService.getCachedCheckins();
+    if (!mounted) return;
+    if (cached.isNotEmpty) {
+      setState(() => checkinsFuture = Future.value(cached));
+    }
+    await _refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _loadCheckins(),
+      future: checkinsFuture,
       builder: (context, snapshot) {
         final horizontalPadding = MediaQuery.sizeOf(context).width < 360
             ? 14.0
@@ -25,6 +80,7 @@ class CheckinHistoryScreen extends StatelessWidget {
         final checkedDates = rows
             .map((row) => DateTime.tryParse(row['checkin_time'].toString()))
             .whereType<DateTime>()
+            .map((date) => date.toLocal())
             .toList();
         final thisMonth = checkedDates
             .where(
@@ -33,146 +89,150 @@ class CheckinHistoryScreen extends StatelessWidget {
                   date.year == DateTime.now().year,
             )
             .length;
-        final rate = checkedDates.isEmpty
-            ? 0
-            : ((thisMonth / DateTime.now().day) * 100).clamp(0, 100).round();
         final checkedToday = checkedDates.any(
           (date) => DateUtils.isSameDay(date, DateTime.now()),
         );
 
-        return ListView(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            20,
-            horizontalPadding,
-            24,
-          ),
-          children: [
-            const Text(
-              'Check-In History',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                color: AppColors.ink,
+        return RefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              20,
+              horizontalPadding,
+              24,
+            ),
+            children: [
+              const Text(
+                'Check-In History',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.ink,
+                ),
               ),
-            ),
-            const SizedBox(height: 3),
-            const Text(
-              'Your safety activity log',
-              style: TextStyle(color: AppColors.muted),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: _SummaryCard(
-                    color: AppColors.primary,
-                    icon: Icons.local_fire_department_outlined,
-                    value: '${_streak(checkedDates)}',
-                    label: 'Day Streak',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _SummaryCard(
-                    iconColor: AppColors.accent,
-                    icon: Icons.workspace_premium_outlined,
-                    value: '$thisMonth',
-                    label: 'This Month',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _SummaryCard(
-                    iconColor: AppColors.blue,
-                    icon: Icons.trending_up,
-                    value: '$rate%',
-                    label: 'Rate',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (snapshot.hasError)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Unable to load check-in history. Please try again later.',
-                    style: TextStyle(color: AppColors.danger),
-                  ),
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: checkedToday
-                      ? AppColors.primarySoft
-                      : AppColors.warningSoft,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: (checkedToday ? AppColors.primary : AppColors.accent)
-                        .withValues(alpha: .4),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: checkedToday
-                          ? AppColors.primary
-                          : AppColors.accent,
-                      foregroundColor: Colors.white,
-                      child: const Icon(Icons.check_circle_outline),
+              const SizedBox(height: 3),
+              const Text(
+                'Your safety activity log',
+                style: TextStyle(color: AppColors.muted),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SummaryCard(
+                      color: AppColors.primary,
+                      icon: Icons.local_fire_department_outlined,
+                      value: '${_streak(checkedDates)}',
+                      label: 'Day Streak',
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            checkedToday
-                                ? 'Checked in today'
-                                : 'Not checked in yet',
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          Text(
-                            checkedToday
-                                ? 'Your daily safety heartbeat is complete.'
-                                : 'Go home and pet Oren to check in!',
-                            style: const TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _SummaryCard(
+                      iconColor: AppColors.accent,
+                      icon: Icons.workspace_premium_outlined,
+                      value: '$thisMonth',
+                      label: 'This Month',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _SummaryCard(
+                      iconColor: AppColors.blue,
+                      icon: Icons.emoji_events_outlined,
+                      value: '${_bestStreak(checkedDates)}',
+                      label: 'Best Streak',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (snapshot.hasError)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'Unable to load check-in history. Please try again later.',
+                      style: TextStyle(color: AppColors.danger),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: checkedToday
+                        ? AppColors.primarySoft
+                        : AppColors.warningSoft,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color:
+                          (checkedToday ? AppColors.primary : AppColors.accent)
+                              .withValues(alpha: .4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: checkedToday
+                            ? AppColors.primary
+                            : AppColors.accent,
+                        foregroundColor: Colors.white,
+                        child: const Icon(Icons.check_circle_outline),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 16),
-            _WeekCard(checkedDates: checkedDates),
-            const SizedBox(height: 18),
-            const _SectionLabel(
-              icon: Icons.calendar_month_outlined,
-              label: 'RECENT ACTIVITY',
-            ),
-            const SizedBox(height: 9),
-            if (snapshot.connectionState == ConnectionState.waiting)
-              const Center(child: CircularProgressIndicator())
-            else if (rows.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text(
-                    'No check-ins yet. Pet Oren from Home to begin your history.',
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              checkedToday
+                                  ? 'Checked in today'
+                                  : 'Not checked in yet',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              checkedToday
+                                  ? 'Your daily safety heartbeat is complete.'
+                                  : 'Go home and pet Oren to check in!',
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              )
-            else
-              ...rows.map((row) => _CheckinTile(row: row)),
-          ],
+              const SizedBox(height: 16),
+              _WeekCard(checkedDates: checkedDates),
+              const SizedBox(height: 18),
+              const _SectionLabel(
+                icon: Icons.calendar_month_outlined,
+                label: 'RECENT ACTIVITY',
+              ),
+              const SizedBox(height: 9),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const Center(child: CircularProgressIndicator())
+              else if (rows.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text(
+                      'No check-ins yet. Pet Oren from Home to begin your history.',
+                    ),
+                  ),
+                )
+              else
+                ...rows.map((row) => _CheckinTile(row: row)),
+            ],
+          ),
         );
       },
     );
@@ -197,6 +257,29 @@ class CheckinHistoryScreen extends StatelessWidget {
       }
     }
     return result;
+  }
+
+  int _bestStreak(List<DateTime> times) {
+    final days =
+        times
+            .map((date) => DateTime(date.year, date.month, date.day))
+            .toSet()
+            .toList()
+          ..sort();
+    if (days.isEmpty) return 0;
+
+    var best = 1;
+    var current = 1;
+    for (var index = 1; index < days.length; index++) {
+      final difference = days[index].difference(days[index - 1]).inDays;
+      if (difference == 1) {
+        current++;
+        if (current > best) best = current;
+      } else {
+        current = 1;
+      }
+    }
+    return best;
   }
 }
 

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/colors.dart';
-import '../../../models/emergency_escalation_target.dart';
 import '../../../models/location_model.dart';
 import '../../../models/oren_care_model.dart';
 import '../../../models/reward_model.dart';
@@ -38,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final orenCareService = OrenCareService();
   final orenSoundService = OrenSoundService();
   final userService = UserService();
+  final inactivityService = InactivityService();
 
   int selectedIndex = 0;
   bool loading = false;
@@ -51,19 +51,41 @@ class _HomeScreenState extends State<HomeScreen> {
   RewardSnapshot? rewardSnapshot;
   WeatherSnapshot? weather;
   OrenCareState orenCare = OrenCareState.initial();
-  Timer? testAlarmTimer;
   Timer? orenResetTimer;
   String? activeToyAsset;
-  bool testAlarmArmed = false;
-  int testAlarmSecondsRemaining = 0;
+  bool testReminderBusy = false;
+  int testReminderCount = 0;
+  int inactivityNotificationCount = 0;
+  bool inactivityEscalated = false;
   int dataRefreshTick = 0;
+  int historyRefreshTick = 0;
 
   @override
   void initState() {
     super.initState();
     _loadDashboard();
     _loadOrenCare();
-    InactivityService().checkInactivity().catchError((_) {});
+    unawaited(_refreshInactivityMonitor());
+  }
+
+  Future<void> _refreshInactivityMonitor() async {
+    try {
+      await inactivityService.checkInactivity();
+      await _loadInactivityStatus(lastCheckin);
+    } catch (_) {
+      // Dashboard loading and manual check-in remain available offline.
+    }
+  }
+
+  Future<void> _loadInactivityStatus(DateTime? latestCheckIn) async {
+    final status = await inactivityService.getCurrentStatus(
+      latestCheckIn: latestCheckIn,
+    );
+    if (!mounted) return;
+    setState(() {
+      inactivityNotificationCount = status.notificationCount;
+      inactivityEscalated = status.escalated;
+    });
   }
 
   Future<void> _loadOrenCare() async {
@@ -135,10 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _showMessage(state.lastAction);
   }
 
-  void _showTemporaryOrenState(
-    OrenCareState state, {
-    String? toyAsset,
-  }) {
+  void _showTemporaryOrenState(OrenCareState state, {String? toyAsset}) {
     if (!mounted) return;
     orenResetTimer?.cancel();
     setState(() {
@@ -163,7 +182,10 @@ class _HomeScreenState extends State<HomeScreen> {
     ]);
     if (!mounted) return;
     final cachedDashboard = cachedResults[0] as DashboardSnapshot?;
-    if (cachedDashboard != null) _applyDashboard(cachedDashboard);
+    if (cachedDashboard != null) {
+      _applyDashboard(cachedDashboard);
+      await _loadInactivityStatus(cachedDashboard.lastCheckin);
+    }
     setState(() {
       rewardSnapshot = cachedResults[1] as RewardSnapshot?;
       weather = cachedResults[2] as WeatherSnapshot?;
@@ -176,7 +198,9 @@ class _HomeScreenState extends State<HomeScreen> {
         weatherService.getCurrentWeather(),
       ]);
       if (!mounted) return;
-      _applyDashboard(results[0] as DashboardSnapshot);
+      final dashboard = results[0] as DashboardSnapshot;
+      _applyDashboard(dashboard);
+      await _loadInactivityStatus(dashboard.lastCheckin);
       setState(() {
         rewardSnapshot = results[1] as RewardSnapshot;
         weather = results[2] as WeatherSnapshot?;
@@ -282,10 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  String _checkInMessage({
-    required bool created,
-    required bool tokenAwarded,
-  }) {
+  String _checkInMessage({required bool created, required bool tokenAwarded}) {
     if (created && tokenAwarded) {
       return 'Check-in recorded. +${OrenCareService.dailyCheckInTokenReward} Oren tokens earned.';
     }
@@ -310,83 +331,44 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _armInactivityAlarmTest() async {
-    if (testAlarmArmed) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(
-          Icons.alarm_on_outlined,
-          color: AppColors.accent,
-          size: 38,
-        ),
-        title: const Text('Test inactivity alarm?'),
-        content: const Text(
-          'This waits 10 seconds, records a test inactivity alert, and sends an automated SMS to your primary contact. It will not open or call 999.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Start 10s Test'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    testAlarmTimer?.cancel();
-    setState(() {
-      testAlarmArmed = true;
-      testAlarmSecondsRemaining = 10;
-    });
-    _showMessage('Safe inactivity alarm test armed for 10 seconds.');
-
-    testAlarmTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (testAlarmSecondsRemaining <= 1) {
-        timer.cancel();
-        unawaited(_fireInactivityAlarmTest());
-        return;
-      }
-      setState(() => testAlarmSecondsRemaining -= 1);
-    });
-  }
-
-  Future<void> _fireInactivityAlarmTest() async {
-    if (mounted) {
-      setState(() {
-        testAlarmArmed = false;
-        testAlarmSecondsRemaining = 0;
-      });
-    }
-
+  Future<void> _triggerInactivityReminderTest() async {
+    if (testReminderBusy) return;
+    setState(() => testReminderBusy = true);
     try {
-      final result = await EmergencyService().triggerEmergencyDetailed(
-        openPrimarySmsComposer: false,
-        sendAutomatedSms: true,
-        allow999Dialer: false,
-        escalationTarget: EmergencyEscalationTarget.primaryContact,
-        testMode: true,
+      final result = await InactivityService().triggerReminderTest(
+        currentCount: testReminderCount,
       );
       if (!mounted) return;
-      await _loadDashboard();
-      _showMessage(
-        result.alertRecorded
-            ? 'Test inactivity alarm triggered safely. ${_emergencyResultMessage(result)}'
-            : 'Add a primary emergency contact before testing the alarm.',
-      );
+      setState(() => testReminderCount = result.reminderCount);
+      final emergencyResult = result.emergencyResult;
+      if (emergencyResult == null) {
+        _showMessage(
+          'Test reminder ${result.reminderCount} of ${InactivityService.missedCheckInsBeforeEscalation} triggered. No SMS sent yet.',
+        );
+        return;
+      }
+      _showMessage(_testReminderResultMessage(emergencyResult));
     } catch (error) {
       if (mounted) {
-        _showMessage('Could not trigger test inactivity alarm: $error');
+        _showMessage('Could not run reminder test: $error');
       }
+    } finally {
+      if (mounted) setState(() => testReminderBusy = false);
     }
+  }
+
+  String _testReminderResultMessage(EmergencyTriggerResult result) {
+    if (!result.alertRecorded) {
+      return 'Third test reminder triggered, but no SMS was sent. Add a primary emergency contact and try again.';
+    }
+    if (result.autoSmsSent > 0) {
+      return 'Third test reminder triggered. Automated TEST SMS sent to your primary contact.';
+    }
+    final error = result.autoSmsError;
+    if (error != null && error.trim().isNotEmpty) {
+      return 'Third test reminder triggered, but the TEST SMS failed: $error';
+    }
+    return 'Third test reminder triggered. The TEST SMS is queued for delivery.';
   }
 
   String _emergencyResultMessage(EmergencyTriggerResult result) {
@@ -446,7 +428,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    testAlarmTimer?.cancel();
     orenResetTimer?.cancel();
     unawaited(orenSoundService.dispose());
     super.dispose();
@@ -474,13 +455,15 @@ class _HomeScreenState extends State<HomeScreen> {
         onPlayToy: _playWithToy,
         onSos: _triggerSos,
         onTestSms: _testPrimarySms,
-        onTestInactivityAlarm: _armInactivityAlarmTest,
-        testAlarmArmed: testAlarmArmed,
-        testAlarmSecondsRemaining: testAlarmSecondsRemaining,
+        onTestInactivityAlarm: _triggerInactivityReminderTest,
+        testReminderBusy: testReminderBusy,
+        testReminderCount: testReminderCount,
+        inactivityNotificationCount: inactivityNotificationCount,
+        inactivityEscalated: inactivityEscalated,
         onSignOut: _signOut,
         onRefresh: _loadDashboard,
       ),
-      CheckinHistoryScreen(key: ValueKey('history-$dataRefreshTick')),
+      CheckinHistoryScreen(refreshVersion: historyRefreshTick),
       ContactsScreen(key: ValueKey('contacts-$dataRefreshTick')),
       RewardsScreen(key: ValueKey('rewards-$dataRefreshTick')),
       ProfileScreen(key: ValueKey('profile-$dataRefreshTick')),
@@ -500,6 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
               setState(() {
                 selectedIndex = value;
                 dataRefreshTick += 1;
+                if (value == 1) historyRefreshTick += 1;
               });
               if (value == 0) _loadDashboard();
             },
@@ -561,8 +545,10 @@ class _HomeDashboard extends StatelessWidget {
     required this.onSos,
     required this.onTestSms,
     required this.onTestInactivityAlarm,
-    required this.testAlarmArmed,
-    required this.testAlarmSecondsRemaining,
+    required this.testReminderBusy,
+    required this.testReminderCount,
+    required this.inactivityNotificationCount,
+    required this.inactivityEscalated,
     required this.onSignOut,
     required this.onRefresh,
   });
@@ -586,14 +572,18 @@ class _HomeDashboard extends StatelessWidget {
   final VoidCallback onSos;
   final VoidCallback onTestSms;
   final VoidCallback onTestInactivityAlarm;
-  final bool testAlarmArmed;
-  final int testAlarmSecondsRemaining;
+  final bool testReminderBusy;
+  final int testReminderCount;
+  final int inactivityNotificationCount;
+  final bool inactivityEscalated;
   final VoidCallback onSignOut;
   final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final horizontalPadding = MediaQuery.sizeOf(context).width < 360 ? 14.0 : 20.0;
+    final horizontalPadding = MediaQuery.sizeOf(context).width < 360
+        ? 14.0
+        : 20.0;
     final checkedToday =
         lastCheckin != null && DateUtils.isSameDay(lastCheckin, DateTime.now());
     final greeting = DateTime.now().hour < 12
@@ -610,7 +600,12 @@ class _HomeDashboard extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
-        padding: EdgeInsets.fromLTRB(horizontalPadding, 18, horizontalPadding, 24),
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          18,
+          horizontalPadding,
+          24,
+        ),
         children: [
           Row(
             children: [
@@ -697,6 +692,14 @@ class _HomeDashboard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          _InactivityReminderCard(
+            count: inactivityNotificationCount,
+            escalated: inactivityEscalated,
+            testCount: testReminderCount,
+            testBusy: testReminderBusy,
+            onTriggerTest: onTestInactivityAlarm,
           ),
           const SizedBox(height: 10),
           _EmergencyStatusCard(
@@ -851,14 +854,151 @@ class _HomeDashboard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          _SafetyActionPanel(
-            onSos: onSos,
-            onTestSms: onTestSms,
-            onTestInactivityAlarm: onTestInactivityAlarm,
-            testAlarmArmed: testAlarmArmed,
-            testAlarmSecondsRemaining: testAlarmSecondsRemaining,
-          ),
+          _SafetyActionPanel(onSos: onSos, onTestSms: onTestSms),
         ],
+      ),
+    );
+  }
+}
+
+class _InactivityReminderCard extends StatelessWidget {
+  const _InactivityReminderCard({
+    required this.count,
+    required this.escalated,
+    required this.testCount,
+    required this.testBusy,
+    required this.onTriggerTest,
+  });
+
+  final int count;
+  final bool escalated;
+  final int testCount;
+  final bool testBusy;
+  final VoidCallback onTriggerTest;
+
+  @override
+  Widget build(BuildContext context) {
+    const requiredCount = InactivityService.missedCheckInsBeforeEscalation;
+    final safeCount = count.clamp(0, requiredCount).toInt();
+    final safeTestCount = testCount.clamp(0, requiredCount).toInt();
+    final nextTestCount = safeTestCount >= requiredCount
+        ? 1
+        : safeTestCount + 1;
+    final reachedLimit = safeCount >= requiredCount;
+    final color = reachedLimit ? AppColors.danger : AppColors.accent;
+    final detail = escalated
+        ? 'Configured emergency escalation triggered.'
+        : reachedLimit
+        ? 'Third reminder reached. SMS delivery is pending.'
+        : safeCount == 0
+        ? 'No missed check-in reminders in the current cycle.'
+        : 'SMS will be attempted when reminder 3 is triggered.';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    reachedLimit
+                        ? Icons.sms_outlined
+                        : Icons.notifications_active_outlined,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Inactivity reminders',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      Text(
+                        'Current missed check-in cycle',
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '$safeCount/$requiredCount',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            LinearProgressIndicator(
+              value: safeCount / requiredCount,
+              minHeight: 7,
+              borderRadius: BorderRadius.circular(8),
+              color: color,
+              backgroundColor: AppColors.surface,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              detail,
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 12,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Safe reminder test  $safeTestCount/$requiredCount',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'The third test sends a labelled TEST SMS. It never calls 999.',
+                        style: TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 11,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                FilledButton.icon(
+                  onPressed: testBusy ? null : onTriggerTest,
+                  icon: testBusy
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.notifications_active_outlined),
+                  label: Text(testBusy ? 'Testing' : 'Test $nextTestCount/3'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -993,19 +1133,10 @@ class _ScrollCue extends StatelessWidget {
 }
 
 class _SafetyActionPanel extends StatelessWidget {
-  const _SafetyActionPanel({
-    required this.onSos,
-    required this.onTestSms,
-    required this.onTestInactivityAlarm,
-    required this.testAlarmArmed,
-    required this.testAlarmSecondsRemaining,
-  });
+  const _SafetyActionPanel({required this.onSos, required this.onTestSms});
 
   final VoidCallback onSos;
   final VoidCallback onTestSms;
-  final VoidCallback onTestInactivityAlarm;
-  final bool testAlarmArmed;
-  final int testAlarmSecondsRemaining;
 
   @override
   Widget build(BuildContext context) {
@@ -1062,17 +1193,6 @@ class _SafetyActionPanel extends StatelessWidget {
             title: 'Test primary SMS',
             subtitle: 'Send a safe automated test message.',
             onTap: onTestSms,
-          ),
-          const SizedBox(height: 10),
-          _SafetyActionTile(
-            icon: Icons.alarm_on_outlined,
-            color: AppColors.accent,
-            title: 'Test inactivity alarm',
-            subtitle: testAlarmArmed
-                ? 'Safe test armed. Waiting for the timer.'
-                : 'Trigger a safe 10 second alarm test.',
-            trailingText: testAlarmArmed ? '${testAlarmSecondsRemaining}s' : null,
-            onTap: testAlarmArmed ? null : onTestInactivityAlarm,
           ),
         ],
       ),

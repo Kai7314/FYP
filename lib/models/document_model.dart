@@ -1,3 +1,30 @@
+class FuneralPreferenceOptions {
+  const FuneralPreferenceOptions._();
+
+  static const religions = <String>[
+    'Islam',
+    'Buddhism',
+    'Christianity',
+    'Hinduism',
+    'Sikhism',
+    'Taoism',
+    'Traditional or folk beliefs',
+    'No religion or secular',
+    'Other or prefer not to say',
+  ];
+
+  static const serviceTypes = <String>[
+    'Burial',
+    'Cremation',
+    'Memorial service',
+    'Religious funeral service',
+    'Wake or visitation',
+    'Green or natural burial',
+    'Repatriation',
+    'Not decided',
+  ];
+}
+
 class LegacyDocument {
   const LegacyDocument({
     required this.id,

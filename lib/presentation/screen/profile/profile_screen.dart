@@ -620,7 +620,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                       AppValidators.inactivityThreshold(value ?? ''),
                   decoration: const InputDecoration(
                     hintText: '24',
-                    helperText: 'Between 1 and 168 hours',
+                    helperText: '1-168 hours for each missed check-in',
                   ),
                 ),
               ),

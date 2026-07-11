@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/checkin_repository.dart';
 import 'local_cache_service.dart';
@@ -15,7 +17,21 @@ class CheckinService {
   final CheckinRepository checkinRepository;
   final LocalCacheService cache;
 
+  static final StreamController<void> _updates =
+      StreamController<void>.broadcast();
+
+  static Stream<void> get updates => _updates.stream;
+
   String _cacheKey(String userId) => 'checkins_snapshot_v1_$userId';
+
+  Future<List<Map<String, dynamic>>> getCachedCheckins() async {
+    final user = authRepository.currentUser;
+    if (user == null) return [];
+    final cached = await cache.readMap(_cacheKey(user.id));
+    final rows = cached?['rows'] as List?;
+    if (rows == null) return [];
+    return rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
 
   Future<List<Map<String, dynamic>>> getCheckins({
     bool forceRefresh = false,
@@ -23,13 +39,8 @@ class CheckinService {
     final user = authRepository.currentUser;
     if (user == null) return [];
     if (!forceRefresh) {
-      final cached = await cache.readMap(_cacheKey(user.id));
-      final rows = cached?['rows'] as List?;
-      if (rows != null) {
-        return rows
-            .map((row) => Map<String, dynamic>.from(row as Map))
-            .toList();
-      }
+      final rows = await getCachedCheckins();
+      if (rows.isNotEmpty) return rows;
     }
     final rows = await checkinRepository.getCheckins(user.id);
     await cache.writeMap(_cacheKey(user.id), {'rows': rows});
@@ -42,11 +53,41 @@ class CheckinService {
       throw StateError('You must be signed in to check in.');
     }
 
-    final created = await checkinRepository.addDailyCheckin(
-      user.id,
-      DateTime.now(),
-    );
-    await getCheckins(forceRefresh: true);
+    final checkedAt = DateTime.now();
+    final created = await checkinRepository.addDailyCheckin(user.id, checkedAt);
+    if (created) {
+      await _cacheCreatedCheckin(user.id, checkedAt);
+      _updates.add(null);
+    }
+
+    try {
+      await getCheckins(forceRefresh: true);
+    } catch (_) {
+      // The insert already succeeded. Keep the optimistic cache until the
+      // next server refresh instead of reporting the check-in as failed.
+    }
+    _updates.add(null);
     return created;
+  }
+
+  Future<void> _cacheCreatedCheckin(String userId, DateTime checkedAt) async {
+    final rows = await getCachedCheckins();
+    final localDay = DateTime(checkedAt.year, checkedAt.month, checkedAt.day);
+    final alreadyCached = rows.any((row) {
+      final parsed = DateTime.tryParse(
+        row['checkin_time'].toString(),
+      )?.toLocal();
+      if (parsed == null) return false;
+      return DateTime(parsed.year, parsed.month, parsed.day) == localDay;
+    });
+    if (alreadyCached) return;
+
+    rows.insert(0, {
+      'id': 'local-${checkedAt.microsecondsSinceEpoch}',
+      'user_id': userId,
+      'checkin_time': checkedAt.toIso8601String(),
+      'status': 'active',
+    });
+    await cache.writeMap(_cacheKey(userId), {'rows': rows});
   }
 }

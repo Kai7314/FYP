@@ -275,7 +275,9 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                registering ? 'Create your account' : 'Welcome back',
+                registering
+                    ? 'Create your account'
+                    : 'Welcome to EthernaCare',
                 style: const TextStyle(
                   color: AppColors.ink,
                   fontSize: 25,
@@ -286,7 +288,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 registering
                     ? 'Start your daily well-being check-ins.'
-                    : 'Sign in to continue caring for Oren.',
+                    : 'Meet Oren, your virtual companion for simple daily safety check-ins.',
                 style: const TextStyle(color: AppColors.muted),
               ),
               const SizedBox(height: 22),

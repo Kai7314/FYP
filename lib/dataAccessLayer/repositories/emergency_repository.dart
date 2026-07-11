@@ -39,6 +39,17 @@ class EmergencyRepository {
     return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
   }
 
+  Future<Map<String, dynamic>?> getLatestTriggeredAlert(String userId) async {
+    final rows = await client
+        .from('emergency_alerts')
+        .select()
+        .eq('user_id', userId)
+        .eq('status', 'triggered')
+        .order('triggered_time', ascending: false)
+        .limit(1);
+    return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
+  }
+
   Future<EmergencyAlertModel?> getLatestAlertModel(String userId) async {
     final row = await getLatestAlert(userId);
     return row == null ? null : EmergencyAlertModel.fromJson(row);

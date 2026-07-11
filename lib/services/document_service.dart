@@ -31,6 +31,27 @@ class DocumentService {
   final DocumentRepository documentRepository;
   final LocalCacheService cache;
 
+  static final RegExp _credentialTerms = RegExp(
+    r'\b(password|passcode|pin|otp|one[ -]?time password|api[ _-]?key|access[ _-]?token|secret[ _-]?key|private[ _-]?key|seed[ _-]?phrase|recovery[ _-]?phrase|cvv|security[ _-]?code)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _credentialValuePatterns = RegExp(
+    r'(-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-[A-Za-z0-9_-]{16,}\b|\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})',
+    caseSensitive: false,
+  );
+
+  static String? legacyNoteSecurityWarning({
+    required String title,
+    required String content,
+  }) {
+    final text = '$title\n$content';
+    if (_credentialTerms.hasMatch(text) ||
+        _credentialValuePatterns.hasMatch(text)) {
+      return 'Do not store passwords, PINs, OTPs, recovery phrases, API keys, access tokens, or security codes in Legacy Notes.';
+    }
+    return null;
+  }
+
   Future<LegacyPlanningSnapshot> load() async {
     final user = authRepository.currentUser;
     if (user == null) throw StateError('You must be signed in.');
@@ -60,6 +81,7 @@ class DocumentService {
     if (user == null) throw StateError('You must be signed in.');
     final cleanTitle = _validateTitle(title);
     final cleanContent = _validateContent(content);
+    _validateNoteSecurity(cleanTitle, cleanContent);
     await documentRepository.createNote(
       userId: user.id,
       title: cleanTitle,
@@ -72,6 +94,7 @@ class DocumentService {
     if (user == null) throw StateError('You must be signed in.');
     final cleanTitle = _validateTitle(note.title);
     final cleanContent = _validateContent(note.content);
+    _validateNoteSecurity(cleanTitle, cleanContent);
     await documentRepository.updateNote(
       userId: user.id,
       note: note.copyWith(title: cleanTitle, content: cleanContent),
@@ -131,5 +154,10 @@ class DocumentService {
       throw StateError('Note content must not exceed 1000 characters.');
     }
     return trimmed;
+  }
+
+  void _validateNoteSecurity(String title, String content) {
+    final warning = legacyNoteSecurityWarning(title: title, content: content);
+    if (warning != null) throw StateError(warning);
   }
 }
