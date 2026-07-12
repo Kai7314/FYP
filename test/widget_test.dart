@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fyp/main.dart' as app;
+import 'package:fyp/core/theme/app_theme.dart';
 import 'package:fyp/models/ai_chat_message.dart';
 import 'package:fyp/models/location_model.dart';
 import 'package:fyp/models/checkin_model.dart';
@@ -27,7 +29,11 @@ import 'package:fyp/dataAccessLayer/repositories/contact_repository.dart';
 import 'package:fyp/services/reward_service.dart';
 import 'package:fyp/services/ai_service.dart';
 import 'package:fyp/services/document_service.dart';
+import 'package:fyp/services/emergency_service.dart';
 import 'package:fyp/services/inactivity_service.dart';
+import 'package:fyp/services/local_cache_service.dart';
+import 'package:fyp/services/oren_care_service.dart';
+import 'package:fyp/services/phone_verification_service.dart';
 import 'package:fyp/services/user_service.dart';
 import 'package:fyp/utils/validators.dart';
 
@@ -87,6 +93,38 @@ void main() {
 
   test('home screen compiles with oren care shop', () {
     expect(HomeScreen, isNotNull);
+  });
+
+  testWidgets('themed action buttons remain bounded inside horizontal rows', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Row(
+            children: [
+              const Expanded(child: Text('Safe reminder test')),
+              FilledButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.notifications_active_outlined),
+                label: const Text('Test 1/3'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Test 1/3'), findsOneWidget);
   });
 
   test('architecture scaffold exposes models controllers and providers', () {
@@ -230,6 +268,52 @@ void main() {
     expect(restored.tokens, 15);
     expect(restored.ownedToyIds, contains('fish_plush'));
     expect(restored.mood, 'Playful');
+  });
+
+  test(
+    'sign-out cache cleanup preserves Oren progress only when requested',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final cache = LocalCacheService();
+      const userId = 'user-1';
+      final orenKey = OrenCareService.cacheKeyForUser(userId);
+      const profileKey = 'profile_snapshot_v1_user-1';
+      await cache.writeMap(orenKey, {
+        'tokens': 18,
+        'owned_toy_ids': ['yarn_ball'],
+      });
+      await cache.writeMap(profileKey, {'name': 'Test User'});
+
+      await cache.removeUserData(userId, preservedKeys: {orenKey});
+
+      expect(await cache.readMap(orenKey), containsPair('tokens', 18));
+      expect(await cache.readMap(profileKey), isNull);
+      SharedPreferences.setMockInitialValues({});
+    },
+  );
+
+  test(
+    'inactivity test SMS keeps the SOS message style and a test warning',
+    () {
+      expect(
+        EmergencyService.testEmergencySmsMessage,
+        contains(EmergencyService.emergencySmsMessage),
+      );
+      expect(EmergencyService.testEmergencySmsMessage, startsWith('TEST -'));
+      expect(
+        EmergencyService.testEmergencySmsMessage,
+        contains('999 was not contacted'),
+      );
+    },
+  );
+
+  test('phone verification errors are safe to show directly', () {
+    const error = PhoneVerificationException(
+      'SMS provider authentication failed.',
+    );
+
+    expect(error.toString(), 'SMS provider authentication failed.');
+    expect(error.toString(), isNot(contains('FunctionException')));
   });
 
   testWidgets('contact dialog validates required details', (tester) async {

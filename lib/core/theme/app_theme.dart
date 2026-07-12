@@ -70,7 +70,7 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(56),
+          minimumSize: const Size(64, 56),
           elevation: 0,
           shadowColor: Colors.transparent,
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
@@ -81,14 +81,14 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size(64, 52),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size(64, 52),
           foregroundColor: AppColors.primaryDark,
           side: const BorderSide(color: AppColors.border),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),

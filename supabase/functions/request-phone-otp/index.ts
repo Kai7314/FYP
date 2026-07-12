@@ -44,6 +44,16 @@ Deno.serve(async (request) => {
     );
   }
 
+  if (!/^AC[0-9a-fA-F]{32}$/.test(twilioAccountSid.trim())) {
+    return Response.json(
+      {
+        error:
+          "SMS provider is misconfigured. TWILIO_ACCOUNT_SID must be the Account SID beginning with AC, without quotes.",
+      },
+      { status: 500, headers: corsHeaders },
+    );
+  }
+
   const authorization = request.headers.get("authorization") ?? "";
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: authorization } },
@@ -105,7 +115,7 @@ Deno.serve(async (request) => {
     secret: otpSecret,
   });
 
-  const { error: insertError } = await supabase
+  const { data: otpRow, error: insertError } = await supabase
     .from("phone_verification_otps")
     .insert({
       user_id: authData.user.id,
@@ -113,7 +123,9 @@ Deno.serve(async (request) => {
       phone,
       code_hash: codeHash,
       expires_at: expiresAt,
-    });
+    })
+    .select("id")
+    .single();
   if (insertError) {
     return Response.json(
       { error: insertError.message },
@@ -131,9 +143,15 @@ Deno.serve(async (request) => {
       "Only share it if you trust the requester.",
   });
   if (!sms.ok) {
+    if (otpRow?.id) {
+      await supabase.from("phone_verification_otps").delete().eq(
+        "id",
+        otpRow.id,
+      );
+    }
     return Response.json(
       { error: sms.error },
-      { status: 500, headers: corsHeaders },
+      { status: 502, headers: corsHeaders },
     );
   }
 
@@ -195,6 +213,32 @@ async function sendTwilioSms(input: {
   const payload = await response.json().catch(() => ({}));
   return {
     ok: response.ok,
-    error: payload.message ?? `Twilio HTTP ${response.status}`,
+    error: response.ok
+      ? null
+      : friendlyTwilioError(payload, response.status),
   };
+}
+
+function friendlyTwilioError(payload: Record<string, unknown>, status: number) {
+  const code = Number(payload.code ?? 0);
+  const providerMessage = String(payload.message ?? "").toLowerCase();
+
+  if (
+    status === 401 || code === 20003 ||
+    providerMessage.includes("invalid username")
+  ) {
+    return "SMS provider authentication failed. In Supabase Edge Function secrets, set TWILIO_ACCOUNT_SID to the Account SID beginning with AC and TWILIO_AUTH_TOKEN to its matching Auth Token. Do not include quotes.";
+  }
+  if (code === 21608) {
+    return "This Twilio trial can only send to verified recipient numbers. Verify this contact number in Twilio, or upgrade the Twilio account.";
+  }
+  if (code === 21408) {
+    return "Twilio messaging permission for Malaysia is disabled. Enable Malaysia in Twilio Messaging Geo Permissions.";
+  }
+  if (code === 21606) {
+    return "TWILIO_FROM_NUMBER is not an SMS-capable Twilio sender. Use the Twilio phone number assigned to this account in international format.";
+  }
+  return String(
+    payload.message ?? `SMS provider request failed with HTTP ${status}.`,
+  );
 }

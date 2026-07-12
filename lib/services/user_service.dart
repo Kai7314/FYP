@@ -2,6 +2,7 @@ import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/user_repository.dart';
 import '../utils/validators.dart';
 import 'local_cache_service.dart';
+import 'oren_care_service.dart';
 
 class UserService {
   UserService({
@@ -66,7 +67,12 @@ class UserService {
   Future<void> signOut() async {
     final userId = authRepository.currentUser?.id;
     await authRepository.signOut();
-    if (userId != null) await cache.removeUserData(userId);
+    if (userId != null) {
+      await cache.removeUserData(
+        userId,
+        preservedKeys: {OrenCareService.cacheKeyForUser(userId)},
+      );
+    }
   }
 }
 

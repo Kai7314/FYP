@@ -32,6 +32,11 @@ class EmergencyTriggerResult {
 }
 
 class EmergencyService {
+  static const emergencySmsMessage =
+      'Emergency alert from EthernaCare. The user may need help. Please contact them immediately.';
+  static const testEmergencySmsMessage =
+      'TEST - $emergencySmsMessage This is a test after three check-in reminders. No real emergency alert was sent and 999 was not contacted.';
+
   EmergencyService({
     AuthRepository? authRepository,
     ContactRepository? contactRepository,
@@ -247,11 +252,11 @@ class EmergencyService {
     final locationText = position == null
         ? ''
         : '\nLocation: https://maps.google.com/?q=${position.latitude},${position.longitude}';
-    return 'Emergency alert from EthernaCare. The user may need help. Please contact them immediately.$locationText';
+    return '$emergencySmsMessage$locationText';
   }
 
   String _testEmergencyMessage() {
-    return 'TEST message from EthernaCare. Three test check-in reminders were triggered. This is not a real emergency and 999 was not contacted.';
+    return testEmergencySmsMessage;
   }
 
   Future<bool> _openSmsComposer({

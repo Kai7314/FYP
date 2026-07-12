@@ -693,15 +693,6 @@ class _HomeDashboard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          _InactivityReminderCard(
-            count: inactivityNotificationCount,
-            escalated: inactivityEscalated,
-            testCount: testReminderCount,
-            testBusy: testReminderBusy,
-            onTriggerTest: onTestInactivityAlarm,
-          ),
-          const SizedBox(height: 10),
           _EmergencyStatusCard(
             status: emergencyStatus,
             latestAlertTime: latestEmergencyAlertTime,
@@ -855,6 +846,14 @@ class _HomeDashboard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _SafetyActionPanel(onSos: onSos, onTestSms: onTestSms),
+          const SizedBox(height: 12),
+          _InactivityReminderCard(
+            count: inactivityNotificationCount,
+            escalated: inactivityEscalated,
+            testCount: testReminderCount,
+            testBusy: testReminderBusy,
+            onTriggerTest: onTestInactivityAlarm,
+          ),
         ],
       ),
     );
@@ -887,12 +886,12 @@ class _InactivityReminderCard extends StatelessWidget {
     final reachedLimit = safeCount >= requiredCount;
     final color = reachedLimit ? AppColors.danger : AppColors.accent;
     final detail = escalated
-        ? 'Configured emergency escalation triggered.'
+        ? 'Your configured emergency escalation started after reminder 3.'
         : reachedLimit
-        ? 'Third reminder reached. SMS delivery is pending.'
+        ? 'Reminder 3 reached. Primary contact mode now sends the same emergency SMS used by SOS.'
         : safeCount == 0
-        ? 'No missed check-in reminders in the current cycle.'
-        : 'SMS will be attempted when reminder 3 is triggered.';
+        ? 'No missed reminders. On reminder 3, Primary contact mode sends the same emergency SMS used by SOS.'
+        : 'Reminder 3 starts your configured escalation. Primary contact mode uses the SOS emergency message.';
 
     return Card(
       child: Padding(
@@ -974,7 +973,7 @@ class _InactivityReminderCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       const Text(
-                        'The third test sends a labelled TEST SMS. It never calls 999.',
+                        'The third test sends a clearly labelled TEST version of the SOS message. It never calls 999.',
                         style: TextStyle(
                           color: AppColors.muted,
                           fontSize: 11,

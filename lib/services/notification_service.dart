@@ -66,7 +66,7 @@ class NotificationService {
                 : 'This is a safe notification test. No SMS is sent until test reminder 3 of 3.'
           : missedCheckIns >= requiredMissedCheckIns
           ? 'Missed check-in $missedCheckIns of $requiredMissedCheckIns. EthernaCare is starting your configured emergency escalation now.'
-          : 'Missed check-in $missedCheckIns of $requiredMissedCheckIns. Open EthernaCare and tap Oren before the third miss to prevent emergency contact escalation.',
+          : 'Missed check-in $missedCheckIns of $requiredMissedCheckIns. Open EthernaCare and tap Oren before reminder 3 starts your configured emergency escalation.',
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'missed_check_in',

@@ -42,12 +42,12 @@ class OrenCareService {
     ),
   ];
 
-  String _cacheKey(String userId) => 'oren_care_v1_$userId';
+  static String cacheKeyForUser(String userId) => 'oren_care_v1_$userId';
 
   Future<OrenCareState> load() async {
     final user = authRepository.currentUser;
     if (user == null) return OrenCareState.initial();
-    final cached = await cache.readMap(_cacheKey(user.id));
+    final cached = await cache.readMap(cacheKeyForUser(user.id));
     return cached == null
         ? OrenCareState.initial()
         : OrenCareState.fromJson(cached);
@@ -183,7 +183,7 @@ class OrenCareService {
     final user = authRepository.currentUser;
     if (user == null) return state;
     final next = state.copyWith(updatedAt: DateTime.now());
-    await cache.writeMap(_cacheKey(user.id), next.toJson());
+    await cache.writeMap(cacheKeyForUser(user.id), next.toJson());
     return next;
   }
 

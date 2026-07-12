@@ -5,6 +5,15 @@ class PhoneVerificationPurpose {
   static const contactPhone = 'contact_phone';
 }
 
+class PhoneVerificationException implements Exception {
+  const PhoneVerificationException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class PhoneVerificationService {
   PhoneVerificationService({SupabaseClient? client})
     : client = client ?? Supabase.instance.client;
@@ -15,13 +24,13 @@ class PhoneVerificationService {
     required String phone,
     required String purpose,
   }) async {
-    final response = await client.functions.invoke(
+    final response = await _invoke(
       'request-phone-otp',
       body: {'phone': phone, 'purpose': purpose},
     );
     final data = response.data;
     final error = _errorFrom(data);
-    if (error != null) throw StateError(error);
+    if (error != null) throw PhoneVerificationException(error);
   }
 
   Future<DateTime?> verifyCode({
@@ -29,17 +38,31 @@ class PhoneVerificationService {
     required String purpose,
     required String code,
   }) async {
-    final response = await client.functions.invoke(
+    final response = await _invoke(
       'verify-phone-otp',
       body: {'phone': phone, 'purpose': purpose, 'code': code},
     );
     final data = response.data;
     final error = _errorFrom(data);
-    if (error != null) throw StateError(error);
+    if (error != null) throw PhoneVerificationException(error);
     if (data is Map) {
       return DateTime.tryParse(data['verifiedAt']?.toString() ?? '');
     }
     return null;
+  }
+
+  Future<FunctionResponse> _invoke(
+    String functionName, {
+    required Map<String, dynamic> body,
+  }) async {
+    try {
+      return await client.functions.invoke(functionName, body: body);
+    } on FunctionException catch (error) {
+      final message = _errorFrom(error.details);
+      throw PhoneVerificationException(
+        message ?? 'Phone verification service is unavailable right now.',
+      );
+    }
   }
 
   String? _errorFrom(Object? data) {

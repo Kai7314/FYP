@@ -26,12 +26,15 @@ class LocalCacheService {
     await preferences.remove(key);
   }
 
-  Future<void> removeUserData(String userId) async {
+  Future<void> removeUserData(
+    String userId, {
+    Set<String> preservedKeys = const {},
+  }) async {
     final preferences = await SharedPreferences.getInstance();
     final suffix = '_$userId';
     final keys = preferences
         .getKeys()
-        .where((key) => key.endsWith(suffix))
+        .where((key) => key.endsWith(suffix) && !preservedKeys.contains(key))
         .toList();
     for (final key in keys) {
       await preferences.remove(key);
