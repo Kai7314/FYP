@@ -13,6 +13,7 @@ class CountryPhoneField extends StatelessWidget {
     this.required = true,
     this.externalLabels = false,
     this.codeLabel = 'Code',
+    this.enabled = true,
   });
 
   final TextEditingController controller;
@@ -22,6 +23,7 @@ class CountryPhoneField extends StatelessWidget {
   final bool required;
   final bool externalLabels;
   final String codeLabel;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -65,10 +67,12 @@ class CountryPhoneField extends StatelessWidget {
                     ),
                   ),
               ],
-              onChanged: (value) {
-                if (value == null) return;
-                onDialCodeChanged(value);
-              },
+              onChanged: !enabled
+                  ? null
+                  : (value) {
+                      if (value == null) return;
+                      onDialCodeChanged(value);
+                    },
             ),
           ),
         ),
@@ -78,6 +82,7 @@ class CountryPhoneField extends StatelessWidget {
             label: externalLabels ? labelText : null,
             child: TextFormField(
               controller: controller,
+              enabled: enabled,
               keyboardType: TextInputType.phone,
               validator: (value) => AppValidators.phoneForCountry(
                 value ?? '',

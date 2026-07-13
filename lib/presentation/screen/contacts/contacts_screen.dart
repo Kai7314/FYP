@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../widgets/error_dialog.dart';
@@ -140,6 +141,28 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
   }
 
+  Future<void> _callContact(Map<String, dynamic> row) async {
+    final phone = row['phone']?.toString() ?? '';
+    final normalizedPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (normalizedPhone.isEmpty) {
+      _showMessage('This contact does not have a valid phone number.');
+      return;
+    }
+
+    try {
+      final launched = await launchUrl(
+        Uri(scheme: 'tel', path: normalizedPhone),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        throw StateError('The phone app could not be opened.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      AppErrorDialog.show(context, title: 'Could not start call', error: error);
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _refreshContacts() async {
     final rows = await _loadContacts(forceRefresh: true);
     if (mounted) {
@@ -174,8 +197,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final targetId = target['id'] ?? target['contact_id'];
     if (targetId != null) {
       return rows.any(
-        (row) => (row['id'] ?? row['contact_id'])?.toString() ==
-            targetId.toString(),
+        (row) =>
+            (row['id'] ?? row['contact_id'])?.toString() == targetId.toString(),
       );
     }
 
@@ -217,22 +240,31 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final horizontalPadding = MediaQuery.sizeOf(context).width < 360 ? 14.0 : 20.0;
+    final horizontalPadding = MediaQuery.sizeOf(context).width < 360
+        ? 14.0
+        : 20.0;
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: contactsFuture,
       builder: (context, snapshot) {
         final rows = snapshot.data ?? [];
         return ListView(
-          padding: EdgeInsets.fromLTRB(horizontalPadding, 20, horizontalPadding, 24),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            20,
+            horizontalPadding,
+            24,
+          ),
           children: [
+            const _OrenCallIntro(),
+            const SizedBox(height: 16),
             PremiumHeader(
               title: 'Emergency Contacts',
               subtitle: 'People notified in emergencies',
               action: IconButton.filled(
-                  onPressed: _addContact,
-                  icon: const Icon(Icons.person_add_alt_1),
-                  tooltip: 'Add contact',
-                ),
+                onPressed: _addContact,
+                icon: const Icon(Icons.person_add_alt_1),
+                tooltip: 'Add contact',
+              ),
             ),
             const SizedBox(height: 18),
             GlassPanel(
@@ -245,7 +277,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'These are the trusted contacts linked to your emergency records and location updates.',
+                      'Your primary contact receives inactivity and SOS alerts.',
                       style: TextStyle(
                         color: AppColors.primaryDark,
                         fontSize: 13,
@@ -277,6 +309,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
               ...rows.map(
                 (row) => _ContactCard(
                   row: row,
+                  onCall: () => _callContact(row),
                   onDelete: () => _deleteContact(row),
                   onSetPrimary: () => _setPrimaryContact(row),
                 ),
@@ -288,14 +321,53 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 }
 
+class _OrenCallIntro extends StatelessWidget {
+  const _OrenCallIntro();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Column(
+          children: [
+            Semantics(
+              label: 'Oren holding a phone to call a trusted contact',
+              image: true,
+              child: Image.asset(
+                'lib/assets/images/pixel/oren_pixel_phone_call_transparent.png',
+                height: 126,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.none,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Oren can help you call a trusted contact whenever you need support.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.primaryDark,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ContactCard extends StatelessWidget {
   const _ContactCard({
     required this.row,
+    required this.onCall,
     required this.onDelete,
     required this.onSetPrimary,
   });
 
   final Map<String, dynamic> row;
+  final VoidCallback onCall;
   final VoidCallback onDelete;
   final VoidCallback onSetPrimary;
 
@@ -438,6 +510,12 @@ class _ContactCard extends StatelessWidget {
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  IconButton(
+                    onPressed: onCall,
+                    icon: const Icon(Icons.call_outlined),
+                    color: AppColors.primary,
+                    tooltip: 'Call contact',
+                  ),
                   if (!isPrimary)
                     IconButton(
                       onPressed: onSetPrimary,

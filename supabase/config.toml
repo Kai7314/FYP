@@ -1,0 +1,8 @@
+project_id = "fyp"
+
+[functions.request-legacy-access]
+verify_jwt = false
+
+[functions.verify-legacy-access]
+verify_jwt = false
+

@@ -9,6 +9,7 @@ import '../../../models/legacy_note_model.dart';
 import '../../../services/contact_service.dart';
 import '../../../services/document_service.dart';
 import '../../widgets/error_dialog.dart';
+import '../../widgets/guidance_sheet.dart';
 
 class LegacyPlanningScreen extends StatefulWidget {
   const LegacyPlanningScreen({super.key});
@@ -21,6 +22,9 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
   final service = DocumentService();
   final contactService = ContactService();
   late Future<LegacyPlanningSnapshot> future;
+  bool isUploadingDocument = false;
+  bool isUpdatingLegacyAccess = false;
+  String? busyDocumentId;
 
   @override
   void initState() {
@@ -71,6 +75,50 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
           error: error,
         );
       }
+    }
+  }
+
+  Future<void> _setLegacyAccessEnabled(bool enabled) async {
+    if (isUpdatingLegacyAccess) return;
+    setState(() => isUpdatingLegacyAccess = true);
+    try {
+      if (enabled) {
+        final contacts = await contactService.getContacts(forceRefresh: true);
+        Map<String, dynamic>? primaryContact;
+        for (final contact in contacts) {
+          if (contact['is_primary'] == true) {
+            primaryContact = contact;
+            break;
+          }
+        }
+        if (primaryContact == null) {
+          throw StateError(
+            'Add a primary trusted contact before enabling Legacy Checking.',
+          );
+        }
+        if (primaryContact['phone_verified_at'] == null) {
+          throw StateError(
+            'Verify the primary contact phone number before enabling Legacy Checking.',
+          );
+        }
+      }
+
+      await service.setLegacyAccessEnabled(enabled);
+      if (!mounted) return;
+      _refresh();
+      _showMessage(
+        enabled ? 'Legacy Checking enabled.' : 'Legacy Checking disabled.',
+      );
+    } catch (error) {
+      if (mounted) {
+        await AppErrorDialog.show(
+          context,
+          title: 'Could not update Legacy Checking',
+          error: error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isUpdatingLegacyAccess = false);
     }
   }
 
@@ -150,9 +198,14 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
   }
 
   Future<void> _upload() async {
+    if (isUploadingDocument) return;
+    setState(() => isUploadingDocument = true);
     try {
       final uploaded = await service.pickAndUploadDocument();
-      if (uploaded && mounted) _refresh();
+      if (uploaded && mounted) {
+        _refresh();
+        _showMessage('Document uploaded securely.');
+      }
     } catch (error) {
       if (mounted) {
         await AppErrorDialog.show(
@@ -161,13 +214,129 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
           error: error,
         );
       }
+    } finally {
+      if (mounted) setState(() => isUploadingDocument = false);
     }
+  }
+
+  Future<void> _openDocument(LegacyDocument document) async {
+    if (busyDocumentId != null) return;
+    setState(() => busyDocumentId = document.id);
+    try {
+      await service.openDocument(document);
+    } catch (error) {
+      if (mounted) {
+        await AppErrorDialog.show(
+          context,
+          title: 'Could not open document',
+          error: error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => busyDocumentId = null);
+    }
+  }
+
+  Future<void> _deleteDocument(LegacyDocument document) async {
+    if (busyDocumentId != null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete secure document?'),
+        content: Text(
+          'This permanently removes "${document.name}" from secure storage.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => busyDocumentId = document.id);
+    try {
+      await service.deleteDocument(document);
+      if (!mounted) return;
+      _refresh();
+      _showMessage('Document deleted.');
+    } catch (error) {
+      if (mounted) {
+        await AppErrorDialog.show(
+          context,
+          title: 'Could not delete document',
+          error: error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => busyDocumentId = null);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _showGuide() {
+    return GuidanceSheet.show(
+      context,
+      title: 'Legacy Planning Guide',
+      description:
+          'Use this private area to record wishes and documents, and choose whether your primary trusted contact may access selected information later.',
+      items: const [
+        GuidanceItem(
+          icon: Icons.tune_outlined,
+          title: 'Funeral Preferences',
+          description:
+              'Choose the religion, service type, venue, and an authorized person from your existing trusted contacts.',
+        ),
+        GuidanceItem(
+          icon: Icons.sticky_note_2_outlined,
+          title: 'Legacy Notes',
+          description:
+              'Save wishes or messages. Note content stays hidden until you reveal it. Never enter passwords, PINs, OTPs, recovery phrases, or security codes.',
+          color: AppColors.purple,
+        ),
+        GuidanceItem(
+          icon: Icons.lock_outline,
+          title: 'Secure Documents',
+          description:
+              'Upload PDF, JPG, or PNG files up to 10 MB. These files are private to your signed-in account and are not shown through Legacy Checking.',
+          color: AppColors.blue,
+        ),
+        GuidanceItem(
+          icon: Icons.verified_user_outlined,
+          title: 'Legacy Checking',
+          description:
+              'When enabled, your SMS-verified primary contact can use your Legacy UID after 90 days without a check-in to view preferences and Legacy Notes only.',
+          color: AppColors.accent,
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Legacy Planning')),
+      appBar: AppBar(
+        title: const Text('Legacy Planning'),
+        actions: [
+          IconButton(
+            onPressed: _showGuide,
+            icon: const Icon(Icons.info_outline_rounded),
+            tooltip: 'Legacy Planning guide',
+          ),
+        ],
+      ),
       body: FutureBuilder<LegacyPlanningSnapshot>(
         future: future,
         builder: (context, snapshot) {
@@ -188,6 +357,28 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              Card(
+                child: SwitchListTile(
+                  value: data.legacyAccessEnabled,
+                  onChanged: isUpdatingLegacyAccess
+                      ? null
+                      : _setLegacyAccessEnabled,
+                  secondary: isUpdatingLegacyAccess
+                      ? const SizedBox.square(
+                          dimension: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.verified_user_outlined),
+                  title: const Text(
+                    'Legacy Checking',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: const Text(
+                    'After 90 days without a check-in, your SMS-verified primary contact can view preferences and Legacy Notes using your Legacy UID.',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
               _SectionHeader(
                 title: 'Funeral Preferences',
                 action: IconButton(
@@ -223,7 +414,7 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
                 ),
               ),
               const Text(
-                'Save personal wishes, reminders, account instructions, or messages for trusted contacts.',
+                'Save personal wishes, non-sensitive reminders, or messages for trusted contacts. Never store passwords or security codes.',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               const SizedBox(height: 10),
@@ -246,8 +437,13 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
               _SectionHeader(
                 title: 'Secure Documents',
                 action: IconButton.filled(
-                  onPressed: _upload,
-                  icon: const Icon(Icons.upload_file),
+                  onPressed: isUploadingDocument ? null : _upload,
+                  icon: isUploadingDocument
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.upload_file),
                   tooltip: 'Upload document',
                 ),
               ),
@@ -264,28 +460,37 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
                   ),
                 )
               else
-                ...data.documents.map(
-                  (document) => Card(
+                ...data.documents.map((document) {
+                  final isBusy = busyDocumentId == document.id;
+                  return Card(
                     child: ListTile(
-                      leading: const Icon(Icons.description_outlined),
-                      title: Text(document.name),
-                      subtitle: Text(
-                        DateFormat(
-                          'dd MMM yyyy, h:mm a',
-                        ).format(document.uploadedAt),
+                      onTap: isBusy ? null : () => _openDocument(document),
+                      leading: isBusy
+                          ? const SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.description_outlined),
+                      title: Text(
+                        document.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                      subtitle: Text(
+                        '${DateFormat('dd MMM yyyy, h:mm a').format(document.uploadedAt)}\nTap to open securely',
+                      ),
+                      isThreeLine: true,
                       trailing: IconButton(
-                        onPressed: () async {
-                          await service.deleteDocument(document);
-                          _refresh();
-                        },
+                        onPressed: isBusy
+                            ? null
+                            : () => _deleteDocument(document),
                         icon: const Icon(Icons.delete_outline),
                         color: AppColors.danger,
                         tooltip: 'Delete document',
                       ),
                     ),
-                  ),
-                ),
+                  );
+                }),
             ],
           );
         },

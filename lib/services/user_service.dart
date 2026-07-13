@@ -17,6 +17,8 @@ class UserService {
   final UserRepository userRepository;
   final LocalCacheService cache;
 
+  String? get currentUserId => authRepository.currentUser?.id;
+
   String _cacheKey(String userId) => 'profile_snapshot_v1_$userId';
 
   static const termsVersion = '2026-06-24';

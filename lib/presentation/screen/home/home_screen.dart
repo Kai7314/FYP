@@ -42,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
   bool loading = false;
   int streak = 0;
-  int totalCheckins = 0;
   DateTime? lastCheckin;
   DateTime? latestEmergencyAlertTime;
   String userName = 'EthernaCare User';
@@ -52,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   WeatherSnapshot? weather;
   OrenCareState orenCare = OrenCareState.initial();
   Timer? orenResetTimer;
+  String? activeToyId;
   String? activeToyAsset;
   bool testReminderBusy = false;
   int testReminderCount = 0;
@@ -131,17 +131,18 @@ class _HomeScreenState extends State<HomeScreen> {
     _showMessage('Oren enjoyed the fish snack.');
   }
 
-  Future<void> _buyToy(OrenToy toy) async {
+  Future<OrenCareState> _buyToy(OrenToy toy) async {
     final state = await orenCareService.buyToy(toy);
-    if (!mounted) return;
+    if (!mounted) return state;
     _showTemporaryOrenState(
       state,
-      toyAsset: state.ownedToyIds.contains(toy.id) ? toy.imageAsset : null,
+      toy: state.ownedToyIds.contains(toy.id) ? toy : null,
     );
     if (state.ownedToyIds.contains(toy.id)) {
       unawaited(orenSoundService.playPlayful());
     }
     _showMessage(state.lastAction);
+    return state;
   }
 
   Future<void> _playWithToy(OrenToy toy) async {
@@ -149,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _showTemporaryOrenState(
       state,
-      toyAsset: state.ownedToyIds.contains(toy.id) ? toy.imageAsset : null,
+      toy: state.ownedToyIds.contains(toy.id) ? toy : null,
     );
     if (state.ownedToyIds.contains(toy.id)) {
       unawaited(orenSoundService.playPlayful());
@@ -157,18 +158,100 @@ class _HomeScreenState extends State<HomeScreen> {
     _showMessage(state.lastAction);
   }
 
-  void _showTemporaryOrenState(OrenCareState state, {String? toyAsset}) {
+  Future<void> _playSelectedToy() async {
+    final toy = _selectedToyFor(orenCare);
+    if (toy == null) {
+      _showMessage('Buy and choose an item before playing with Oren.');
+      await _showOrenShop();
+      return;
+    }
+    await _playWithToy(toy);
+  }
+
+  Future<OrenCareState> _selectToy(OrenToy toy) async {
+    final state = await orenCareService.selectToy(toy);
+    if (!mounted) return state;
+    _showTemporaryOrenState(state, toy: toy);
+    _showMessage(state.lastAction);
+    return state;
+  }
+
+  OrenToy? _selectedToyFor(OrenCareState state) {
+    for (final toy in OrenCareService.toyCatalog) {
+      if (toy.id == state.selectedToyId && state.ownedToyIds.contains(toy.id)) {
+        return toy;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _showOrenHelp() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.glassStrong,
+      builder: (context) => const _OrenHelpSheet(),
+    );
+  }
+
+  Future<void> _showOrenShop() async {
+    var sheetState = orenCare;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.glassStrong,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => _OrenShopSheet(
+          state: sheetState,
+          onToyPressed: (toy) async {
+            final nextState = sheetState.ownedToyIds.contains(toy.id)
+                ? await _selectToy(toy)
+                : await _buyToy(toy);
+            if (!sheetContext.mounted) return;
+            setSheetState(() => sheetState = nextState);
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showOwnedToyPicker() async {
+    final ownedToys = OrenCareService.toyCatalog
+        .where((toy) => orenCare.ownedToyIds.contains(toy.id))
+        .toList();
+    if (ownedToys.isEmpty) {
+      _showMessage('No bought items yet. Open Oren Shop to get one.');
+      await _showOrenShop();
+      return;
+    }
+
+    final selected = await showModalBottomSheet<OrenToy>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.glassStrong,
+      builder: (context) => _OwnedToyPickerSheet(
+        toys: ownedToys,
+        selectedToyId: orenCare.selectedToyId,
+      ),
+    );
+    if (selected != null) await _selectToy(selected);
+  }
+
+  void _showTemporaryOrenState(OrenCareState state, {OrenToy? toy}) {
     if (!mounted) return;
     orenResetTimer?.cancel();
     setState(() {
       orenCare = state;
-      activeToyAsset = toyAsset;
+      activeToyId = toy?.id;
+      activeToyAsset = toy?.imageAsset;
     });
     orenResetTimer = Timer(const Duration(seconds: 4), () async {
       final calmState = await orenCareService.resetMood();
       if (!mounted) return;
       setState(() {
         orenCare = calmState;
+        activeToyId = null;
         activeToyAsset = null;
       });
     });
@@ -217,7 +300,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() {
       userName = snapshot.userName;
-      totalCheckins = snapshot.totalCheckins;
       lastCheckin = snapshot.lastCheckin;
       streak = snapshot.streak;
       emergencyStatus = snapshot.emergencyStatus;
@@ -439,7 +521,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _HomeDashboard(
         loading: loading,
         streak: streak,
-        totalCheckins: totalCheckins,
         lastCheckin: lastCheckin,
         userName: userName,
         loadError: loadError,
@@ -448,11 +529,14 @@ class _HomeScreenState extends State<HomeScreen> {
         rewardSnapshot: rewardSnapshot,
         weather: weather,
         orenCare: orenCare,
+        activeToyId: activeToyId,
         activeToyAsset: activeToyAsset,
         onPet: petCat,
         onFeedFish: _feedFish,
-        onBuyToy: _buyToy,
-        onPlayToy: _playWithToy,
+        onPlay: _playSelectedToy,
+        onChooseToy: _showOwnedToyPicker,
+        onOpenShop: _showOrenShop,
+        onOrenInfo: _showOrenHelp,
         onSos: _triggerSos,
         onTestSms: _testPrimarySms,
         onTestInactivityAlarm: _triggerInactivityReminderTest,
@@ -528,7 +612,6 @@ class _HomeDashboard extends StatelessWidget {
   const _HomeDashboard({
     required this.loading,
     required this.streak,
-    required this.totalCheckins,
     required this.lastCheckin,
     required this.userName,
     required this.loadError,
@@ -537,11 +620,14 @@ class _HomeDashboard extends StatelessWidget {
     required this.rewardSnapshot,
     required this.weather,
     required this.orenCare,
+    required this.activeToyId,
     required this.activeToyAsset,
     required this.onPet,
     required this.onFeedFish,
-    required this.onBuyToy,
-    required this.onPlayToy,
+    required this.onPlay,
+    required this.onChooseToy,
+    required this.onOpenShop,
+    required this.onOrenInfo,
     required this.onSos,
     required this.onTestSms,
     required this.onTestInactivityAlarm,
@@ -555,7 +641,6 @@ class _HomeDashboard extends StatelessWidget {
 
   final bool loading;
   final int streak;
-  final int totalCheckins;
   final DateTime? lastCheckin;
   final String userName;
   final String? loadError;
@@ -564,11 +649,14 @@ class _HomeDashboard extends StatelessWidget {
   final RewardSnapshot? rewardSnapshot;
   final WeatherSnapshot? weather;
   final OrenCareState orenCare;
+  final String? activeToyId;
   final String? activeToyAsset;
   final VoidCallback onPet;
   final VoidCallback onFeedFish;
-  final void Function(OrenToy toy) onBuyToy;
-  final void Function(OrenToy toy) onPlayToy;
+  final VoidCallback onPlay;
+  final VoidCallback onChooseToy;
+  final VoidCallback onOpenShop;
+  final VoidCallback onOrenInfo;
   final VoidCallback onSos;
   final VoidCallback onTestSms;
   final VoidCallback onTestInactivityAlarm;
@@ -672,32 +760,34 @@ class _HomeDashboard extends StatelessWidget {
             Text(loadError!, style: const TextStyle(color: AppColors.danger)),
             const SizedBox(height: 12),
           ],
-          Row(
-            children: [
-              Expanded(
-                child: _MiniStat(
-                  icon: Icons.fact_check_outlined,
-                  color: AppColors.blue,
-                  label: 'Check-ins',
-                  value: '$totalCheckins total',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MiniStat(
-                  icon: Icons.local_fire_department_outlined,
-                  color: AppColors.accent,
-                  label: 'Streak',
-                  value: '$streak days',
-                ),
-              ),
-            ],
+          _OrenStatusBar(
+            message: orenCare.lastAction,
+            mood: orenCare.mood,
+            energy: orenCare.energy,
+            onInfo: onOrenInfo,
           ),
-          _EmergencyStatusCard(
-            status: emergencyStatus,
-            latestAlertTime: latestEmergencyAlertTime,
+          const SizedBox(height: 10),
+          VirtualPetWidget(
+            streak: streak,
+            hasCheckedInToday: checkedToday,
+            weather: weather,
+            mood: orenCare.mood,
+            energy: orenCare.energy,
+            tokens: orenCare.tokens,
+            activeToyId: activeToyId,
+            activeToyAsset: activeToyAsset,
+            onOpenShop: onOpenShop,
+            onTap: onPet,
+            loading: loading,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          _OrenActionPanel(
+            state: orenCare,
+            onFeedFish: onFeedFish,
+            onPlay: onPlay,
+            onChooseToy: onChooseToy,
+          ),
+          const SizedBox(height: 14),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -766,30 +856,6 @@ class _HomeDashboard extends StatelessWidget {
           const SizedBox(height: 10),
           const _ScrollCue(),
           const SizedBox(height: 14),
-          VirtualPetWidget(
-            streak: streak,
-            hasCheckedInToday: checkedToday,
-            weather: weather,
-            mood: orenCare.mood,
-            energy: orenCare.energy,
-            activeToyAsset: activeToyAsset,
-            onTap: onPet,
-            loading: loading,
-          ),
-          const SizedBox(height: 12),
-          _OrenStatusBar(
-            message: orenCare.lastAction,
-            mood: orenCare.mood,
-            energy: orenCare.energy,
-          ),
-          const SizedBox(height: 12),
-          _OrenCarePanel(
-            state: orenCare,
-            onFeedFish: onFeedFish,
-            onBuyToy: onBuyToy,
-            onPlayToy: onPlayToy,
-          ),
-          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -853,6 +919,11 @@ class _HomeDashboard extends StatelessWidget {
             testCount: testReminderCount,
             testBusy: testReminderBusy,
             onTriggerTest: onTestInactivityAlarm,
+          ),
+          const SizedBox(height: 12),
+          _EmergencyStatusCard(
+            status: emergencyStatus,
+            latestAlertTime: latestEmergencyAlertTime,
           ),
         ],
       ),
@@ -1313,67 +1384,18 @@ class _SafetyActionTile extends StatelessWidget {
   }
 }
 
-class _MiniStat extends StatelessWidget {
-  const _MiniStat({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassPanel(
-      padding: const EdgeInsets.all(13),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: color.withValues(alpha: .12),
-            foregroundColor: color,
-            child: Icon(icon, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
-                ),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _OrenStatusBar extends StatelessWidget {
   const _OrenStatusBar({
     required this.message,
     required this.mood,
     required this.energy,
+    required this.onInfo,
   });
 
   final String message;
   final String mood;
   final int energy;
+  final VoidCallback onInfo;
 
   @override
   Widget build(BuildContext context) {
@@ -1421,6 +1443,12 @@ class _OrenStatusBar extends StatelessWidget {
               ],
             ),
           ),
+          IconButton(
+            onPressed: onInfo,
+            icon: const Icon(Icons.info_outline_rounded),
+            tooltip: 'How to care for Oren',
+            color: AppColors.primaryDark,
+          ),
         ],
       ),
     );
@@ -1455,123 +1483,295 @@ class _OrenStatusBar extends StatelessWidget {
   }
 }
 
-class _OrenCarePanel extends StatelessWidget {
-  const _OrenCarePanel({
+class _OrenActionPanel extends StatelessWidget {
+  const _OrenActionPanel({
     required this.state,
     required this.onFeedFish,
-    required this.onBuyToy,
-    required this.onPlayToy,
+    required this.onPlay,
+    required this.onChooseToy,
   });
 
   final OrenCareState state;
   final VoidCallback onFeedFish;
-  final void Function(OrenToy toy) onBuyToy;
-  final void Function(OrenToy toy) onPlayToy;
+  final VoidCallback onPlay;
+  final VoidCallback onChooseToy;
 
   @override
   Widget build(BuildContext context) {
+    OrenToy? selectedToy;
+    for (final toy in OrenCareService.toyCatalog) {
+      if (toy.id == state.selectedToyId && state.ownedToyIds.contains(toy.id)) {
+        selectedToy = toy;
+        break;
+      }
+    }
+
     return GlassPanel(
       color: AppColors.glassStrong,
-      padding: const EdgeInsets.all(14),
-      child: Padding(
-        padding: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const CircleAvatar(
-                  backgroundColor: AppColors.primarySoft,
-                  foregroundColor: AppColors.primaryDark,
-                  child: Icon(Icons.toll_outlined),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Oren Tokens',
-                        style: TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                      Text(
-                        '${state.tokens} tokens - daily login gives 5',
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _EnergyPill(energy: state.energy),
-              ],
-            ),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final feedButton = OutlinedButton.icon(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
                   onPressed: onFeedFish,
                   icon: const Icon(Icons.set_meal_outlined),
                   label: const Text('Feed Fish'),
-                );
-                final playButton = OutlinedButton.icon(
-                  onPressed: state.ownedToyIds.isEmpty
-                      ? null
-                      : () => onPlayToy(
-                          OrenCareService.toyCatalog.firstWhere(
-                            (toy) => state.ownedToyIds.contains(toy.id),
-                          ),
-                        ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: selectedToy == null ? null : onPlay,
                   icon: const Icon(Icons.sports_esports_outlined),
                   label: const Text('Play'),
-                );
-
-                if (constraints.maxWidth < 310) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      feedButton,
-                      const SizedBox(height: 10),
-                      playButton,
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Expanded(child: feedButton),
-                    const SizedBox(width: 10),
-                    Expanded(child: playButton),
-                  ],
-                );
-              },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: onChooseToy,
+            icon: const Icon(Icons.inventory_2_outlined),
+            label: Text(
+              selectedToy == null
+                  ? 'Choose a bought item'
+                  : 'Selected: ${selectedToy.name}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 14),
-            const Text(
-              'OREN TOY SHOP',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrenHelpSheet extends StatelessWidget {
+  const _OrenHelpSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              'Meet Oren',
               style: TextStyle(
-                color: AppColors.muted,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .8,
+                color: AppColors.ink,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 172,
+            SizedBox(height: 4),
+            Text(
+              'Oren is your daily check-in companion.',
+              style: TextStyle(color: AppColors.muted),
+            ),
+            SizedBox(height: 16),
+            _OrenHelpItem(
+              icon: Icons.pets_outlined,
+              title: 'Tap Oren',
+              detail: 'Records today\'s safety check-in and cares for Oren.',
+            ),
+            _OrenHelpItem(
+              icon: Icons.set_meal_outlined,
+              title: 'Feed Fish',
+              detail: 'Restores Oren\'s energy.',
+            ),
+            _OrenHelpItem(
+              icon: Icons.inventory_2_outlined,
+              title: 'Choose, then Play',
+              detail: 'Select a bought item and watch its play animation.',
+            ),
+            Divider(height: 26),
+            Text(
+              'Earning tokens',
+              style: TextStyle(
+                color: AppColors.ink,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            SizedBox(height: 8),
+            _OrenHelpItem(
+              icon: Icons.wb_sunny_outlined,
+              title: 'Daily visit: +5',
+              detail: 'Open EthernaCare once per day.',
+            ),
+            _OrenHelpItem(
+              icon: Icons.check_circle_outline,
+              title: 'Daily check-in: +3',
+              detail: 'Tap Oren and complete your check-in once per day.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrenHelpItem extends StatelessWidget {
+  const _OrenHelpItem({
+    required this.icon,
+    required this.title,
+    required this.detail,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: AppColors.primarySoft,
+            foregroundColor: AppColors.primaryDark,
+            child: Icon(icon, size: 19),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  detail,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrenShopSheet extends StatelessWidget {
+  const _OrenShopSheet({required this.state, required this.onToyPressed});
+
+  final OrenCareState state;
+  final Future<void> Function(OrenToy toy) onToyPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * .68;
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: maxHeight.clamp(390.0, 560.0),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Oren Shop',
+                style: TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Use tokens earned from daily visits and check-ins.',
+                style: TextStyle(color: AppColors.muted),
+              ),
+              const SizedBox(height: 12),
+              _TokenBalanceBar(tokens: state.tokens),
+              const SizedBox(height: 14),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: OrenCareService.toyCatalog.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final toy = OrenCareService.toyCatalog[index];
+                    final owned = state.ownedToyIds.contains(toy.id);
+                    return _ShopToyTile(
+                      toy: toy,
+                      owned: owned,
+                      selected: state.selectedToyId == toy.id,
+                      canBuy: state.tokens >= toy.price,
+                      onPressed: () => unawaited(onToyPressed(toy)),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OwnedToyPickerSheet extends StatelessWidget {
+  const _OwnedToyPickerSheet({required this.toys, required this.selectedToyId});
+
+  final List<OrenToy> toys;
+  final String selectedToyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Choose an item',
+              style: TextStyle(
+                color: AppColors.ink,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'The selected item will be used when you tap Play.',
+              style: TextStyle(color: AppColors.muted),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
               child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: OrenCareService.toyCatalog.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                shrinkWrap: true,
+                itemCount: toys.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final toy = OrenCareService.toyCatalog[index];
-                  final owned = state.ownedToyIds.contains(toy.id);
-                  return _ToyCard(
+                  final toy = toys[index];
+                  final selected = toy.id == selectedToyId;
+                  return _ShopToyTile(
                     toy: toy,
-                    owned: owned,
-                    canBuy: state.tokens >= toy.price,
-                    onTap: owned ? () => onPlayToy(toy) : () => onBuyToy(toy),
+                    owned: true,
+                    selected: selected,
+                    canBuy: true,
+                    onPressed: selected
+                        ? null
+                        : () => Navigator.pop(context, toy),
                   );
                 },
               ),
@@ -1583,109 +1783,136 @@ class _OrenCarePanel extends StatelessWidget {
   }
 }
 
-class _ToyCard extends StatelessWidget {
-  const _ToyCard({
+class _ShopToyTile extends StatelessWidget {
+  const _ShopToyTile({
     required this.toy,
     required this.owned,
+    required this.selected,
     required this.canBuy,
-    required this.onTap,
+    required this.onPressed,
   });
 
   final OrenToy toy;
   final bool owned;
+  final bool selected;
   final bool canBuy;
-  final VoidCallback onTap;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 164,
-      child: InkWell(
-        onTap: onTap,
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: selected ? AppColors.primarySoft : Colors.white,
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: owned ? AppColors.primarySoft : AppColors.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: owned
-                  ? AppColors.primary.withValues(alpha: .35)
-                  : AppColors.border,
+        border: Border.all(
+          color: selected ? AppColors.primary : AppColors.border,
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 72,
+            height: 72,
+            child: Image.asset(
+              toy.imageAsset,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.none,
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 64,
-                width: double.infinity,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Image.asset(toy.imageAsset, fit: BoxFit.contain),
-                  ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  toy.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      toy.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  Text(
-                    owned ? 'Owned' : '${toy.price} tok',
-                    style: TextStyle(
-                      color: owned || canBuy
-                          ? AppColors.primaryDark
-                          : AppColors.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                owned ? 'Tap to play' : toy.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.muted, fontSize: 11),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  selected
+                      ? 'Selected for playtime'
+                      : owned
+                      ? 'Owned item'
+                      : toy.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                ),
+              ],
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 88,
+            child: FilledButton.tonal(
+              onPressed: selected ? null : onPressed,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(88, 42),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                foregroundColor: owned || canBuy
+                    ? AppColors.primaryDark
+                    : AppColors.muted,
+              ),
+              child: Text(
+                selected
+                    ? 'Selected'
+                    : owned
+                    ? 'Select'
+                    : '${toy.price} tok',
+                maxLines: 1,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _EnergyPill extends StatelessWidget {
-  const _EnergyPill({required this.energy});
+class _TokenBalanceBar extends StatelessWidget {
+  const _TokenBalanceBar({required this.tokens});
 
-  final int energy;
+  final int tokens;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.warningSoft,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        '$energy energy',
-        style: const TextStyle(
-          color: Color(0xFFC66D00),
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
+      child: Row(
+        children: [
+          Image.asset(
+            'lib/assets/images/pixel/oren_pixel_token_transparent.png',
+            width: 30,
+            height: 30,
+            filterQuality: FilterQuality.none,
+          ),
+          const SizedBox(width: 9),
+          const Expanded(
+            child: Text(
+              'Token balance',
+              style: TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Text(
+            '$tokens tokens',
+            style: const TextStyle(
+              color: Color(0xFFC66D00),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }

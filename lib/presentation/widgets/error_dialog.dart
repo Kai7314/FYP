@@ -57,6 +57,34 @@ class AppErrorDialog {
         lowered.contains('schema cache')) {
       return 'The contacts database is not fully updated yet. Run the contacts quick-fix SQL in Supabase, wait a few seconds, then try again.';
     }
+    if (lowered.contains('document must not exceed 10 mb') ||
+        lowered.contains('selected document is empty') ||
+        lowered.contains('choose a pdf') ||
+        lowered.contains('file content does not match') ||
+        lowered.contains('could not read the selected document') ||
+        lowered.contains('rename the file using')) {
+      return text.replaceFirst(RegExp(r'^Bad state:\s*'), '');
+    }
+    if (lowered.contains('legacy-documents') ||
+        lowered.contains('bucket not found') ||
+        lowered.contains('storage.objects') ||
+        lowered.contains('storageexception')) {
+      return 'Secure document storage is not fully configured. Run supabase/legacy_documents_upload.sql in the Supabase SQL Editor, then try again.';
+    }
+    if (lowered.contains('could not create a secure link') ||
+        lowered.contains('could not open the selected document')) {
+      return 'The document could not be opened securely. Check your connection and try again.';
+    }
+    if (lowered.contains('legacy_access_enabled') ||
+        lowered.contains('legacy_access_started_at') ||
+        lowered.contains('legacy_access_otps') ||
+        lowered.contains('set_legacy_access_enabled')) {
+      return 'Legacy Checking is not configured yet. Run supabase/legacy_access_setup.sql in the Supabase SQL Editor, then try again.';
+    }
+    if (lowered.contains('primary trusted contact before enabling') ||
+        lowered.contains('verify the primary contact phone')) {
+      return text.replaceFirst(RegExp(r'^Bad state:\s*'), '');
+    }
     if (lowered.contains('delete policy') ||
         lowered.contains('row-level security') ||
         lowered.contains('permission denied')) {

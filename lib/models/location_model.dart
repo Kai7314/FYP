@@ -44,6 +44,15 @@ class WeatherSnapshot {
     99,
   }.contains(weatherCode);
 
+  bool get isCloudy {
+    final forecast = summaryForecast?.toLowerCase() ?? '';
+    return weatherCode >= 1 && weatherCode <= 3 ||
+        forecast.contains('cloud') ||
+        forecast.contains('overcast') ||
+        forecast.contains('berawan') ||
+        forecast.contains('mendung');
+  }
+
   String get description {
     if (summaryForecast != null && summaryForecast!.trim().isNotEmpty) {
       return summaryForecast!;
@@ -173,6 +182,7 @@ class WeatherSnapshot {
   String get backgroundAsset {
     if (isRainy) return 'lib/assets/images/pixel/pixel_raining.png';
     if (!isDay) return 'lib/assets/images/pixel/pixel_night.png';
+    if (isCloudy) return 'lib/assets/images/pixel/pixel_cloudy.png';
 
     final hour = DateTime.now().hour;
     if (hour >= 17 && hour < 20) {

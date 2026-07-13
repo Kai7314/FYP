@@ -8,6 +8,7 @@ import '../../../core/constants/colors.dart';
 import '../../../services/auth_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/premium_shell.dart';
+import '../planning/legacy_check_screen.dart';
 
 enum _AuthView { login, register, verifyEmail }
 
@@ -275,9 +276,7 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                registering
-                    ? 'Create your account'
-                    : 'Welcome to EthernaCare',
+                registering ? 'Create your account' : 'Welcome to EthernaCare',
                 style: const TextStyle(
                   color: AppColors.ink,
                   fontSize: 25,
@@ -428,6 +427,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       : 'New to EthernaCare? Create an account',
                 ),
               ),
+              if (!registering) ...[
+                const SizedBox(height: 4),
+                const Divider(),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: loading
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const LegacyCheckScreen(),
+                          ),
+                        ),
+                  icon: const Icon(Icons.verified_user_outlined),
+                  label: const Text('Check Legacy Access'),
+                ),
+              ],
             ],
           ),
         ),

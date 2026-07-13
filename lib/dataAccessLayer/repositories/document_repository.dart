@@ -9,6 +9,8 @@ class DocumentRepository {
   DocumentRepository({SupabaseClient? client})
     : client = client ?? Supabase.instance.client;
 
+  static const _documentBucket = 'legacy-documents';
+
   final SupabaseClient client;
 
   Future<FuneralPreferences> getPreferences(String userId) async {
@@ -19,6 +21,18 @@ class DocumentRepository {
         .limit(1);
     return FuneralPreferences.fromJson(
       rows.isEmpty ? null : Map<String, dynamic>.from(rows.first),
+    );
+  }
+
+  Future<bool> getLegacyAccessEnabled(String userId) async {
+    final rows = await client.from('users').select().eq('id', userId).limit(1);
+    return rows.isNotEmpty && rows.first['legacy_access_enabled'] == true;
+  }
+
+  Future<void> setLegacyAccessEnabled({required bool enabled}) {
+    return client.rpc(
+      'set_legacy_access_enabled',
+      params: {'enabled': enabled},
     );
   }
 
@@ -66,10 +80,7 @@ class DocumentRepository {
     });
   }
 
-  Future<void> updateNote({
-    required String userId,
-    required LegacyNote note,
-  }) {
+  Future<void> updateNote({required String userId, required LegacyNote note}) {
     return client
         .from('legacy_notes')
         .update({
@@ -81,10 +92,7 @@ class DocumentRepository {
         .eq('user_id', userId);
   }
 
-  Future<void> deleteNote({
-    required String userId,
-    required String noteId,
-  }) {
+  Future<void> deleteNote({required String userId, required String noteId}) {
     return client
         .from('legacy_notes')
         .delete()
@@ -100,22 +108,58 @@ class DocumentRepository {
     final safeName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
     final path = '$userId/${DateTime.now().millisecondsSinceEpoch}_$safeName';
     await client.storage
-        .from('legacy-documents')
+        .from(_documentBucket)
         .uploadBinary(
           path,
           bytes,
-          fileOptions: const FileOptions(upsert: false),
+          fileOptions: FileOptions(
+            upsert: false,
+            contentType: _contentTypeFor(fileName),
+          ),
         );
-    await client.from('documents').insert({
-      'user_id': userId,
-      'name': fileName,
-      'storage_path': path,
-      'uploaded_at': DateTime.now().toIso8601String(),
-    });
+
+    try {
+      await client.from('documents').insert({
+        'user_id': userId,
+        'name': fileName,
+        'storage_path': path,
+        'uploaded_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {
+      try {
+        await client.storage.from(_documentBucket).remove([path]);
+      } catch (_) {
+        // Preserve the metadata failure; orphan cleanup is best effort.
+      }
+      rethrow;
+    }
   }
 
-  Future<void> deleteDocument(String id, String storagePath) async {
-    await client.storage.from('legacy-documents').remove([storagePath]);
-    await client.from('documents').delete().eq('id', id);
+  Future<String> createDocumentSignedUrl(
+    String storagePath, {
+    int expiresInSeconds = 300,
+  }) {
+    return client.storage
+        .from(_documentBucket)
+        .createSignedUrl(storagePath, expiresInSeconds);
+  }
+
+  Future<void> deleteDocument({
+    required String userId,
+    required String id,
+    required String storagePath,
+  }) async {
+    await client.storage.from(_documentBucket).remove([storagePath]);
+    await client.from('documents').delete().eq('id', id).eq('user_id', userId);
+  }
+
+  String _contentTypeFor(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+    return switch (extension) {
+      'pdf' => 'application/pdf',
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      _ => 'application/octet-stream',
+    };
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/malaysia_locations.dart';
@@ -7,6 +8,7 @@ import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
 import '../../widgets/error_dialog.dart';
+import '../../widgets/guidance_sheet.dart';
 import '../../widgets/malaysia_address_fields.dart';
 import '../../widgets/phone_otp_verification_card.dart';
 import '../../widgets/premium_shell.dart';
@@ -63,6 +65,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _copyLegacyUid(String uid) async {
+    if (uid.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: uid));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Legacy UID copied.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _showAppGuide() {
+    return GuidanceSheet.show(
+      context,
+      title: 'EthernaCare Guide',
+      description:
+          'A quick reference for the main tabs, safety tools, and Oren care features.',
+      items: const [
+        GuidanceItem(
+          icon: Icons.home_outlined,
+          title: 'Home',
+          description:
+              'Tap Oren for your daily check-in, view Oren\'s status and weather, use care actions, and review the Safety Monitor lower on the page.',
+        ),
+        GuidanceItem(
+          icon: Icons.history,
+          title: 'History',
+          description:
+              'Review recorded check-ins and their dates. Pull down or reopen the page to refresh recent activity.',
+          color: AppColors.blue,
+        ),
+        GuidanceItem(
+          icon: Icons.contacts_outlined,
+          title: 'Contacts and SOS',
+          description:
+              'Add trusted contacts, verify their phone numbers, and select one primary contact for SOS and inactivity follow-up.',
+          color: AppColors.danger,
+        ),
+        GuidanceItem(
+          icon: Icons.redeem_outlined,
+          title: 'Rewards, tokens, and Oren',
+          description:
+              'Daily activity earns tokens. Use them in Oren\'s shop, select an owned toy, then tap Play to see Oren interact with it.',
+          color: AppColors.accent,
+        ),
+        GuidanceItem(
+          icon: Icons.person_outline,
+          title: 'Profile and planning',
+          description:
+              'Update personal and safety details, copy your Legacy UID, manage Legacy Planning, and open general AI Guidance.',
+          color: AppColors.purple,
+        ),
+        GuidanceItem(
+          icon: Icons.warning_amber_rounded,
+          title: 'Safety messages',
+          description:
+              'Green means the current status is normal, amber needs attention, and red indicates an emergency or failed safety action. Call 999 for immediate danger in Malaysia.',
+          color: AppColors.danger,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showLegacyUidGuide() {
+    return GuidanceSheet.show(
+      context,
+      title: 'About Your Legacy UID',
+      description:
+          'Your Legacy UID identifies your account during a protected Legacy Check.',
+      items: const [
+        GuidanceItem(
+          icon: Icons.copy_outlined,
+          title: 'Copy and share carefully',
+          description:
+              'Use the copy button beside the UID and give it only to your intended primary trusted contact.',
+          color: AppColors.purple,
+        ),
+        GuidanceItem(
+          icon: Icons.lock_outline,
+          title: 'The UID is not enough by itself',
+          description:
+              'Access also requires your verified primary contact\'s phone, an SMS code, your consent, and at least 90 days without a check-in.',
+        ),
+        GuidanceItem(
+          icon: Icons.visibility_off_outlined,
+          title: 'Documents stay private',
+          description:
+              'Legacy Checking can show preferences and Legacy Notes only. Uploaded secure documents are never included.',
+          color: AppColors.blue,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
@@ -74,6 +171,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final bloodTypeLabel = (bloodType == null || bloodType.isEmpty)
             ? 'Not provided'
             : bloodType;
+        final legacyUid =
+            profile['id']?.toString() ?? userService.currentUserId ?? '';
         final escalationTarget = EmergencyEscalationTarget.normalize(
           profile['emergency_escalation_target'],
         );
@@ -83,12 +182,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
             PremiumHeader(
               title: 'My Profile',
               subtitle: 'Personal & medical info',
-              action: IconButton.filled(
-                onPressed: snapshot.connectionState == ConnectionState.done
-                    ? () => _editProfile(profile)
-                    : null,
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Edit profile',
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: _showAppGuide,
+                    icon: const Icon(Icons.help_outline_rounded),
+                    tooltip: 'App guide',
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton.filled(
+                    onPressed:
+                        snapshot.connectionState == ConnectionState.done
+                        ? () => _editProfile(profile)
+                        : null,
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: 'Edit profile',
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 18),
@@ -181,6 +292,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.email_outlined,
                   label: 'Email',
                   value: profile['email']?.toString() ?? 'Not provided',
+                ),
+              ],
+            ),
+            const SizedBox(height: 17),
+            _InfoSection(
+              title: 'LEGACY ACCESS',
+              action: IconButton(
+                onPressed: _showLegacyUidGuide,
+                icon: const Icon(Icons.info_outline_rounded),
+                tooltip: 'About Legacy UID',
+                visualDensity: VisualDensity.compact,
+              ),
+              children: [
+                _InfoTile(
+                  icon: Icons.fingerprint,
+                  iconColor: AppColors.purple,
+                  label: 'Legacy UID',
+                  value: legacyUid.isEmpty ? 'Unavailable' : legacyUid,
+                  trailing: IconButton(
+                    onPressed: legacyUid.isEmpty
+                        ? null
+                        : () => _copyLegacyUid(legacyUid),
+                    icon: const Icon(Icons.copy_outlined),
+                    tooltip: 'Copy Legacy UID',
+                  ),
                 ),
               ],
             ),
@@ -300,24 +436,36 @@ class _ProfileAction extends StatelessWidget {
 }
 
 class _InfoSection extends StatelessWidget {
-  const _InfoSection({required this.title, required this.children});
+  const _InfoSection({
+    required this.title,
+    required this.children,
+    this.action,
+  });
 
   final String title;
   final List<Widget> children;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: AppColors.muted,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: .7,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: .7,
+                ),
+              ),
+            ),
+            if (action != null) action!,
+          ],
         ),
         const SizedBox(height: 8),
         GlassPanel(
@@ -344,12 +492,14 @@ class _InfoTile extends StatelessWidget {
     required this.label,
     required this.value,
     this.iconColor = AppColors.muted,
+    this.trailing,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final Color iconColor;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -366,12 +516,15 @@ class _InfoTile extends StatelessWidget {
       ),
       subtitle: Text(
         value,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           color: AppColors.ink,
           fontSize: 15,
           fontWeight: FontWeight.w600,
         ),
       ),
+      trailing: trailing,
     );
   }
 }
@@ -635,19 +788,19 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
-                  selectedItemBuilder: (context) =>
-                      EmergencyEscalationTarget.values
-                          .map(
-                            (value) => Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                _compactEscalationLabel(value),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                          .toList(),
+                  selectedItemBuilder: (context) => EmergencyEscalationTarget
+                      .values
+                      .map(
+                        (value) => Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _compactEscalationLabel(value),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
                   items: EmergencyEscalationTarget.values
                       .map(
                         (value) => DropdownMenuItem(
@@ -695,10 +848,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: FilledButton(
-                onPressed: _save,
-                child: const Text('Save'),
-              ),
+              child: FilledButton(onPressed: _save, child: const Text('Save')),
             ),
           ],
         ),

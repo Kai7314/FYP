@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +12,7 @@ import 'package:fyp/models/contact_model.dart';
 import 'package:fyp/models/document_model.dart';
 import 'package:fyp/models/emergency_alert_model.dart';
 import 'package:fyp/models/legacy_note_model.dart';
+import 'package:fyp/models/legacy_access_result.dart';
 import 'package:fyp/models/oren_care_model.dart';
 import 'package:fyp/models/reward_model.dart';
 import 'package:fyp/models/user_model.dart';
@@ -22,8 +25,10 @@ import 'package:fyp/presentation/screen/contacts/add_contact_dialog.dart';
 import 'package:fyp/presentation/screen/home/home_screen.dart';
 import 'package:fyp/presentation/screen/home/pet_button.dart';
 import 'package:fyp/presentation/screen/home/virtual_pet_widget.dart';
+import 'package:fyp/presentation/screen/planning/legacy_check_screen.dart';
 import 'package:fyp/presentation/screen/profile/profile_screen.dart';
 import 'package:fyp/presentation/widgets/custom_button.dart';
+import 'package:fyp/presentation/widgets/guidance_sheet.dart';
 import 'package:fyp/presentation/widgets/loading_indicator.dart';
 import 'package:fyp/dataAccessLayer/repositories/contact_repository.dart';
 import 'package:fyp/services/reward_service.dart';
@@ -89,6 +94,55 @@ void main() {
     expect(find.text('Quick Guide'), findsOneWidget);
     expect(find.text('Meet Oren'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
+  });
+
+  testWidgets('contextual guidance opens and closes without overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: IconButton(
+                tooltip: 'Open guide',
+                icon: const Icon(Icons.info_outline),
+                onPressed: () => GuidanceSheet.show(
+                  context,
+                  title: 'Screen Guide',
+                  description: 'Learn what this screen does.',
+                  items: const [
+                    GuidanceItem(
+                      icon: Icons.check_circle_outline,
+                      title: 'Main action',
+                      description: 'This explains the main action clearly.',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Open guide'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Screen Guide'), findsOneWidget);
+    expect(find.text('Main action'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Got it'));
+    await tester.pumpAndSettle();
+    expect(find.text('Screen Guide'), findsNothing);
   });
 
   test('home screen compiles with oren care shop', () {
@@ -205,7 +259,7 @@ void main() {
     );
 
     expect(find.text('Status: Loved'), findsOneWidget);
-    expect(find.byType(Image), findsNWidgets(2));
+    expect(find.byType(Image), findsAtLeastNWidgets(3));
   });
 
   testWidgets('virtual pet supports tapping Oren to check in', (tester) async {
@@ -260,6 +314,7 @@ void main() {
     final state = OrenCareState.initial().copyWith(
       tokens: 15,
       ownedToyIds: {'fish_plush'},
+      selectedToyId: 'fish_plush',
       mood: 'Playful',
       lastAction: 'Oren played with Fish Plush.',
     );
@@ -267,6 +322,7 @@ void main() {
 
     expect(restored.tokens, 15);
     expect(restored.ownedToyIds, contains('fish_plush'));
+    expect(restored.selectedToyId, 'fish_plush');
     expect(restored.mood, 'Playful');
   });
 
@@ -435,6 +491,7 @@ void main() {
       locationName: 'Johor Bahru, Johor',
     );
     expect(johor.compactMalaysiaRegion, 'JB');
+    expect(johor.backgroundAsset, endsWith('pixel_cloudy.png'));
   });
 
   test('validation rules enforce account and contact limits', () {
@@ -556,6 +613,83 @@ void main() {
       ),
       isNotNull,
     );
+  });
+
+  test('legacy documents validate size, extension, and file signature', () {
+    final pdfBytes = Uint8List.fromList([
+      0x25,
+      0x50,
+      0x44,
+      0x46,
+      0x2d,
+      0x31,
+      0x2e,
+      0x37,
+    ]);
+
+    expect(
+      DocumentService.documentUploadValidationError(
+        fileName: 'will.pdf',
+        fileSize: pdfBytes.length,
+        bytes: pdfBytes,
+      ),
+      isNull,
+    );
+    expect(
+      DocumentService.documentUploadValidationError(
+        fileName: 'will.exe',
+        fileSize: pdfBytes.length,
+        bytes: pdfBytes,
+      ),
+      contains('PDF'),
+    );
+    expect(
+      DocumentService.documentUploadValidationError(
+        fileName: 'fake.pdf',
+        fileSize: 3,
+        bytes: Uint8List.fromList([0x4d, 0x5a, 0x90]),
+      ),
+      contains('does not match'),
+    );
+    expect(
+      DocumentService.documentUploadValidationError(
+        fileName: 'large.pdf',
+        fileSize: DocumentService.maxDocumentBytes + 1,
+        bytes: pdfBytes,
+      ),
+      contains('10 MB'),
+    );
+  });
+
+  test('legacy checking parses only preferences and Legacy Notes', () {
+    final result = LegacyAccessResult.fromJson({
+      'ownerName': 'Test User',
+      'lastActivityAt': '2026-01-01T00:00:00Z',
+      'preferences': {
+        'religion': 'Buddhism',
+        'service_type': 'Cremation',
+        'venue': 'Johor Bahru',
+        'notes': 'Keep the service simple.',
+        'authorized_contact': 'Primary contact',
+      },
+      'notes': [
+        {
+          'id': 'note-1',
+          'title': 'Family message',
+          'content': 'Please contact the family lawyer.',
+          'created_at': '2026-01-01T00:00:00Z',
+          'updated_at': '2026-01-02T00:00:00Z',
+        },
+      ],
+      'documents': [
+        {'name': 'private-will.pdf'},
+      ],
+    });
+
+    expect(result.ownerName, 'Test User');
+    expect(result.preferences.serviceType, 'Cremation');
+    expect(result.notes.single.title, 'Family message');
+    expect(const LegacyCheckScreen(), isA<LegacyCheckScreen>());
   });
 
   test('AI guidance has an offline safety fallback', () {

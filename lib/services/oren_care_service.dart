@@ -3,11 +3,9 @@ import '../models/oren_care_model.dart';
 import 'local_cache_service.dart';
 
 class OrenCareService {
-  OrenCareService({
-    AuthRepository? authRepository,
-    LocalCacheService? cache,
-  }) : authRepository = authRepository ?? AuthRepository(),
-       cache = cache ?? LocalCacheService();
+  OrenCareService({AuthRepository? authRepository, LocalCacheService? cache})
+    : authRepository = authRepository ?? AuthRepository(),
+      cache = cache ?? LocalCacheService();
 
   final AuthRepository authRepository;
   final LocalCacheService cache;
@@ -22,7 +20,8 @@ class OrenCareService {
       description: 'A soft rolling toy for gentle play.',
       price: 8,
       iconCodePoint: 0xe3e6,
-      imageAsset: 'lib/assets/images/pixel/oren_pixel_yarn_ball.png',
+      imageAsset:
+          'lib/assets/images/pixel/oren_pixel_yarn_ball_transparent.png',
     ),
     OrenToy(
       id: 'fish_plush',
@@ -30,7 +29,8 @@ class OrenCareService {
       description: 'Oren can nap beside this tiny fish.',
       price: 12,
       iconCodePoint: 0xe545,
-      imageAsset: 'lib/assets/images/pixel/oren_pixel_fish_plush.png',
+      imageAsset:
+          'lib/assets/images/pixel/oren_pixel_fish_plush_transparent.png',
     ),
     OrenToy(
       id: 'feather_wand',
@@ -38,7 +38,8 @@ class OrenCareService {
       description: 'A playful wand for quick energy boosts.',
       price: 16,
       iconCodePoint: 0xe3b7,
-      imageAsset: 'lib/assets/images/pixel/oren_pixel_feather_wand.png',
+      imageAsset:
+          'lib/assets/images/pixel/oren_pixel_feather_wand_transparent.png',
     ),
   ];
 
@@ -127,8 +128,25 @@ class OrenCareService {
       state.copyWith(
         tokens: state.tokens - toy.price,
         ownedToyIds: {...state.ownedToyIds, toy.id},
+        selectedToyId: state.selectedToyId.isEmpty
+            ? toy.id
+            : state.selectedToyId,
         mood: 'Curious',
         lastAction: '${toy.name} added to Oren inventory.',
+      ),
+    );
+  }
+
+  Future<OrenCareState> selectToy(OrenToy toy) async {
+    final state = await load();
+    if (!state.ownedToyIds.contains(toy.id)) {
+      return state.copyWith(lastAction: 'Buy ${toy.name} before selecting it.');
+    }
+    return _save(
+      state.copyWith(
+        selectedToyId: toy.id,
+        mood: 'Curious',
+        lastAction: '${toy.name} is ready for playtime.',
       ),
     );
   }
@@ -161,11 +179,7 @@ class OrenCareService {
         : 'Oren played with ${toy.name}.';
 
     return _save(
-      state.copyWith(
-        mood: nextMood,
-        energy: nextEnergy,
-        lastAction: action,
-      ),
+      state.copyWith(mood: nextMood, energy: nextEnergy, lastAction: action),
     );
   }
 

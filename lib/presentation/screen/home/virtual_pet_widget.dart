@@ -13,10 +13,13 @@ class VirtualPetWidget extends StatefulWidget {
     this.weather,
     this.mood = 'Calm',
     this.lastAction,
+    this.activeToyId,
     this.activeToyAsset,
+    this.onOpenShop,
     this.onTap,
     this.loading = false,
     this.energy = 65,
+    this.tokens = 0,
   });
 
   final int streak;
@@ -24,10 +27,13 @@ class VirtualPetWidget extends StatefulWidget {
   final WeatherSnapshot? weather;
   final String mood;
   final String? lastAction;
+  final String? activeToyId;
   final String? activeToyAsset;
+  final VoidCallback? onOpenShop;
   final VoidCallback? onTap;
   final bool loading;
   final int energy;
+  final int tokens;
 
   @override
   State<VirtualPetWidget> createState() => _VirtualPetWidgetState();
@@ -56,17 +62,17 @@ class _VirtualPetWidgetState extends State<VirtualPetWidget>
   Widget build(BuildContext context) {
     final moodText = widget.mood.toLowerCase();
     final eating = moodText == 'eating';
-    final playful = moodText == 'playful';
+    final playful = moodText == 'playful' || widget.activeToyId != null;
     final energetic = moodText == 'energetic' || widget.energy >= 90;
     final tired = moodText == 'tired' || widget.energy <= 25;
     final loved = moodText == 'loved' || moodText == 'happy';
     final catAsset = eating
-        ? 'lib/assets/images/pixel/oren_pixel_eating.png'
+        ? 'lib/assets/images/pixel/oren_pixel_eating_transparent.png'
         : loved || playful || energetic
-        ? 'lib/assets/images/pixel/oren_pixel_full_energy.png'
+        ? 'lib/assets/images/pixel/oren_pixel_full_energy_transparent.png'
         : tired
-        ? 'lib/assets/images/pixel/oren_pixel_tired.png'
-        : 'lib/assets/images/pixel/oren_pixel_calm.png';
+        ? 'lib/assets/images/pixel/oren_pixel_tired_transparent.png'
+        : 'lib/assets/images/pixel/oren_pixel_calm_transparent.png';
     final status = _statusLabel(moodText, loved, energetic, tired);
 
     final enabled = widget.onTap != null && !widget.loading;
@@ -80,7 +86,7 @@ class _VirtualPetWidgetState extends State<VirtualPetWidget>
           behavior: HitTestBehavior.opaque,
           onTap: enabled ? widget.onTap : null,
           child: Container(
-            height: 270,
+            height: 306,
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
@@ -92,184 +98,267 @@ class _VirtualPetWidgetState extends State<VirtualPetWidget>
                 ),
               ],
             ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 500),
-                  child: Image.asset(
-                    widget.weather?.backgroundAsset ??
-                        'lib/assets/images/pixel/pixel_day.png',
-                    key: ValueKey(widget.weather?.backgroundAsset ?? 'day'),
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.none,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final sceneWidth = math.min(constraints.maxWidth, 720.0);
+                return Center(
+                  child: SizedBox(
+                    width: sceneWidth,
+                    height: 306,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 500),
+                          layoutBuilder: (currentChild, previousChildren) =>
+                              Stack(
+                    fit: StackFit.expand,
+                    children: [...previousChildren, ?currentChild],
                   ),
-                ),
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0x08000000), Color(0x33000000)],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: const Alignment(0, .28),
-                  child: AnimatedBuilder(
-                    animation: idleController,
-                    builder: (context, child) {
-                      final bobSize = tired
-                          ? 1.2
-                          : energetic
-                          ? 7.0
-                          : playful
-                          ? 5.0
-                          : 4.0;
-                      final bob =
-                          math.sin(idleController.value * math.pi * 2) *
-                          bobSize;
-                      return Transform.translate(
-                        offset: Offset(0, bob),
-                        child: child,
-                      );
-                    },
-                    child: AnimatedRotation(
-                      duration: const Duration(milliseconds: 350),
-                      turns: tired
-                          ? .015
-                          : playful || energetic
-                          ? -.025
-                          : 0,
-                      child: AnimatedScale(
-                        duration: const Duration(milliseconds: 350),
-                        scale: eating
-                            ? 1.16
-                            : energetic
-                            ? 1.14
-                            : playful
-                            ? 1.12
-                            : loved
-                            ? 1.08
-                            : tired
-                            ? .94
-                            : 1,
-                        child: Opacity(
-                          opacity: tired ? .76 : 1,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 260),
-                            transitionBuilder: (child, animation) =>
-                                FadeTransition(
-                                  opacity: animation,
-                                  child: ScaleTransition(
-                                    scale: animation,
-                                    child: child,
-                                  ),
-                                ),
+                          child: SizedBox.expand(
+                            key: ValueKey(
+                              widget.weather?.backgroundAsset ?? 'day',
+                            ),
                             child: Image.asset(
-                              catAsset,
-                              key: ValueKey('$catAsset-$status'),
-                              height: 150,
-                              fit: BoxFit.contain,
+                              widget.weather?.backgroundAsset ??
+                                  'lib/assets/images/pixel/pixel_day.png',
+                              fit: BoxFit.cover,
                               filterQuality: FilterQuality.none,
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                ),
-                if (energetic || tired || playful)
-                  Positioned(
-                    left: 28,
-                    right: 28,
-                    top: 72,
-                    child: IgnorePointer(
-                      child: _OrenStatusEffect(
-                        energetic: energetic,
-                        tired: tired,
-                        playful: playful,
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  top: 48,
-                  left: 12,
-                  child: _EnergyChip(energy: widget.energy),
-                ),
-                if (widget.activeToyAsset != null)
-                  Positioned(
-                    right: 30,
-                    bottom: 62,
-                    child: _FloatingToy(asset: widget.activeToyAsset!),
-                  ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  right: 12,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _Badge(
-                        text: 'Status: $status',
-                        icon: _statusIcon(status),
-                      ),
-                      const Spacer(),
-                      Flexible(
-                        child: _Badge(
-                          text: widget.weather == null
-                              ? 'Weather unavailable'
-                              : widget.weather!.compactMalaysiaRegion,
-                          icon: Icons.cloud_outlined,
-                          alignRight: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (widget.lastAction != null &&
-                    widget.lastAction!.trim().isNotEmpty)
-                  Positioned(
-                    left: 12,
-                    right: 12,
-                    bottom: 52,
-                    child: Center(
-                      child: _SpeechBubble(text: widget.lastAction!),
-                    ),
-                  ),
-                Positioned(
-                  bottom: 12,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: _Badge(
-                      text: 'Oren care streak: ${widget.streak} days',
-                      icon: Icons.pets,
-                    ),
-                  ),
-                ),
-                if (widget.loading)
-                  Positioned.fill(
-                    child: ColoredBox(
-                      color: Colors.black.withValues(alpha: .14),
-                      child: Center(
-                        child: Container(
-                          width: 54,
-                          height: 54,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: .92),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: const CircularProgressIndicator(
-                            strokeWidth: 3,
-                            color: AppColors.primary,
+                        Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0x08000000), Color(0x33000000)],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
                           ),
                         ),
-                      ),
+                        Align(
+                          alignment: const Alignment(0, .28),
+                          child: AnimatedBuilder(
+                            animation: idleController,
+                            builder: (context, child) {
+                              final progress =
+                                  idleController.value * math.pi * 2;
+                              final bobSize = tired
+                                  ? 1.2
+                                  : energetic
+                                  ? 7.0
+                                  : playful
+                                  ? 5.0
+                                  : 4.0;
+                              var horizontalMotion = 0.0;
+                              var playLift = 0.0;
+                              var playRotation = 0.0;
+                              switch (widget.activeToyId) {
+                                case 'yarn_ball':
+                                  horizontalMotion = math.sin(progress) * 18;
+                                  playLift = -math.sin(progress).abs() * 8;
+                                  playRotation = math.sin(progress) * .035;
+                                  break;
+                                case 'fish_plush':
+                                  horizontalMotion = math.sin(progress) * 5;
+                                  playRotation = math.sin(progress) * .018;
+                                  break;
+                                case 'feather_wand':
+                                  horizontalMotion = math.sin(progress) * 12;
+                                  playLift = -math.sin(progress).abs() * 15;
+                                  playRotation = math.sin(progress) * .06;
+                                  break;
+                                default:
+                                  break;
+                              }
+                              final bob = math.sin(progress) * bobSize;
+                              return Transform.translate(
+                                offset: Offset(
+                                  horizontalMotion,
+                                  bob + playLift,
+                                ),
+                                child: Transform.rotate(
+                                  angle: playRotation,
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: AnimatedRotation(
+                              duration: const Duration(milliseconds: 350),
+                              turns: tired
+                                  ? .015
+                                  : playful || energetic
+                                  ? -.025
+                                  : 0,
+                              child: AnimatedScale(
+                                duration: const Duration(milliseconds: 350),
+                                scale: eating
+                                    ? 1.16
+                                    : energetic
+                                    ? 1.14
+                                    : playful
+                                    ? 1.12
+                                    : loved
+                                    ? 1.08
+                                    : tired
+                                    ? .94
+                                    : 1,
+                                child: Opacity(
+                                  opacity: tired ? .76 : 1,
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 260),
+                                    transitionBuilder: (child, animation) =>
+                                        FadeTransition(
+                                          opacity: animation,
+                                          child: ScaleTransition(
+                                            scale: animation,
+                                            child: child,
+                                          ),
+                                        ),
+                                    child: Image.asset(
+                                      catAsset,
+                                      key: ValueKey('$catAsset-$status'),
+                                      height: 150,
+                                      fit: BoxFit.contain,
+                                      filterQuality: FilterQuality.none,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (energetic || tired || playful)
+                          Positioned(
+                            left: 28,
+                            right: 28,
+                            top: 72,
+                            child: IgnorePointer(
+                              child: _OrenStatusEffect(
+                                energetic: energetic,
+                                tired: tired,
+                                playful: playful,
+                              ),
+                            ),
+                          ),
+                        Positioned(
+                          top: 48,
+                          left: 12,
+                          child: _EnergyChip(energy: widget.energy),
+                        ),
+                        if (widget.activeToyAsset != null &&
+                            widget.activeToyId != null)
+                          Positioned(
+                            left: 32,
+                            right: 32,
+                            top: 92,
+                            bottom: 48,
+                            child: IgnorePointer(
+                              child: _AnimatedToy(
+                                id: widget.activeToyId!,
+                                asset: widget.activeToyAsset!,
+                                animation: idleController,
+                              ),
+                            ),
+                          ),
+                        Positioned(
+                          top: 12,
+                          left: 12,
+                          right: 12,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _Badge(
+                                text: 'Status: $status',
+                                icon: _statusIcon(status),
+                              ),
+                              const Spacer(),
+                              Flexible(
+                                child: _Badge(
+                                  text: widget.weather == null
+                                      ? 'Weather unavailable'
+                                      : widget.weather!.compactMalaysiaRegion,
+                                  icon: Icons.cloud_outlined,
+                                  alignRight: true,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          top: 50,
+                          right: 12,
+                          child: FilledButton.tonalIcon(
+                            onPressed: widget.onOpenShop,
+                            icon: const Icon(
+                              Icons.storefront_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('Shop'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(0, 38),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: .92,
+                              ),
+                              foregroundColor: AppColors.primaryDark,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 94,
+                          left: 12,
+                          child: _TokenChip(tokens: widget.tokens),
+                        ),
+                        if (widget.lastAction != null &&
+                            widget.lastAction!.trim().isNotEmpty)
+                          Positioned(
+                            left: 12,
+                            right: 12,
+                            bottom: 52,
+                            child: Center(
+                              child: _SpeechBubble(text: widget.lastAction!),
+                            ),
+                          ),
+                        Positioned(
+                          bottom: 12,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: _Badge(
+                              text: 'Oren care streak: ${widget.streak} days',
+                              icon: Icons.pets,
+                            ),
+                          ),
+                        ),
+                        if (widget.loading)
+                          Positioned.fill(
+                            child: ColoredBox(
+                              color: Colors.black.withValues(alpha: .14),
+                              child: Center(
+                                child: Container(
+                                  width: 54,
+                                  height: 54,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: .92),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-              ],
+                );
+              },
             ),
           ),
         ),
@@ -277,12 +366,7 @@ class _VirtualPetWidgetState extends State<VirtualPetWidget>
     );
   }
 
-  String _statusLabel(
-    String moodText,
-    bool loved,
-    bool energetic,
-    bool tired,
-  ) {
+  String _statusLabel(String moodText, bool loved, bool energetic, bool tired) {
     if (moodText == 'eating') return 'Eating';
     if (energetic) return 'Full energy';
     if (tired) return 'Tired';
@@ -474,26 +558,63 @@ class _Badge extends StatelessWidget {
   }
 }
 
-class _FloatingToy extends StatelessWidget {
-  const _FloatingToy({required this.asset});
+class _AnimatedToy extends StatelessWidget {
+  const _AnimatedToy({
+    required this.id,
+    required this.asset,
+    required this.animation,
+  });
 
+  final String id;
   final String asset;
+  final Animation<double> animation;
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      key: ValueKey(asset),
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 520),
-      curve: Curves.easeOutBack,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value.clamp(0, 1),
+    return AnimatedBuilder(
+      key: ValueKey('$id-$asset'),
+      animation: animation,
+      builder: (context, child) {
+        final progress = animation.value * math.pi * 2;
+        final motion = switch (id) {
+          'yarn_ball' => (
+            alignment: Alignment.bottomCenter,
+            offset: Offset(
+              math.sin(progress) * 66,
+              -math.cos(progress).abs() * 18,
+            ),
+            angle: progress * .42,
+            scale: .88,
+          ),
+          'fish_plush' => (
+            alignment: const Alignment(.58, .5),
+            offset: Offset(0, math.sin(progress) * 6),
+            angle: math.sin(progress) * .1,
+            scale: .82 + math.sin(progress).abs() * .05,
+          ),
+          'feather_wand' => (
+            alignment: Alignment.topCenter,
+            offset: Offset(
+              58 + math.sin(progress) * 42,
+              10 + math.cos(progress) * 12,
+            ),
+            angle: -.5 + math.sin(progress) * .34,
+            scale: .88,
+          ),
+          _ => (
+            alignment: Alignment.bottomRight,
+            offset: Offset(0, math.sin(progress) * 8),
+            angle: math.sin(progress) * .1,
+            scale: .86,
+          ),
+        };
+        return Align(
+          alignment: motion.alignment,
           child: Transform.translate(
-            offset: Offset(0, (1 - value) * 16),
+            offset: motion.offset,
             child: Transform.rotate(
-              angle: math.sin(value * math.pi) * .12,
-              child: Transform.scale(scale: .82 + value * .18, child: child),
+              angle: motion.angle,
+              child: Transform.scale(scale: motion.scale, child: child),
             ),
           ),
         );
@@ -504,6 +625,45 @@ class _FloatingToy extends StatelessWidget {
         height: 86,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.none,
+      ),
+    );
+  }
+}
+
+class _TokenChip extends StatelessWidget {
+  const _TokenChip({required this.tokens});
+
+  final int tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .92),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Image.asset(
+            'lib/assets/images/pixel/oren_pixel_token_transparent.png',
+            width: 22,
+            height: 22,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.none,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '$tokens',
+            style: const TextStyle(
+              color: AppColors.ink,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }
