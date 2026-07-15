@@ -35,9 +35,21 @@ Deno.serve(async (request) => {
   const ownerUid = String(body.ownerUid ?? "").trim();
   const phone = normalizePhone(String(body.phone ?? ""));
   const code = String(body.code ?? "").replace(/\D/g, "");
+  const testingMode = body.testingMode === true;
+  const testingModeEnabled =
+    Deno.env.get("LEGACY_ACCESS_TEST_MODE")?.trim().toLowerCase() === "true";
+  if (testingMode && !testingModeEnabled) {
+    return Response.json(
+      {
+        error:
+          "Legacy Checking testing mode is not enabled on the server.",
+      },
+      { status: 403, headers: corsHeaders },
+    );
+  }
   if (
     !isUuid(ownerUid) || !/^\+[0-9]{8,15}$/.test(phone) ||
-    !/^[0-9]{6}$/.test(code)
+    (!testingMode && !/^[0-9]{6}$/.test(code))
   ) {
     return Response.json(
       { error: "The verification code is invalid or expired." },
@@ -48,53 +60,61 @@ Deno.serve(async (request) => {
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: rows, error: otpError } = await supabase
-    .from("legacy_access_otps")
-    .select("id, contact_id, code_hash, attempt_count, expires_at")
-    .eq("owner_user_id", ownerUid)
-    .eq("phone", phone)
-    .is("consumed_at", null)
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1);
-  if (otpError) {
-    return Response.json(
-      { error: otpError.message },
-      { status: 500, headers: corsHeaders },
-    );
-  }
-  const otp = rows?.[0];
-  if (!otp) {
-    return Response.json(
-      { error: "The verification code is invalid or expired." },
-      { status: 400, headers: corsHeaders },
-    );
-  }
-  if (Number(otp.attempt_count ?? 0) >= 5) {
-    return Response.json(
-      { error: "Too many incorrect attempts. Request a new code." },
-      { status: 429, headers: corsHeaders },
-    );
+  let otp: Record<string, unknown> | null = null;
+  if (!testingMode) {
+    const { data: rows, error: otpError } = await supabase
+      .from("legacy_access_otps")
+      .select("id, contact_id, code_hash, attempt_count, expires_at")
+      .eq("owner_user_id", ownerUid)
+      .eq("phone", phone)
+      .is("consumed_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (otpError) {
+      return Response.json(
+        { error: otpError.message },
+        { status: 500, headers: corsHeaders },
+      );
+    }
+    otp = rows?.[0] ?? null;
+    if (!otp) {
+      return Response.json(
+        { error: "The verification code is invalid or expired." },
+        { status: 400, headers: corsHeaders },
+      );
+    }
+    if (Number(otp.attempt_count ?? 0) >= 5) {
+      return Response.json(
+        { error: "Too many incorrect attempts. Request a new code." },
+        { status: 429, headers: corsHeaders },
+      );
+    }
+
+    const expectedHash = await hashLegacyCode({
+      ownerUid,
+      phone,
+      code,
+      secret: otpSecret,
+    });
+    if (!hashesMatch(expectedHash, String(otp.code_hash))) {
+      await supabase
+        .from("legacy_access_otps")
+        .update({ attempt_count: Number(otp.attempt_count ?? 0) + 1 })
+        .eq("id", otp.id);
+      return Response.json(
+        { error: "The verification code is invalid or expired." },
+        { status: 400, headers: corsHeaders },
+      );
+    }
   }
 
-  const expectedHash = await hashLegacyCode({
+  const eligibility = await getLegacyEligibility(
+    supabase,
     ownerUid,
     phone,
-    code,
-    secret: otpSecret,
-  });
-  if (!hashesMatch(expectedHash, String(otp.code_hash))) {
-    await supabase
-      .from("legacy_access_otps")
-      .update({ attempt_count: Number(otp.attempt_count ?? 0) + 1 })
-      .eq("id", otp.id);
-    return Response.json(
-      { error: "The verification code is invalid or expired." },
-      { status: 400, headers: corsHeaders },
-    );
-  }
-
-  const eligibility = await getLegacyEligibility(supabase, ownerUid, phone);
+    { skipInactivityWait: testingMode },
+  );
   if (eligibility.error) {
     return Response.json(
       { error: eligibility.error },
@@ -103,7 +123,7 @@ Deno.serve(async (request) => {
   }
   if (
     !eligibility.eligible || !eligibility.contactId ||
-    eligibility.contactId !== String(otp.contact_id)
+    (!testingMode && eligibility.contactId !== String(otp?.contact_id))
   ) {
     return Response.json(
       { error: "Legacy access is not currently available." },
@@ -135,17 +155,19 @@ Deno.serve(async (request) => {
     );
   }
 
-  const consumedAt = new Date().toISOString();
-  const { error: consumeError } = await supabase
-    .from("legacy_access_otps")
-    .update({ consumed_at: consumedAt })
-    .eq("id", otp.id)
-    .is("consumed_at", null);
-  if (consumeError) {
-    return Response.json(
-      { error: consumeError.message },
-      { status: 500, headers: corsHeaders },
-    );
+  if (!testingMode && otp) {
+    const consumedAt = new Date().toISOString();
+    const { error: consumeError } = await supabase
+      .from("legacy_access_otps")
+      .update({ consumed_at: consumedAt })
+      .eq("id", otp.id)
+      .is("consumed_at", null);
+    if (consumeError) {
+      return Response.json(
+        { error: consumeError.message },
+        { status: 500, headers: corsHeaders },
+      );
+    }
   }
 
   const { error: auditError } = await supabase

@@ -43,6 +43,27 @@ class LegacyAccessService {
     return LegacyAccessResult.fromJson(Map<String, dynamic>.from(data));
   }
 
+  Future<LegacyAccessResult> verifyTestingAccess({
+    required String ownerUid,
+    required String phone,
+  }) async {
+    final response = await _invoke(
+      'verify-legacy-access',
+      body: {
+        'ownerUid': ownerUid.trim(),
+        'phone': phone,
+        'testingMode': true,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['authorized'] != true) {
+      throw const LegacyAccessException(
+        'Legacy testing access could not be verified.',
+      );
+    }
+    return LegacyAccessResult.fromJson(Map<String, dynamic>.from(data));
+  }
+
   Future<FunctionResponse> _invoke(
     String functionName, {
     required Map<String, dynamic> body,

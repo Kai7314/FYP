@@ -62,6 +62,7 @@ export async function getLegacyEligibility(
   supabase: SupabaseClient,
   ownerUid: string,
   requestedPhone: string,
+  options: { skipInactivityWait?: boolean } = {},
 ): Promise<LegacyEligibility> {
   const { data: owner, error: ownerError } = await supabase
     .from("users")
@@ -108,7 +109,8 @@ export async function getLegacyEligibility(
   );
   const inactivityMs = legacyInactivityDays * 24 * 60 * 60 * 1000;
   return {
-    eligible: Date.now() - lastActivityMs >= inactivityMs,
+    eligible: options.skipInactivityWait === true ||
+      Date.now() - lastActivityMs >= inactivityMs,
     ownerName: String(owner.name ?? "EthernaCare user"),
     contactId: String(primaryContact.id),
     lastActivityAt: new Date(lastActivityMs).toISOString(),
@@ -171,4 +173,3 @@ function friendlyTwilioError(
     payload.message ?? `SMS provider request failed with HTTP ${status}.`,
   );
 }
-

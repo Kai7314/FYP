@@ -692,6 +692,48 @@ void main() {
     expect(const LegacyCheckScreen(), isA<LegacyCheckScreen>());
   });
 
+  testWidgets('legacy checking debug switch bypasses SMS and wait messaging', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: LegacyCheckScreen(showTestingMode: true),
+      ),
+    );
+
+    expect(find.text('Testing mode'), findsOneWidget);
+    expect(find.text('Verify UID and Phone'), findsOneWidget);
+    expect(find.textContaining('without SMS or the 90-day wait'), findsOneWidget);
+
+    await tester.tap(find.byType(SwitchListTile));
+    await tester.pump();
+
+    expect(find.text('Send Verification Code'), findsOneWidget);
+    expect(find.textContaining('after 90 days'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('legacy checking release mode keeps SMS verification', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: LegacyCheckScreen(showTestingMode: false),
+      ),
+    );
+
+    expect(find.text('Testing mode'), findsNothing);
+    expect(find.text('Send Verification Code'), findsOneWidget);
+    expect(find.textContaining('after 90 days'), findsOneWidget);
+  });
+
   test('AI guidance has an offline safety fallback', () {
     expect(
       AiService.offlineAnswer('What do I do in an emergency?'),

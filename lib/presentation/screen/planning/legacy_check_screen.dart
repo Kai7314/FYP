@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -13,7 +14,14 @@ import '../../widgets/guidance_sheet.dart';
 import '../../widgets/premium_shell.dart';
 
 class LegacyCheckScreen extends StatefulWidget {
-  const LegacyCheckScreen({super.key});
+  const LegacyCheckScreen({
+    super.key,
+    this.service,
+    this.showTestingMode = kDebugMode,
+  });
+
+  final LegacyAccessService? service;
+  final bool showTestingMode;
 
   @override
   State<LegacyCheckScreen> createState() => _LegacyCheckScreenState();
@@ -22,20 +30,25 @@ class LegacyCheckScreen extends StatefulWidget {
 class _LegacyCheckScreenState extends State<LegacyCheckScreen>
     with WidgetsBindingObserver {
   final formKey = GlobalKey<FormState>();
-  final service = LegacyAccessService();
   final uidController = TextEditingController();
   final phoneController = TextEditingController();
   final codeController = TextEditingController();
 
+  LegacyAccessService? _service;
   String phoneDialCode = '+60';
   bool codeRequested = false;
   bool busy = false;
+  bool testingMode = false;
   LegacyAccessResult? result;
   Timer? sessionTimer;
+
+  LegacyAccessService get service =>
+      widget.service ?? (_service ??= LegacyAccessService());
 
   @override
   void initState() {
     super.initState();
+    testingMode = widget.showTestingMode;
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -112,6 +125,25 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
     }
   }
 
+  Future<void> _verifyTestingAccess() async {
+    if (busy || formKey.currentState?.validate() != true) return;
+    setState(() => busy = true);
+    try {
+      final verified = await service.verifyTestingAccess(
+        ownerUid: uidController.text,
+        phone: normalizedPhone,
+      );
+      if (!mounted) return;
+      sessionTimer?.cancel();
+      setState(() => result = verified);
+      sessionTimer = Timer(const Duration(minutes: 10), _clearSensitiveSession);
+    } catch (error) {
+      if (mounted) await _showError(error.toString());
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   Future<void> _showError(String message) {
     return showDialog<void>(
       context: context,
@@ -155,28 +187,36 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
       title: 'Legacy Check Guide',
       description:
           'This protected page is for the account owner\'s verified primary trusted contact.',
-      items: const [
-        GuidanceItem(
+      items: [
+        const GuidanceItem(
           icon: Icons.fingerprint,
           title: 'Legacy UID',
           description:
               'Ask the account owner for the Legacy UID shown in their Profile. Enter the full UID exactly as provided.',
           color: AppColors.purple,
         ),
-        GuidanceItem(
+        const GuidanceItem(
           icon: Icons.phone_outlined,
           title: 'Primary contact phone',
           description:
               'Use the phone number saved and SMS-verified as the owner\'s primary trusted contact. Other numbers are not accepted.',
         ),
-        GuidanceItem(
+        const GuidanceItem(
           icon: Icons.schedule_outlined,
           title: 'When access becomes available',
           description:
               'The owner must enable Legacy Checking, and the account must have no recorded check-in activity for at least 90 days.',
           color: AppColors.accent,
         ),
-        GuidanceItem(
+        if (widget.showTestingMode)
+          const GuidanceItem(
+            icon: Icons.science_outlined,
+            title: 'Testing mode',
+            description:
+                'Debug builds can skip SMS and the 90-day wait. The Legacy UID and SMS-verified primary contact phone must still match, and the server testing flag must be enabled.',
+            color: AppColors.danger,
+          ),
+        const GuidanceItem(
           icon: Icons.visibility_outlined,
           title: 'What can be viewed',
           description:
@@ -238,10 +278,12 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
             style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Access is available only to the SMS-verified primary contact after 90 days without a user check-in.',
+          Text(
+            testingMode
+                ? 'Testing mode matches the Legacy UID and verified primary contact phone without SMS or the 90-day wait.'
+                : 'Access is available only to the SMS-verified primary contact after 90 days without a user check-in.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.muted),
+            style: const TextStyle(color: AppColors.muted),
           ),
           const SizedBox(height: 22),
           GlassPanel(
@@ -249,6 +291,27 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (widget.showTestingMode) ...[
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: testingMode,
+                    onChanged: busy || codeRequested
+                        ? null
+                        : (value) => setState(() => testingMode = value),
+                    secondary: const Icon(
+                      Icons.science_outlined,
+                      color: AppColors.danger,
+                    ),
+                    title: const Text(
+                      'Testing mode',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: const Text(
+                      'Skip SMS and the 90-day wait. UID and verified primary phone must still match.',
+                    ),
+                  ),
+                  const Divider(height: 24),
+                ],
                 TextFormField(
                   controller: uidController,
                   enabled: !codeRequested,
@@ -299,6 +362,8 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
                 FilledButton.icon(
                   onPressed: busy
                       ? null
+                      : testingMode
+                      ? _verifyTestingAccess
                       : codeRequested
                       ? _verifyCode
                       : _requestCode,
@@ -311,12 +376,16 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
                           ),
                         )
                       : Icon(
-                          codeRequested
+                          testingMode
+                              ? Icons.fact_check_outlined
+                              : codeRequested
                               ? Icons.lock_open_outlined
                               : Icons.sms_outlined,
                         ),
                   label: Text(
-                    codeRequested
+                    testingMode
+                        ? 'Verify UID and Phone'
+                        : codeRequested
                         ? 'Verify and View'
                         : 'Send Verification Code',
                   ),
