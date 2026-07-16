@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/colors.dart';
@@ -10,7 +11,7 @@ import '../../../utils/validators.dart';
 import '../../widgets/premium_shell.dart';
 import '../planning/legacy_check_screen.dart';
 
-enum _AuthView { login, register, verifyEmail }
+enum _AuthView { login, register, verifyEmail, forgotPassword }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,11 +31,13 @@ class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final verificationCodeController = TextEditingController();
+  final recoveryCodeController = TextEditingController();
 
   Timer? resendTimer;
   _AuthView view = _AuthView.login;
   bool loading = false;
   bool passwordVisible = false;
+  bool passwordResetEmailSent = false;
   int resendSeconds = 0;
   String? fieldError;
 
@@ -76,6 +79,13 @@ class _LoginScreenState extends State<LoginScreen> {
         );
 
         if (!mounted) return;
+        if (authService.isExistingAccountSignup(response)) {
+          setState(() => view = _AuthView.login);
+          _showMessage(
+            'An account already uses this email. Sign in or use Forgot password.',
+          );
+          return;
+        }
         if (response.session == null) {
           setState(() => view = _AuthView.verifyEmail);
           _startResendCooldown();
@@ -99,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       if (error.code == 'email_not_confirmed') {
         _showMessage(
-          'Your email is not verified yet. Open the latest email and tap the confirmation link.',
+          'Your email is not verified yet. Enter the code from the latest email or use its confirmation link.',
         );
       } else {
         _showError(error);
@@ -118,8 +128,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _showMessage('Enter the same email address used to register.');
       return;
     }
-    if (!RegExp(r'^[0-9]{6}$').hasMatch(token)) {
-      _showMessage('Enter the 6-digit code from your verification email.');
+    final codeError = AppValidators.emailVerificationCode(token);
+    if (codeError != null) {
+      _showMessage(codeError);
       return;
     }
 
@@ -141,15 +152,80 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> resendVerification() async {
     if (resendSeconds > 0) return;
+    final email = emailController.text.trim();
+    if (AppValidators.email(email) != null) {
+      _showMessage('Enter the same email address used to register.');
+      return;
+    }
     setState(() => loading = true);
     try {
       await authService.resendVerification(
-        email: emailController.text.trim(),
+        email: email,
         emailRedirectTo: redirectUrl,
       );
       if (!mounted) return;
-      _showMessage('A new confirmation email has been sent.');
+      _showMessage(
+        'A new verification email was requested. Check your inbox and spam folder.',
+      );
       _startResendCooldown();
+    } catch (error) {
+      if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> requestPasswordReset() async {
+    if (resendSeconds > 0) return;
+    final email = emailController.text.trim();
+    final emailError = AppValidators.email(email);
+    if (emailError != null) {
+      setState(() => fieldError = emailError);
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      fieldError = null;
+    });
+    try {
+      await authService.requestPasswordReset(
+        email: email,
+        redirectTo: redirectUrl,
+      );
+      if (!mounted) return;
+      setState(() => passwordResetEmailSent = true);
+      _showMessage(
+        'If an EthernaCare account uses this email, its password reset message is on the way.',
+      );
+      _startResendCooldown();
+    } catch (error) {
+      if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> verifyPasswordRecoveryCode() async {
+    final email = emailController.text.trim();
+    final token = recoveryCodeController.text.trim();
+    final emailError = AppValidators.email(email);
+    final codeError = AppValidators.emailVerificationCode(token);
+    if (emailError != null || codeError != null) {
+      setState(() => fieldError = emailError ?? codeError);
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      fieldError = null;
+    });
+    try {
+      await authService.verifyPasswordRecoveryCode(
+        email: email,
+        token: token,
+        redirectTo: redirectUrl,
+      );
     } catch (error) {
       if (mounted) _showError(error);
     } finally {
@@ -202,13 +278,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showError(Object error) {
     final errorText = error.toString();
+    final normalizedError = errorText.toLowerCase();
     final message =
         error is AuthException &&
             (error.code == 'over_email_send_rate_limit' ||
                 error.statusCode == '429')
         ? 'The built-in Supabase email service reached its limit. Wait about one hour or configure custom SMTP in Supabase.'
+        : (error is AuthException && error.statusCode == '504') ||
+              normalizedError.contains('upstream request timeout')
+        ? 'The email service took too long to respond. Wait one minute, then try once more. If this continues, email delivery needs administrator attention.'
+        : (error is AuthException &&
+                  error.code == 'email_address_not_authorized') ||
+              normalizedError.contains('error sending confirmation email') ||
+              normalizedError.contains('error sending recovery email')
+        ? 'We could not send the email. Email delivery is not configured for this address yet. Please try again later or contact EthernaCare support.'
+        : (error is AuthException && error.code == 'user_already_exists') ||
+              normalizedError.contains('user already registered')
+        ? 'An account already uses this email. Sign in or use Forgot password.'
         : error is AuthException && error.code == 'email_not_confirmed'
         ? 'Confirm your email before logging in.'
+        : error is AuthException &&
+              (error.code == 'otp_expired' ||
+                  error.code == 'otp_disabled' ||
+                  error.code == 'validation_failed')
+        ? 'That verification code is invalid or expired. Request a new email and use its latest code.'
         : errorText.contains('Failed host lookup') ||
               errorText.contains('Failed to fetch')
         ? 'Cannot reach Supabase. Check the device internet connection, then try again.'
@@ -223,10 +316,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _changeView(_AuthView next) {
+    resendTimer?.cancel();
     setState(() {
       view = next;
       fieldError = null;
       loading = false;
+      resendSeconds = 0;
+      if (next != _AuthView.forgotPassword) {
+        passwordResetEmailSent = false;
+        recoveryCodeController.clear();
+      }
     });
   }
 
@@ -237,6 +336,7 @@ class _LoginScreenState extends State<LoginScreen> {
     emailController.dispose();
     passwordController.dispose();
     verificationCodeController.dispose();
+    recoveryCodeController.dispose();
     super.dispose();
   }
 
@@ -254,6 +354,8 @@ class _LoginScreenState extends State<LoginScreen> {
               switchOutCurve: Curves.easeInCubic,
               child: view == _AuthView.verifyEmail
                   ? _buildVerificationCard()
+                  : view == _AuthView.forgotPassword
+                  ? _buildForgotPasswordCard()
                   : _buildAuthCard(),
             ),
           ),
@@ -347,6 +449,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+              if (!registering)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: loading
+                        ? null
+                        : () => _changeView(_AuthView.forgotPassword),
+                    child: const Text('Forgot password?'),
+                  ),
+                ),
               if (fieldError != null) ...[
                 const SizedBox(height: 10),
                 Text(
@@ -456,6 +568,159 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildForgotPasswordCard() {
+    return Column(
+      key: const ValueKey('forgot-password'),
+      children: [
+        _buildBrand(),
+        const SizedBox(height: 26),
+        GlassPanel(
+          padding: const EdgeInsets.all(24),
+          color: AppColors.glassStrong,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const CircleAvatar(
+                radius: 32,
+                backgroundColor: AppColors.primarySoft,
+                child: Icon(
+                  Icons.lock_reset_outlined,
+                  color: AppColors.primary,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                passwordResetEmailSent
+                    ? 'Enter your reset code'
+                    : 'Reset your password',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 25,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                passwordResetEmailSent
+                    ? 'Use the eight-digit code from the latest reset email. The reset link in that email also works.'
+                    : 'Enter your account email to receive a secure password reset link and code.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.muted, height: 1.4),
+              ),
+              const SizedBox(height: 22),
+              TextField(
+                controller: emailController,
+                enabled: !passwordResetEmailSent && !loading,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: passwordResetEmailSent
+                    ? TextInputAction.next
+                    : TextInputAction.done,
+                autofillHints: const [AutofillHints.email],
+                onSubmitted: (_) {
+                  if (!loading && !passwordResetEmailSent) {
+                    requestPasswordReset();
+                  }
+                },
+                decoration: const InputDecoration(
+                  labelText: 'Email address',
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+              ),
+              if (passwordResetEmailSent) ...[
+                const SizedBox(height: 14),
+                TextField(
+                  controller: recoveryCodeController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  maxLength: AppValidators.emailVerificationCodeLength,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) {
+                    if (!loading) verifyPasswordRecoveryCode();
+                  },
+                  decoration: const InputDecoration(
+                    labelText: '8-digit reset code',
+                    prefixIcon: Icon(Icons.password_outlined),
+                    helperText: 'Only the newest reset code will work',
+                  ),
+                ),
+              ],
+              if (fieldError != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  fieldError!,
+                  style: const TextStyle(
+                    color: AppColors.danger,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: loading ||
+                        (!passwordResetEmailSent && resendSeconds > 0)
+                    ? null
+                    : passwordResetEmailSent
+                    ? verifyPasswordRecoveryCode
+                    : requestPasswordReset,
+                icon: loading
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(
+                        passwordResetEmailSent
+                            ? Icons.verified_outlined
+                            : Icons.send_outlined,
+                      ),
+                label: Text(
+                  loading
+                      ? 'Please wait...'
+                      : !passwordResetEmailSent && resendSeconds > 0
+                      ? 'Send available in ${resendSeconds}s'
+                      : passwordResetEmailSent
+                      ? 'Verify Reset Code'
+                      : 'Send Reset Email',
+                ),
+              ),
+              if (passwordResetEmailSent) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: loading || resendSeconds > 0
+                      ? null
+                      : requestPasswordReset,
+                  child: Text(
+                    resendSeconds > 0
+                        ? 'Resend available in ${resendSeconds}s'
+                        : 'Resend reset email',
+                  ),
+                ),
+                TextButton(
+                  onPressed: loading
+                      ? null
+                      : () => setState(() {
+                          passwordResetEmailSent = false;
+                          recoveryCodeController.clear();
+                          fieldError = null;
+                        }),
+                  child: const Text('Use a different email'),
+                ),
+              ],
+              TextButton(
+                onPressed: loading ? null : () => _changeView(_AuthView.login),
+                child: const Text('Back to sign in'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildVerificationCard() {
     return GlassPanel(
       key: const ValueKey('verify-email'),
@@ -485,7 +750,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'We sent a confirmation link to\n${emailController.text.trim()}',
+            'We sent an eight-digit verification code to\n${emailController.text.trim()}',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.muted, height: 1.5),
           ),
@@ -493,32 +758,33 @@ class _LoginScreenState extends State<LoginScreen> {
           const _VerificationStep(
             number: 1,
             title: 'Open your email',
-            detail: 'Find the latest message from Supabase.',
+            detail: 'Find the latest EthernaCare verification message.',
             complete: true,
           ),
           const _VerificationStep(
             number: 2,
-            title: 'Tap the link or copy the code',
-            detail: 'If the link opens a blank page, enter the code below.',
+            title: 'Copy the latest code',
+            detail: 'Check the spam folder if the message is not in your inbox.',
           ),
           const _VerificationStep(
             number: 3,
-            title: 'Continue into the app',
-            detail: 'Return here if the app does not open automatically.',
+            title: 'Verify in EthernaCare',
+            detail: 'Enter the code below. The email link also remains available.',
           ),
           const SizedBox(height: 22),
           TextField(
             controller: verificationCodeController,
             keyboardType: TextInputType.number,
-            maxLength: 6,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            maxLength: AppValidators.emailVerificationCodeLength,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) {
               if (!loading) verifyEmailCode();
             },
             decoration: const InputDecoration(
-              labelText: '6-digit verification code',
+              labelText: '8-digit verification code',
               prefixIcon: Icon(Icons.password_outlined),
-              helperText: 'Use the code from the latest verification email',
+              helperText: 'Only the newest verification code will work',
             ),
           ),
           const SizedBox(height: 12),

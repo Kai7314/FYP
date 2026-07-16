@@ -1,8 +1,4 @@
--- Run this in Supabase Dashboard > SQL Editor to enable OTP-gated Legacy
--- Checking for an SMS-verified primary contact after 90 days of inactivity.
--- Then deploy the public verification endpoints from the project terminal:
--- npx --yes supabase functions deploy request-legacy-access --project-ref mekiduxpnrorkfphjgpc --no-verify-jwt
--- npx --yes supabase functions deploy verify-legacy-access --project-ref mekiduxpnrorkfphjgpc --no-verify-jwt
+-- Scope Legacy Checking test mode to an account-owner controlled flag.
 
 alter table public.users
   add column if not exists legacy_access_enabled boolean not null default false,
@@ -22,11 +18,7 @@ create table if not exists public.legacy_access_otps (
 );
 
 create index if not exists legacy_access_otps_lookup_idx
-on public.legacy_access_otps(
-  owner_user_id,
-  phone,
-  created_at desc
-);
+on public.legacy_access_otps(owner_user_id, phone, created_at desc);
 
 create table if not exists public.legacy_access_audit (
   id bigint generated always as identity primary key,
@@ -68,7 +60,7 @@ begin
     current_setting('app.legacy_access_update', true),
     ''
   ) <> 'allowed' then
-    raise exception 'Use set_legacy_access_enabled to update Legacy Checking';
+    raise exception 'Use the Legacy Checking settings to update access';
   end if;
 
   return new;
@@ -157,17 +149,4 @@ from public;
 grant execute on function public.set_legacy_access_test_enabled(boolean)
 to authenticated;
 
-select
-  column_name,
-  data_type
-from information_schema.columns
-where table_schema = 'public'
-  and (
-    (table_name = 'users' and column_name in (
-      'legacy_access_enabled',
-      'legacy_access_test_enabled',
-      'legacy_access_started_at'
-    ))
-    or table_name in ('legacy_access_otps', 'legacy_access_audit')
-  )
-order by table_name, ordinal_position;
+notify pgrst, 'reload schema';

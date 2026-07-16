@@ -11,6 +11,7 @@ import '../home/home_screen.dart';
 import 'first_login_setup_screen.dart';
 import 'login_screen.dart';
 import 'primary_contact_setup_screen.dart';
+import 'reset_password_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -30,6 +31,7 @@ class _AuthGateState extends State<AuthGate> {
   Future<bool>? activePrimaryContactFuture;
   int setupRefresh = 0;
   int contactRefresh = 0;
+  bool passwordRecoveryActive = false;
 
   Future<Map<String, dynamic>> _profileFutureFor(String userId) {
     if (activeProfileUserId != userId || activeProfileFuture == null) {
@@ -65,9 +67,20 @@ class _AuthGateState extends State<AuthGate> {
     return StreamBuilder<AuthState>(
       stream: authService.authStateChanges,
       builder: (context, snapshot) {
+        final authEvent = snapshot.data?.event;
+        if (authEvent == AuthChangeEvent.passwordRecovery) {
+          passwordRecoveryActive = true;
+        } else if (authEvent == AuthChangeEvent.signedOut) {
+          passwordRecoveryActive = false;
+        }
+
         final session = snapshot.data?.session ?? authService.currentSession;
 
         if (session != null) {
+          if (passwordRecoveryActive) {
+            return const ResetPasswordScreen();
+          }
+
           return FutureBuilder<Map<String, dynamic>>(
             key: ValueKey('${session.user.id}-$setupRefresh'),
             future: _profileFutureFor(session.user.id),

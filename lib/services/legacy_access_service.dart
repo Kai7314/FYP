@@ -17,13 +17,22 @@ class LegacyAccessService {
 
   final SupabaseClient client;
 
-  Future<void> requestCode({
+  Future<LegacyAccessRequestStatus> requestCode({
     required String ownerUid,
     required String phone,
   }) async {
-    await _invoke(
+    final response = await _invoke(
       'request-legacy-access',
       body: {'ownerUid': ownerUid.trim(), 'phone': phone},
+    );
+    final data = response.data;
+    if (data is! Map) {
+      throw const LegacyAccessException(
+        'Legacy Checking availability could not be confirmed.',
+      );
+    }
+    return LegacyAccessRequestStatus.fromJson(
+      Map<String, dynamic>.from(data),
     );
   }
 

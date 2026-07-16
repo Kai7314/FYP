@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../services/checkin_service.dart';
+import '../../widgets/premium_shell.dart';
 
 class CheckinHistoryScreen extends StatefulWidget {
   const CheckinHistoryScreen({super.key, this.refreshVersion = 0});
@@ -104,18 +105,12 @@ class _CheckinHistoryScreenState extends State<CheckinHistoryScreen> {
               24,
             ),
             children: [
-              const Text(
-                'Check-In History',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.ink,
-                ),
-              ),
-              const SizedBox(height: 3),
-              const Text(
-                'Your safety activity log',
-                style: TextStyle(color: AppColors.muted),
+              const PremiumHeader(
+                title: 'Check-In History',
+                subtitle: 'Your safety activity log',
+                orenAsset:
+                    'lib/assets/images/pixel/oren_pixel_yarn_ball_transparent.png',
+                orenSemanticLabel: 'Playful Oren with a yarn ball',
               ),
               const SizedBox(height: 18),
               Row(

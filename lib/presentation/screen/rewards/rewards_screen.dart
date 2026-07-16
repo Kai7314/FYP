@@ -80,6 +80,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
           PremiumHeader(
             title: 'Rewards',
             subtitle: 'Physical gifts and virtual vouchers',
+            orenAsset:
+                'lib/assets/images/pixel/oren_pixel_token_transparent.png',
+            orenSemanticLabel: 'Oren holding a reward token',
             action: refreshing
                 ? const SizedBox(
                     width: 22,

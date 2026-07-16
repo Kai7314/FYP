@@ -51,11 +51,34 @@ class AppErrorDialog {
         lowered.contains('address must not exceed')) {
       return 'Contact address must be 200 characters or fewer.';
     }
-    if (lowered.contains('contacts table is missing') ||
+    final missingSchemaColumn =
+        lowered.contains('pgrst204') || lowered.contains('schema cache');
+    final documentsSchemaError =
+        missingSchemaColumn &&
+        (lowered.contains('documents') ||
+            lowered.contains('storage_path') ||
+            lowered.contains('uploaded_at'));
+    if (documentsSchemaError) {
+      return 'Secure document storage is not fully configured. Apply the Legacy Documents database setup, wait a few seconds, then try again.';
+    }
+    final contactsSchemaError =
+        lowered.contains('contacts table is missing') ||
         lowered.contains('is_primary') ||
-        lowered.contains('pgrst204') ||
-        lowered.contains('schema cache')) {
+        (missingSchemaColumn && lowered.contains('contacts'));
+    if (contactsSchemaError) {
       return 'The contacts database is not fully updated yet. Run the contacts quick-fix SQL in Supabase, wait a few seconds, then try again.';
+    }
+    final profileSchemaError =
+        missingSchemaColumn &&
+        (lowered.contains('users') ||
+            lowered.contains('address_state') ||
+            lowered.contains('address_region') ||
+            lowered.contains('emergency_escalation_target'));
+    if (profileSchemaError) {
+      return 'Your profile database is missing a required field. Run supabase/quick_fix_users_profile_columns.sql in the Supabase SQL Editor, wait a few seconds, then try again.';
+    }
+    if (missingSchemaColumn) {
+      return 'The database schema is still updating. Wait a few seconds and try again.';
     }
     if (lowered.contains('document must not exceed 10 mb') ||
         lowered.contains('selected document is empty') ||
@@ -76,9 +99,11 @@ class AppErrorDialog {
       return 'The document could not be opened securely. Check your connection and try again.';
     }
     if (lowered.contains('legacy_access_enabled') ||
+        lowered.contains('legacy_access_test_enabled') ||
         lowered.contains('legacy_access_started_at') ||
         lowered.contains('legacy_access_otps') ||
-        lowered.contains('set_legacy_access_enabled')) {
+        lowered.contains('set_legacy_access_enabled') ||
+        lowered.contains('set_legacy_access_test_enabled')) {
       return 'Legacy Checking is not configured yet. Run supabase/legacy_access_setup.sql in the Supabase SQL Editor, then try again.';
     }
     if (lowered.contains('primary trusted contact before enabling') ||
@@ -100,10 +125,6 @@ class AppErrorDialog {
     }
     if (lowered.contains('contact could not be deleted')) {
       return 'The contact could not be deleted. Refresh the contacts list and try again.';
-    }
-    if (lowered.contains('documents.uploaded_at') ||
-        (lowered.contains('uploaded_at') && lowered.contains('documents'))) {
-      return 'The documents table is missing uploaded_at. Run supabase/quick_fix_documents_uploaded_at.sql in the Supabase SQL Editor, wait a few seconds, then open Legacy Planning again.';
     }
     if (lowered.contains('legacy_notes')) {
       return 'Legacy notes are not set up in Supabase yet. Run supabase/legacy_notes_crud.sql in the Supabase SQL Editor, then try again.';

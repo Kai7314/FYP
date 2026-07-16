@@ -15,12 +15,14 @@ class LegacyPlanningSnapshot {
     required this.documents,
     required this.notes,
     required this.legacyAccessEnabled,
+    required this.legacyTestingAccessEnabled,
   });
 
   final FuneralPreferences preferences;
   final List<LegacyDocument> documents;
   final List<LegacyNote> notes;
   final bool legacyAccessEnabled;
+  final bool legacyTestingAccessEnabled;
 }
 
 class DocumentService {
@@ -95,12 +97,14 @@ class DocumentService {
       documentRepository.getDocuments(user.id),
       documentRepository.getNotes(user.id),
       documentRepository.getLegacyAccessEnabled(user.id),
+      documentRepository.getLegacyTestingAccessEnabled(user.id),
     ]);
     return LegacyPlanningSnapshot(
       preferences: results[0] as FuneralPreferences,
       documents: results[1] as List<LegacyDocument>,
       notes: results[2] as List<LegacyNote>,
       legacyAccessEnabled: results[3] as bool,
+      legacyTestingAccessEnabled: results[4] as bool,
     );
   }
 
@@ -108,6 +112,12 @@ class DocumentService {
     final user = authRepository.currentUser;
     if (user == null) throw StateError('You must be signed in.');
     await documentRepository.setLegacyAccessEnabled(enabled: enabled);
+  }
+
+  Future<void> setLegacyTestingAccessEnabled(bool enabled) async {
+    final user = authRepository.currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    await documentRepository.setLegacyTestingAccessEnabled(enabled: enabled);
   }
 
   Future<void> savePreferences(FuneralPreferences preferences) async {

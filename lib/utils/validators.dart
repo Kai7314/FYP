@@ -24,6 +24,7 @@ class AppValidators {
   static const maxDisplayNameLength = 50;
   static const maxPhoneDigits = 15;
   static const maxAddressLength = 200;
+  static const emailVerificationCodeLength = 8;
   static const bloodTypes = [
     'A+',
     'A-',
@@ -258,6 +259,17 @@ class AppValidators {
     }
     if (!RegExp(r'^\+?[0-9]+$').hasMatch(normalized)) {
       return 'Enter a valid phone number.';
+    }
+    return null;
+  }
+
+  static String? emailVerificationCode(String value) {
+    final code = value.trim();
+    final pattern = RegExp(
+      '^[0-9]{$emailVerificationCodeLength}\$',
+    );
+    if (!pattern.hasMatch(code)) {
+      return 'Enter the $emailVerificationCodeLength-digit code from your verification email.';
     }
     return null;
   }

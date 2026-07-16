@@ -28,8 +28,10 @@ import 'package:fyp/presentation/screen/home/virtual_pet_widget.dart';
 import 'package:fyp/presentation/screen/planning/legacy_check_screen.dart';
 import 'package:fyp/presentation/screen/profile/profile_screen.dart';
 import 'package:fyp/presentation/widgets/custom_button.dart';
+import 'package:fyp/presentation/widgets/error_dialog.dart';
 import 'package:fyp/presentation/widgets/guidance_sheet.dart';
 import 'package:fyp/presentation/widgets/loading_indicator.dart';
+import 'package:fyp/presentation/widgets/premium_shell.dart';
 import 'package:fyp/dataAccessLayer/repositories/contact_repository.dart';
 import 'package:fyp/services/reward_service.dart';
 import 'package:fyp/services/ai_service.dart';
@@ -147,6 +149,66 @@ void main() {
 
   test('home screen compiles with oren care shop', () {
     expect(HomeScreen, isNotNull);
+  });
+
+  test('missing profile columns are not reported as a contacts failure', () {
+    final profileMessage = AppErrorDialog.friendlyMessage(
+      "PostgrestException(message: Could not find the 'address_state' column of 'users' in the schema cache, code: PGRST204)",
+    );
+    final contactMessage = AppErrorDialog.friendlyMessage(
+      "PostgrestException(message: Could not find the 'is_primary' column of 'contacts' in the schema cache, code: PGRST204)",
+    );
+
+    expect(profileMessage, contains('profile database'));
+    expect(profileMessage, isNot(contains('contacts database')));
+    expect(contactMessage, contains('contacts database'));
+  });
+
+  test('missing document columns report the Legacy Documents setup', () {
+    final message = AppErrorDialog.friendlyMessage(
+      "PostgrestException(message: Could not find the 'storage_path' column of 'documents' in the schema cache, code: PGRST204)",
+    );
+
+    expect(message, contains('document storage'));
+    expect(message, isNot(contains('schema is still updating')));
+  });
+
+  testWidgets('page header displays a compact Oren pose without overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 180);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: const Scaffold(
+          body: Padding(
+            padding: EdgeInsets.all(20),
+            child: PremiumHeader(
+              title: 'Emergency Contacts',
+              subtitle: 'Oren can help you call a trusted contact.',
+              orenAsset:
+                  'lib/assets/images/pixel/oren_pixel_phone_call_transparent.png',
+              orenSemanticLabel: 'Oren holding a phone',
+              action: IconButton(
+                onPressed: null,
+                icon: Icon(Icons.person_add_alt_1),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Emergency Contacts'), findsOneWidget);
+    expect(find.bySemanticsLabel('Oren holding a phone'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('themed action buttons remain bounded inside horizontal rows', (
@@ -661,7 +723,7 @@ void main() {
     );
   });
 
-  test('legacy checking parses only preferences and Legacy Notes', () {
+  test('legacy checking parses preferences, notes, and secure documents', () {
     final result = LegacyAccessResult.fromJson({
       'ownerName': 'Test User',
       'lastActivityAt': '2026-01-01T00:00:00Z',
@@ -682,17 +744,55 @@ void main() {
         },
       ],
       'documents': [
-        {'name': 'private-will.pdf'},
+        {
+          'id': 'document-1',
+          'name': 'private-will.pdf',
+          'signedUrl':
+              'https://example.supabase.co/storage/v1/object/sign/private-will.pdf?token=test',
+          'uploadedAt': '2026-01-03T00:00:00Z',
+        },
       ],
     });
 
     expect(result.ownerName, 'Test User');
     expect(result.preferences.serviceType, 'Cremation');
     expect(result.notes.single.title, 'Family message');
+    expect(result.documents.single.name, 'private-will.pdf');
+    expect(result.documents.single.signedUrl, contains('token=test'));
     expect(const LegacyCheckScreen(), isA<LegacyCheckScreen>());
   });
 
-  testWidgets('legacy checking debug switch bypasses SMS and wait messaging', (
+  test('legacy checking reports remaining days when no SMS is sent', () {
+    final status = LegacyAccessRequestStatus.fromJson({
+      'codeSent': false,
+      'status': 'waiting_period',
+      'daysRemaining': 47,
+      'availableAt': '2026-09-02T00:00:00Z',
+      'message':
+          'No SMS was sent. 47 days remaining before Legacy Checking becomes available.',
+    });
+
+    expect(status.codeSent, isFalse);
+    expect(status.status, 'waiting_period');
+    expect(status.daysRemaining, 47);
+    expect(status.availableAt, DateTime.utc(2026, 9, 2));
+    expect(status.message, startsWith('No SMS was sent'));
+  });
+
+  test('legacy checking reports a non-primary contact phone', () {
+    final status = LegacyAccessRequestStatus.fromJson({
+      'codeSent': false,
+      'status': 'contact_mismatch',
+      'message':
+          "No SMS was sent. This phone number does not match the account's primary trusted contact.",
+    });
+
+    expect(status.codeSent, isFalse);
+    expect(status.status, 'contact_mismatch');
+    expect(status.message, contains('does not match'));
+  });
+
+  testWidgets('legacy checking debug switch shows owner-scoped testing', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -710,7 +810,7 @@ void main() {
 
     expect(find.text('Testing mode'), findsOneWidget);
     expect(find.text('Verify UID and Phone'), findsOneWidget);
-    expect(find.textContaining('without SMS or the 90-day wait'), findsOneWidget);
+    expect(find.textContaining('owner enabled account testing'), findsOneWidget);
 
     await tester.tap(find.byType(SwitchListTile));
     await tester.pump();

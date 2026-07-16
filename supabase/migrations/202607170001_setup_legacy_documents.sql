@@ -1,5 +1,4 @@
--- Run this once in Supabase Dashboard > SQL Editor to enable secure
--- Legacy Planning document uploads, viewing, and deletion.
+-- Repair Legacy Planning document metadata and private Storage access.
 
 create table if not exists public.documents (
   id uuid primary key default gen_random_uuid(),
@@ -9,6 +8,7 @@ create table if not exists public.documents (
   uploaded_at timestamptz not null default now()
 );
 
+-- Existing projects may already have an older, incomplete documents table.
 alter table public.documents
   add column if not exists id uuid default gen_random_uuid(),
   add column if not exists user_id uuid references auth.users(id) on delete cascade,
@@ -72,7 +72,7 @@ values (
 )
 on conflict (id) do update set
   public = false,
-  file_size_limit = 10485760,
+  file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "legacy_documents_read_own" on storage.objects;
@@ -101,13 +101,5 @@ using (
   bucket_id = 'legacy-documents'
   and (storage.foldername(name))[1] = (select auth.uid())::text
 );
-
-select
-  buckets.id,
-  buckets.public,
-  buckets.file_size_limit,
-  buckets.allowed_mime_types
-from storage.buckets buckets
-where buckets.id = 'legacy-documents';
 
 notify pgrst, 'reload schema';

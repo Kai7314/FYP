@@ -15,6 +15,10 @@ class AuthService {
   Session? get currentSession => authRepository.currentSession;
   Stream<AuthState> get authStateChanges => authRepository.authStateChanges;
 
+  bool isExistingAccountSignup(AuthResponse response) {
+    return AuthRepository.isExistingAccountSignup(response);
+  }
+
   Future<AuthResponse> signIn({
     required String email,
     required String password,
@@ -56,6 +60,32 @@ class AuthService {
       token: token,
       redirectTo: redirectTo,
     );
+  }
+
+  Future<void> requestPasswordReset({
+    required String email,
+    required String redirectTo,
+  }) {
+    return authRepository.requestPasswordReset(
+      email: email,
+      redirectTo: redirectTo,
+    );
+  }
+
+  Future<AuthResponse> verifyPasswordRecoveryCode({
+    required String email,
+    required String token,
+    required String redirectTo,
+  }) {
+    return authRepository.verifyPasswordRecoveryCode(
+      email: email,
+      token: token,
+      redirectTo: redirectTo,
+    );
+  }
+
+  Future<UserResponse> updatePassword(String password) {
+    return authRepository.updatePassword(password);
   }
 
   Future<bool> signInWithOAuth({

@@ -12,9 +12,11 @@ import {
 } from "../_shared/legacy_access.ts";
 
 const genericResponse = {
-  accepted: true,
+  accepted: false,
+  codeSent: false,
+  status: "unavailable",
   message:
-    "If the details match and Legacy Checking is available, a code was sent to the primary contact.",
+    "No SMS was sent. Check that the Legacy UID and primary contact phone are correct.",
 };
 
 Deno.serve(async (request) => {
@@ -68,6 +70,59 @@ Deno.serve(async (request) => {
     );
   }
   if (!eligibility.eligible || !eligibility.contactId) {
+    if (eligibility.reason === "contact_mismatch") {
+      return Response.json(
+        {
+          accepted: false,
+          codeSent: false,
+          status: "contact_mismatch",
+          message:
+            "No SMS was sent. This phone number does not match the account's primary trusted contact.",
+        },
+        { headers: corsHeaders },
+      );
+    }
+    if (eligibility.contactMatched) {
+      if (eligibility.reason === "waiting_period") {
+        const days = eligibility.daysRemaining ?? 1;
+        return Response.json(
+          {
+            accepted: false,
+            codeSent: false,
+            status: "waiting_period",
+            daysRemaining: days,
+            availableAt: eligibility.availableAt,
+            message:
+              `No SMS was sent. ${days} day${days === 1 ? "" : "s"} remaining before Legacy Checking becomes available.`,
+          },
+          { headers: corsHeaders },
+        );
+      }
+      if (eligibility.reason === "access_disabled") {
+        return Response.json(
+          {
+            accepted: false,
+            codeSent: false,
+            status: "access_disabled",
+            message:
+              "No SMS was sent. The account owner has not enabled Legacy Checking.",
+          },
+          { headers: corsHeaders },
+        );
+      }
+      if (eligibility.reason === "phone_not_verified") {
+        return Response.json(
+          {
+            accepted: false,
+            codeSent: false,
+            status: "phone_not_verified",
+            message:
+              "No SMS was sent. The primary contact phone has not been verified.",
+          },
+          { headers: corsHeaders },
+        );
+      }
+    }
     return Response.json(genericResponse, { headers: corsHeaders });
   }
 
@@ -146,5 +201,14 @@ Deno.serve(async (request) => {
     );
   }
 
-  return Response.json(genericResponse, { headers: corsHeaders });
+  return Response.json(
+    {
+      accepted: true,
+      codeSent: true,
+      status: "code_sent",
+      message:
+        "A 6-digit verification code was sent to the primary contact. It expires in 10 minutes.",
+    },
+    { headers: corsHeaders },
+  );
 });

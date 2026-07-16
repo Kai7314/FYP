@@ -182,6 +182,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             PremiumHeader(
               title: 'My Profile',
               subtitle: 'Personal & medical info',
+              orenAsset:
+                  'lib/assets/images/pixel/oren_pixel_calm_transparent.png',
+              orenSemanticLabel: 'Calm Oren beside your profile',
               action: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [

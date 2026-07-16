@@ -120,34 +120,78 @@ class PremiumHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.action,
+    this.orenAsset,
+    this.orenSemanticLabel,
   });
 
   final String title;
   final String subtitle;
   final Widget? action;
+  final String? orenAsset;
+  final String? orenSemanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (orenAsset != null) ...[
+              OrenPageTitleIcon(
+                asset: orenAsset!,
+                semanticLabel: orenSemanticLabel ?? 'Oren',
               ),
+              const SizedBox(width: 10),
             ],
-          ),
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+            ),
+            if (action != null) ...[const SizedBox(width: 12), action!],
+          ],
         ),
-        if (action != null) ...[const SizedBox(width: 12), action!],
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+        ),
       ],
+    );
+  }
+}
+
+class OrenPageTitleIcon extends StatelessWidget {
+  const OrenPageTitleIcon({
+    super.key,
+    required this.asset,
+    required this.semanticLabel,
+    this.size = 50,
+  });
+
+  final String asset;
+  final String semanticLabel;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      image: true,
+      label: semanticLabel,
+      child: SizedBox.square(
+        dimension: size,
+        child: Image.asset(
+          asset,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.none,
+          excludeFromSemantics: true,
+        ),
+      ),
     );
   }
 }

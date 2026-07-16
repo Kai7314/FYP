@@ -12,7 +12,16 @@ export type LegacyEligibility = {
   eligible: boolean;
   ownerName?: string;
   contactId?: string;
+  contactMatched?: boolean;
   lastActivityAt?: string;
+  availableAt?: string;
+  daysRemaining?: number;
+  reason?:
+    | "owner_not_found"
+    | "contact_mismatch"
+    | "phone_not_verified"
+    | "access_disabled"
+    | "waiting_period";
   error?: string;
 };
 
@@ -70,8 +79,8 @@ export async function getLegacyEligibility(
     .eq("id", ownerUid)
     .maybeSingle();
   if (ownerError) return { eligible: false, error: ownerError.message };
-  if (!owner?.legacy_access_enabled || !owner.legacy_access_started_at) {
-    return { eligible: false };
+  if (!owner) {
+    return { eligible: false, reason: "owner_not_found" };
   }
 
   const { data: primaryContact, error: contactError } = await supabase
@@ -83,10 +92,26 @@ export async function getLegacyEligibility(
     .maybeSingle();
   if (contactError) return { eligible: false, error: contactError.message };
   if (
-    !primaryContact?.phone_verified_at ||
+    !primaryContact ||
     normalizePhone(String(primaryContact.phone ?? "")) !== requestedPhone
   ) {
-    return { eligible: false };
+    return { eligible: false, reason: "contact_mismatch" };
+  }
+  if (!primaryContact.phone_verified_at) {
+    return {
+      eligible: false,
+      contactId: String(primaryContact.id),
+      contactMatched: true,
+      reason: "phone_not_verified",
+    };
+  }
+  if (!owner.legacy_access_enabled || !owner.legacy_access_started_at) {
+    return {
+      eligible: false,
+      contactId: String(primaryContact.id),
+      contactMatched: true,
+      reason: "access_disabled",
+    };
   }
 
   const { data: lastCheckin, error: checkinError } = await supabase
@@ -108,12 +133,19 @@ export async function getLegacyEligibility(
     Number.isFinite(lastCheckinMs) ? lastCheckinMs : 0,
   );
   const inactivityMs = legacyInactivityDays * 24 * 60 * 60 * 1000;
+  const availableAtMs = lastActivityMs + inactivityMs;
+  const remainingMs = Math.max(0, availableAtMs - Date.now());
+  const daysRemaining = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+  const eligible = options.skipInactivityWait === true || remainingMs === 0;
   return {
-    eligible: options.skipInactivityWait === true ||
-      Date.now() - lastActivityMs >= inactivityMs,
+    eligible,
     ownerName: String(owner.name ?? "EthernaCare user"),
     contactId: String(primaryContact.id),
+    contactMatched: true,
     lastActivityAt: new Date(lastActivityMs).toISOString(),
+    availableAt: new Date(availableAtMs).toISOString(),
+    daysRemaining,
+    reason: eligible ? undefined : "waiting_period",
   };
 }
 

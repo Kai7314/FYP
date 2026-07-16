@@ -36,17 +36,6 @@ Deno.serve(async (request) => {
   const phone = normalizePhone(String(body.phone ?? ""));
   const code = String(body.code ?? "").replace(/\D/g, "");
   const testingMode = body.testingMode === true;
-  const testingModeEnabled =
-    Deno.env.get("LEGACY_ACCESS_TEST_MODE")?.trim().toLowerCase() === "true";
-  if (testingMode && !testingModeEnabled) {
-    return Response.json(
-      {
-        error:
-          "Legacy Checking testing mode is not enabled on the server.",
-      },
-      { status: 403, headers: corsHeaders },
-    );
-  }
   if (
     !isUuid(ownerUid) || !/^\+[0-9]{8,15}$/.test(phone) ||
     (!testingMode && !/^[0-9]{6}$/.test(code))
@@ -60,6 +49,28 @@ Deno.serve(async (request) => {
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  if (testingMode) {
+    const { data: owner, error: testingAccessError } = await supabase
+      .from("users")
+      .select("legacy_access_test_enabled")
+      .eq("id", ownerUid)
+      .maybeSingle();
+    if (testingAccessError) {
+      return Response.json(
+        { error: testingAccessError.message },
+        { status: 500, headers: corsHeaders },
+      );
+    }
+    if (owner?.legacy_access_test_enabled !== true) {
+      return Response.json(
+        {
+          error:
+            "Testing access is not enabled by this account owner. Ask them to enable Testing access in Legacy Planning.",
+        },
+        { status: 403, headers: corsHeaders },
+      );
+    }
+  }
   let otp: Record<string, unknown> | null = null;
   if (!testingMode) {
     const { data: rows, error: otpError } = await supabase
@@ -134,6 +145,9 @@ Deno.serve(async (request) => {
   const [{ data: preferences, error: preferencesError }, {
     data: notes,
     error: notesError,
+  }, {
+    data: documents,
+    error: documentsError,
   }] = await Promise.all([
     supabase
       .from("funeral_preferences")
@@ -147,25 +161,72 @@ Deno.serve(async (request) => {
       .select("id, title, content, created_at, updated_at")
       .eq("user_id", ownerUid)
       .order("updated_at", { ascending: false }),
+    supabase
+      .from("documents")
+      .select("id, name, storage_path, uploaded_at")
+      .eq("user_id", ownerUid)
+      .order("uploaded_at", { ascending: false }),
   ]);
-  if (preferencesError || notesError) {
+  if (preferencesError || notesError || documentsError) {
     return Response.json(
-      { error: preferencesError?.message ?? notesError?.message },
+      {
+        error: preferencesError?.message ?? notesError?.message ??
+          documentsError?.message,
+      },
       { status: 500, headers: corsHeaders },
     );
   }
 
+  const releasedDocuments: Array<Record<string, unknown>> = [];
+  if (documents && documents.length > 0) {
+    const paths = documents.map((document) => String(document.storage_path));
+    const { data: signedDocuments, error: signedDocumentsError } = await supabase
+      .storage
+      .from("legacy-documents")
+      .createSignedUrls(paths, 600);
+    if (signedDocumentsError) {
+      return Response.json(
+        { error: "Secure documents could not be released." },
+        { status: 500, headers: corsHeaders },
+      );
+    }
+
+    for (let index = 0; index < documents.length; index++) {
+      const signedUrl = signedDocuments?.[index]?.signedUrl;
+      if (!signedUrl) {
+        return Response.json(
+          { error: "A secure document link could not be created." },
+          { status: 500, headers: corsHeaders },
+        );
+      }
+      releasedDocuments.push({
+        id: documents[index].id,
+        name: documents[index].name,
+        uploadedAt: documents[index].uploaded_at,
+        signedUrl,
+      });
+    }
+  }
+
   if (!testingMode && otp) {
     const consumedAt = new Date().toISOString();
-    const { error: consumeError } = await supabase
+    const { data: consumedOtp, error: consumeError } = await supabase
       .from("legacy_access_otps")
       .update({ consumed_at: consumedAt })
       .eq("id", otp.id)
-      .is("consumed_at", null);
+      .is("consumed_at", null)
+      .select("id")
+      .maybeSingle();
     if (consumeError) {
       return Response.json(
         { error: consumeError.message },
         { status: 500, headers: corsHeaders },
+      );
+    }
+    if (!consumedOtp) {
+      return Response.json(
+        { error: "The verification code is invalid or expired." },
+        { status: 400, headers: corsHeaders },
       );
     }
   }
@@ -191,6 +252,7 @@ Deno.serve(async (request) => {
       lastActivityAt: eligibility.lastActivityAt,
       preferences: preferences ?? {},
       notes: notes ?? [],
+      documents: releasedDocuments,
     },
     { headers: corsHeaders },
   );

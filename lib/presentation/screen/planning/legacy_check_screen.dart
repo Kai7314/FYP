@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../models/legacy_access_result.dart';
@@ -40,6 +41,7 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
   bool busy = false;
   bool testingMode = false;
   LegacyAccessResult? result;
+  LegacyAccessRequestStatus? requestStatus;
   Timer? sessionTimer;
 
   LegacyAccessService get service =>
@@ -78,17 +80,19 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
     if (busy || formKey.currentState?.validate() != true) return;
     setState(() => busy = true);
     try {
-      await service.requestCode(
+      final status = await service.requestCode(
         ownerUid: uidController.text,
         phone: normalizedPhone,
       );
       if (!mounted) return;
-      setState(() => codeRequested = true);
+      setState(() {
+        requestStatus = status;
+        codeRequested = status.codeSent;
+        if (!status.codeSent) codeController.clear();
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'If the details match and access is available, a code was sent to the primary contact.',
-          ),
+        SnackBar(
+          content: Text(status.message),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -161,12 +165,26 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
     );
   }
 
+  Future<void> _openDocument(LegacyAccessDocument document) async {
+    final uri = Uri.tryParse(document.signedUrl);
+    if (uri == null || !uri.hasScheme) {
+      await _showError('The secure document link is invalid or expired.');
+      return;
+    }
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      await _showError('The secure document could not be opened.');
+    }
+  }
+
   void _startAgain() {
     sessionTimer?.cancel();
     setState(() {
       codeRequested = false;
       busy = false;
       result = null;
+      requestStatus = null;
       codeController.clear();
     });
   }
@@ -177,6 +195,7 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
     setState(() {
       result = null;
       codeRequested = false;
+      requestStatus = null;
       codeController.clear();
     });
   }
@@ -213,14 +232,14 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
             icon: Icons.science_outlined,
             title: 'Testing mode',
             description:
-                'Debug builds can skip SMS and the 90-day wait. The Legacy UID and SMS-verified primary contact phone must still match, and the server testing flag must be enabled.',
+                'Debug builds can skip SMS and the 90-day wait only when the account owner enables Testing access in Legacy Planning. The Legacy UID and SMS-verified primary contact phone must still match.',
             color: AppColors.danger,
           ),
         const GuidanceItem(
           icon: Icons.visibility_outlined,
           title: 'What can be viewed',
           description:
-              'Only funeral preferences and Legacy Notes are shown. Secure documents and credentials are never shared. Results close after 10 minutes or when the app leaves the foreground.',
+              'Funeral preferences, Legacy Notes, and uploaded secure documents are shown. Document links expire after 10 minutes. Credentials are never shared. Results close after 10 minutes or when the app leaves the foreground.',
           color: AppColors.blue,
         ),
       ],
@@ -280,7 +299,7 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
           const SizedBox(height: 8),
           Text(
             testingMode
-                ? 'Testing mode matches the Legacy UID and verified primary contact phone without SMS or the 90-day wait.'
+                ? 'Testing mode works only when the owner enabled account testing in Legacy Planning. The UID and verified primary contact phone must match.'
                 : 'Access is available only to the SMS-verified primary contact after 90 days without a user check-in.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.muted),
@@ -297,7 +316,10 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
                     value: testingMode,
                     onChanged: busy || codeRequested
                         ? null
-                        : (value) => setState(() => testingMode = value),
+                        : (value) => setState(() {
+                            testingMode = value;
+                            requestStatus = null;
+                          }),
                     secondary: const Icon(
                       Icons.science_outlined,
                       color: AppColors.danger,
@@ -307,7 +329,7 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                     subtitle: const Text(
-                      'Skip SMS and the 90-day wait. UID and verified primary phone must still match.',
+                      'Requires owner approval in Legacy Planning. UID and verified primary phone must still match.',
                     ),
                   ),
                   const Divider(height: 24),
@@ -341,6 +363,10 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
                   },
                   labelText: 'Primary contact phone',
                 ),
+                if (requestStatus != null) ...[
+                  const SizedBox(height: 16),
+                  _LegacyAvailabilityStatus(status: requestStatus!),
+                ],
                 if (codeRequested) ...[
                   const SizedBox(height: 16),
                   TextFormField(
@@ -397,6 +423,7 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
                         ? null
                         : () => setState(() {
                             codeRequested = false;
+                            requestStatus = null;
                             codeController.clear();
                           }),
                     child: const Text('Change UID or phone'),
@@ -407,7 +434,7 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
           ),
           const SizedBox(height: 14),
           const Text(
-            'Uploaded secure documents and account credentials are never shared through this page.',
+            'Secure documents are released only after verification. Account credentials must never be stored or shared.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
@@ -502,7 +529,115 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
               ),
             ),
           ),
+        const SizedBox(height: 20),
+        const Text(
+          'Secure Documents',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Links are private and expire after 10 minutes.',
+          style: TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        if (access.documents.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No secure documents were provided.'),
+            ),
+          )
+        else
+          ...access.documents.map(
+            (document) => Card(
+              child: ListTile(
+                onTap: () => _openDocument(document),
+                leading: const Icon(Icons.description_outlined),
+                title: Text(
+                  document.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: Text(
+                  document.uploadedAt == null
+                      ? 'Tap to open securely'
+                      : '${DateFormat('dd MMM yyyy').format(document.uploadedAt!.toLocal())}\nTap to open securely',
+                ),
+                isThreeLine: document.uploadedAt != null,
+                trailing: const Icon(Icons.open_in_new),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+}
+
+class _LegacyAvailabilityStatus extends StatelessWidget {
+  const _LegacyAvailabilityStatus({required this.status});
+
+  final LegacyAccessRequestStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final waiting = status.status == 'waiting_period';
+    final color = status.codeSent
+        ? AppColors.primary
+        : waiting
+        ? AppColors.accent
+        : AppColors.danger;
+    final availableDate = status.availableAt == null
+        ? null
+        : DateFormat('dd MMM yyyy').format(status.availableAt!.toLocal());
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        border: Border.all(color: color.withValues(alpha: 0.55)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            status.codeSent
+                ? Icons.mark_email_read_outlined
+                : waiting
+                ? Icons.schedule_outlined
+                : Icons.info_outline,
+            color: color,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (waiting && status.daysRemaining != null)
+                  Text(
+                    '${status.daysRemaining} day${status.daysRemaining == 1 ? '' : 's'} remaining',
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                Text(status.message),
+                if (availableDate != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Expected availability: $availableDate',
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

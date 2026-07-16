@@ -29,9 +29,22 @@ class DocumentRepository {
     return rows.isNotEmpty && rows.first['legacy_access_enabled'] == true;
   }
 
+  Future<bool> getLegacyTestingAccessEnabled(String userId) async {
+    final rows = await client.from('users').select().eq('id', userId).limit(1);
+    return rows.isNotEmpty &&
+        rows.first['legacy_access_test_enabled'] == true;
+  }
+
   Future<void> setLegacyAccessEnabled({required bool enabled}) {
     return client.rpc(
       'set_legacy_access_enabled',
+      params: {'enabled': enabled},
+    );
+  }
+
+  Future<void> setLegacyTestingAccessEnabled({required bool enabled}) {
+    return client.rpc(
+      'set_legacy_access_test_enabled',
       params: {'enabled': enabled},
     );
   }

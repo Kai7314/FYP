@@ -255,18 +255,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
             24,
           ),
           children: [
-            const _OrenCallIntro(),
-            const SizedBox(height: 16),
             PremiumHeader(
               title: 'Emergency Contacts',
-              subtitle: 'People notified in emergencies',
+              subtitle:
+                  'Oren can help you call a trusted contact whenever you need support.',
+              orenAsset:
+                  'lib/assets/images/pixel/oren_pixel_phone_call_transparent.png',
+              orenSemanticLabel: 'Oren holding a phone',
               action: IconButton.filled(
                 onPressed: _addContact,
                 icon: const Icon(Icons.person_add_alt_1),
                 tooltip: 'Add contact',
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
             GlassPanel(
               padding: const EdgeInsets.all(14),
               color: AppColors.primarySoft,
@@ -317,43 +319,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ],
         );
       },
-    );
-  }
-}
-
-class _OrenCallIntro extends StatelessWidget {
-  const _OrenCallIntro();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Column(
-          children: [
-            Semantics(
-              label: 'Oren holding a phone to call a trusted contact',
-              image: true,
-              child: Image.asset(
-                'lib/assets/images/pixel/oren_pixel_phone_call_transparent.png',
-                height: 126,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.none,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Oren can help you call a trusted contact whenever you need support.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.primaryDark,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

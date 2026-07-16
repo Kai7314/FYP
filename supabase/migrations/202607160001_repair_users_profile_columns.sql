@@ -1,5 +1,4 @@
--- Run this in Supabase Dashboard > SQL Editor if first-login profile setup says
--- "Could not find the 'address' column of 'users'".
+-- Keep the public users profile aligned with every field sent by Edit Profile.
 
 alter table public.users
   add column if not exists phone text,
@@ -19,22 +18,3 @@ set emergency_escalation_target = 'primary_contact'
 where emergency_escalation_target = 'trusted_contacts';
 
 notify pgrst, 'reload schema';
-
-select column_name, data_type
-from information_schema.columns
-where table_schema = 'public'
-  and table_name = 'users'
-  and column_name in (
-    'phone',
-    'phone_verified_at',
-    'address',
-    'address_state',
-    'address_region',
-    'blood_type',
-    'inactivity_threshold',
-    'emergency_escalation_target',
-    'terms_version',
-    'terms_accepted_at',
-    'profile_completed_at'
-  )
-order by column_name;

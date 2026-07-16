@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -24,6 +25,7 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
   late Future<LegacyPlanningSnapshot> future;
   bool isUploadingDocument = false;
   bool isUpdatingLegacyAccess = false;
+  bool isUpdatingLegacyTestingAccess = false;
   String? busyDocumentId;
 
   @override
@@ -83,24 +85,7 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
     setState(() => isUpdatingLegacyAccess = true);
     try {
       if (enabled) {
-        final contacts = await contactService.getContacts(forceRefresh: true);
-        Map<String, dynamic>? primaryContact;
-        for (final contact in contacts) {
-          if (contact['is_primary'] == true) {
-            primaryContact = contact;
-            break;
-          }
-        }
-        if (primaryContact == null) {
-          throw StateError(
-            'Add a primary trusted contact before enabling Legacy Checking.',
-          );
-        }
-        if (primaryContact['phone_verified_at'] == null) {
-          throw StateError(
-            'Verify the primary contact phone number before enabling Legacy Checking.',
-          );
-        }
+        await _requireVerifiedPrimaryContact();
       }
 
       await service.setLegacyAccessEnabled(enabled);
@@ -119,6 +104,53 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
       }
     } finally {
       if (mounted) setState(() => isUpdatingLegacyAccess = false);
+    }
+  }
+
+  Future<void> _setLegacyTestingAccessEnabled(bool enabled) async {
+    if (isUpdatingLegacyTestingAccess) return;
+    setState(() => isUpdatingLegacyTestingAccess = true);
+    try {
+      if (enabled) await _requireVerifiedPrimaryContact();
+      await service.setLegacyTestingAccessEnabled(enabled);
+      if (!mounted) return;
+      _refresh();
+      _showMessage(
+        enabled
+            ? 'Testing access enabled for this account.'
+            : 'Testing access disabled.',
+      );
+    } catch (error) {
+      if (mounted) {
+        await AppErrorDialog.show(
+          context,
+          title: 'Could not update testing access',
+          error: error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isUpdatingLegacyTestingAccess = false);
+    }
+  }
+
+  Future<void> _requireVerifiedPrimaryContact() async {
+    final contacts = await contactService.getContacts(forceRefresh: true);
+    Map<String, dynamic>? primaryContact;
+    for (final contact in contacts) {
+      if (contact['is_primary'] == true) {
+        primaryContact = contact;
+        break;
+      }
+    }
+    if (primaryContact == null) {
+      throw StateError(
+        'Add a primary trusted contact before enabling Legacy Checking.',
+      );
+    }
+    if (primaryContact['phone_verified_at'] == null) {
+      throw StateError(
+        'Verify the primary contact phone number before enabling Legacy Checking.',
+      );
     }
   }
 
@@ -310,14 +342,14 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
           icon: Icons.lock_outline,
           title: 'Secure Documents',
           description:
-              'Upload PDF, JPG, or PNG files up to 10 MB. These files are private to your signed-in account and are not shown through Legacy Checking.',
+              'Upload PDF, JPG, or PNG files up to 10 MB. They stay private until an authorized Legacy Check, which uses a short-lived secure link.',
           color: AppColors.blue,
         ),
         GuidanceItem(
           icon: Icons.verified_user_outlined,
           title: 'Legacy Checking',
           description:
-              'When enabled, your SMS-verified primary contact can use your Legacy UID after 90 days without a check-in to view preferences and Legacy Notes only.',
+              'When enabled, your SMS-verified primary contact can use your Legacy UID after 90 days without a check-in to view preferences, Legacy Notes, and secure documents.',
           color: AppColors.accent,
         ),
       ],
@@ -378,6 +410,37 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
                   ),
                 ),
               ),
+              if (kDebugMode) ...[
+                const SizedBox(height: 10),
+                Card(
+                  child: SwitchListTile(
+                    value: data.legacyTestingAccessEnabled,
+                    onChanged:
+                        isUpdatingLegacyTestingAccess ||
+                            !data.legacyAccessEnabled
+                        ? null
+                        : _setLegacyTestingAccessEnabled,
+                    secondary: isUpdatingLegacyTestingAccess
+                        ? const SizedBox.square(
+                            dimension: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.science_outlined,
+                            color: AppColors.danger,
+                          ),
+                    title: const Text(
+                      'Testing access',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text(
+                      data.legacyAccessEnabled
+                          ? 'For this account only, allow the verified primary phone and Legacy UID to skip SMS and the 90-day wait.'
+                          : 'Enable Legacy Checking above before turning on account testing.',
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               _SectionHeader(
                 title: 'Funeral Preferences',

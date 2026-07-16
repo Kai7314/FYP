@@ -724,26 +724,11 @@ class _HomeDashboard extends StatelessWidget {
               ),
               Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: AppColors.heroGradient,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x3500B884),
-                          blurRadius: 12,
-                          offset: Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.shield_outlined,
-                      color: Colors.white,
-                    ),
+                  const OrenPageTitleIcon(
+                    asset:
+                        'lib/assets/images/pixel/oren_pixel_full_energy_transparent.png',
+                    semanticLabel: 'Energetic Oren welcoming you home',
+                    size: 54,
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(

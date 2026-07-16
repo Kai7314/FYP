@@ -10,6 +10,13 @@ class AuthRepository {
   Session? get currentSession => client.auth.currentSession;
   Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
 
+  static bool isExistingAccountSignup(AuthResponse response) {
+    final identities = response.user?.identities;
+    return response.session == null &&
+        identities != null &&
+        identities.isEmpty;
+  }
+
   Future<AuthResponse> signIn({
     required String email,
     required String password,
@@ -50,9 +57,33 @@ class AuthRepository {
     return client.auth.verifyOTP(
       email: email,
       token: token,
-      type: OtpType.signup,
+      type: OtpType.email,
       redirectTo: redirectTo,
     );
+  }
+
+  Future<void> requestPasswordReset({
+    required String email,
+    required String redirectTo,
+  }) {
+    return client.auth.resetPasswordForEmail(email, redirectTo: redirectTo);
+  }
+
+  Future<AuthResponse> verifyPasswordRecoveryCode({
+    required String email,
+    required String token,
+    required String redirectTo,
+  }) {
+    return client.auth.verifyOTP(
+      email: email,
+      token: token,
+      type: OtpType.recovery,
+      redirectTo: redirectTo,
+    );
+  }
+
+  Future<UserResponse> updatePassword(String password) {
+    return client.auth.updateUser(UserAttributes(password: password));
   }
 
   Future<bool> signInWithOAuth({
