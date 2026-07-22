@@ -112,9 +112,9 @@ class _VirtualPetWidgetState extends State<VirtualPetWidget>
                           duration: const Duration(milliseconds: 500),
                           layoutBuilder: (currentChild, previousChildren) =>
                               Stack(
-                    fit: StackFit.expand,
-                    children: [...previousChildren, ?currentChild],
-                  ),
+                                fit: StackFit.expand,
+                                children: [...previousChildren, ?currentChild],
+                              ),
                           child: SizedBox.expand(
                             key: ValueKey(
                               widget.weather?.backgroundAsset ?? 'day',
@@ -288,7 +288,7 @@ class _VirtualPetWidgetState extends State<VirtualPetWidget>
                         Positioned(
                           top: 50,
                           right: 12,
-                          child: FilledButton.tonalIcon(
+                          child: FilledButton.icon(
                             onPressed: widget.onOpenShop,
                             icon: const Icon(
                               Icons.storefront_outlined,
@@ -300,10 +300,8 @@ class _VirtualPetWidgetState extends State<VirtualPetWidget>
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                               ),
-                              backgroundColor: Colors.white.withValues(
-                                alpha: .92,
-                              ),
-                              foregroundColor: AppColors.primaryDark,
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
                             ),
                           ),
                         ),
@@ -486,12 +484,8 @@ class _EnergyChip extends StatelessWidget {
         ? 'Low'
         : '$energy%';
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .92),
-        borderRadius: BorderRadius.circular(18),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -500,9 +494,10 @@ class _EnergyChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: color,
+              color: Colors.white,
               fontSize: 11,
               fontWeight: FontWeight.w900,
+              shadows: _sceneTextShadows,
             ),
           ),
         ],
@@ -524,35 +519,39 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 230),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .9),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: alignRight
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        children: [
-          Icon(icon, size: 13, color: AppColors.primaryDark),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              text,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: alignRight ? TextAlign.right : TextAlign.left,
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: alignRight
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: Colors.white,
+              shadows: _sceneTextShadows,
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: alignRight ? TextAlign.right : TextAlign.left,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  shadows: _sceneTextShadows,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -637,13 +636,8 @@ class _TokenChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .92),
-        borderRadius: BorderRadius.circular(8),
-      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -657,10 +651,11 @@ class _TokenChip extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             '$tokens',
-            style: const TextStyle(
-              color: AppColors.ink,
+            style: TextStyle(
+              color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.w900,
+              shadows: _sceneTextShadows,
             ),
           ),
         ],
@@ -676,24 +671,27 @@ class _SpeechBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 280),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .94),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        text,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: AppColors.ink,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Text(
+          text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            shadows: _sceneTextShadows,
+          ),
         ),
       ),
     );
   }
 }
+
+const _sceneTextShadows = <Shadow>[
+  Shadow(color: Color(0xB3000000), blurRadius: 3, offset: Offset(0, 1)),
+];

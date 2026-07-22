@@ -745,32 +745,50 @@ class _HomeDashboard extends StatelessWidget {
             Text(loadError!, style: const TextStyle(color: AppColors.danger)),
             const SizedBox(height: 12),
           ],
-          _OrenStatusBar(
-            message: orenCare.lastAction,
-            mood: orenCare.mood,
-            energy: orenCare.energy,
-            onInfo: onOrenInfo,
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: _OrenStatusBar(
+                message: orenCare.lastAction,
+                mood: orenCare.mood,
+                energy: orenCare.energy,
+                onInfo: onOrenInfo,
+              ),
+            ),
           ),
           const SizedBox(height: 10),
-          VirtualPetWidget(
-            streak: streak,
-            hasCheckedInToday: checkedToday,
-            weather: weather,
-            mood: orenCare.mood,
-            energy: orenCare.energy,
-            tokens: orenCare.tokens,
-            activeToyId: activeToyId,
-            activeToyAsset: activeToyAsset,
-            onOpenShop: onOpenShop,
-            onTap: onPet,
-            loading: loading,
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: VirtualPetWidget(
+                streak: streak,
+                hasCheckedInToday: checkedToday,
+                weather: weather,
+                mood: orenCare.mood,
+                energy: orenCare.energy,
+                tokens: orenCare.tokens,
+                activeToyId: activeToyId,
+                activeToyAsset: activeToyAsset,
+                onOpenShop: onOpenShop,
+                onTap: onPet,
+                loading: loading,
+              ),
+            ),
           ),
-          const SizedBox(height: 10),
-          _OrenActionPanel(
-            state: orenCare,
-            onFeedFish: onFeedFish,
-            onPlay: onPlay,
-            onChooseToy: onChooseToy,
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: _OrenActionPanel(
+                state: orenCare,
+                onFeedFish: onFeedFish,
+                onPlay: onPlay,
+                onChooseToy: onChooseToy,
+              ),
+            ),
           ),
           const SizedBox(height: 14),
           Card(
@@ -1391,48 +1409,68 @@ class _OrenStatusBar extends StatelessWidget {
         ? AppColors.muted
         : AppColors.primary;
 
-    return GlassPanel(
-      color: Colors.white.withValues(alpha: .78),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    return Semantics(
+      container: true,
+      label: 'Oren status: $status. Energy $energy percent.',
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: statusColor.withValues(alpha: .14),
-            foregroundColor: statusColor,
-            child: Icon(_statusIcon, size: 19),
-          ),
-          const SizedBox(width: 10),
+          Icon(_statusIcon, size: 26, color: statusColor),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
+                  status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
                   message.trim().isEmpty ? 'Oren is ready for today.' : message,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.ink,
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  'Status: $status - Energy: $energy%',
-                  style: const TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.battery_charging_full_rounded,
+                      size: 14,
+                      color: statusColor,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Energy $energy%',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          IconButton(
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
             onPressed: onInfo,
             icon: const Icon(Icons.info_outline_rounded),
             tooltip: 'How to care for Oren',
             color: AppColors.primaryDark,
+            style: IconButton.styleFrom(
+              minimumSize: const Size.square(44),
+              backgroundColor: AppColors.primarySoft,
+            ),
           ),
         ],
       ),
@@ -1491,27 +1529,38 @@ class _OrenActionPanel extends StatelessWidget {
       }
     }
 
-    return GlassPanel(
-      color: AppColors.glassStrong,
-      padding: const EdgeInsets.all(12),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               Expanded(
-                child: FilledButton.tonalIcon(
+                child: FilledButton.icon(
                   onPressed: onFeedFish,
                   icon: const Icon(Icons.set_meal_outlined),
                   label: const Text('Feed Fish'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 54),
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: FilledButton.tonalIcon(
+                child: FilledButton.icon(
                   onPressed: selectedToy == null ? null : onPlay,
                   icon: const Icon(Icons.sports_esports_outlined),
                   label: const Text('Play'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 54),
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: AppColors.ink,
+                    disabledBackgroundColor: AppColors.border,
+                    disabledForegroundColor: AppColors.muted,
+                  ),
                 ),
               ),
             ],
@@ -1519,13 +1568,22 @@ class _OrenActionPanel extends StatelessWidget {
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: onChooseToy,
-            icon: const Icon(Icons.inventory_2_outlined),
+            icon: Icon(
+              selectedToy == null
+                  ? Icons.inventory_2_outlined
+                  : Icons.check_circle_outline,
+            ),
             label: Text(
               selectedToy == null
                   ? 'Choose a bought item'
                   : 'Selected: ${selectedToy.name}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+            ),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 54),
+              backgroundColor: Colors.white.withValues(alpha: .74),
+              side: const BorderSide(color: AppColors.primary),
             ),
           ),
         ],

@@ -374,6 +374,46 @@ void main() {
     expect(find.text('Status: Tired'), findsOneWidget);
   });
 
+  testWidgets('virtual pet status stays aligned on a narrow screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: VirtualPetWidget(
+            streak: 12,
+            hasCheckedInToday: true,
+            mood: 'Playful',
+            energy: 64,
+            tokens: 120,
+            weather: WeatherSnapshot(
+              temperatureCelsius: 29,
+              weatherCode: 2,
+              isDay: true,
+              latitude: 1.49,
+              longitude: 103.74,
+              fetchedAt: DateTime(2026, 7, 22),
+              locationName: 'Johor Bahru',
+            ),
+            onOpenShop: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Status: Playful'), findsOneWidget);
+    expect(find.text('Shop'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('oren care state serializes tokens and toys', () {
     final state = OrenCareState.initial().copyWith(
       tokens: 15,
