@@ -84,7 +84,7 @@ class ContactRepository {
     try {
       final rows = await client
           .from('contacts')
-          .select('name,phone,is_primary')
+          .select('name,phone,email,is_primary')
           .eq('user_id', userId)
           .eq('is_primary', true)
           .limit(1);
@@ -95,7 +95,7 @@ class ContactRepository {
 
     final rows = await client
         .from('contacts')
-        .select('name,phone')
+        .select('name,phone,email')
         .eq('user_id', userId)
         .order('name', ascending: true)
         .limit(1);
@@ -107,6 +107,7 @@ class ContactRepository {
     required String name,
     required String relationship,
     required String phone,
+    required String email,
     String? address,
     String? addressState,
     String? addressRegion,
@@ -131,6 +132,7 @@ class ContactRepository {
     final shouldBePrimary = isPrimary || existing.isEmpty;
     final insertAsPrimary = existing.isEmpty;
     final cleanAddress = address?.trim() ?? '';
+    final cleanEmail = email.trim().toLowerCase();
     final cleanAddressState = addressState?.trim() ?? '';
     final cleanAddressRegion = addressRegion?.trim() ?? '';
 
@@ -140,12 +142,16 @@ class ContactRepository {
     if (cleanAddress.length > 200) {
       throw StateError('Contact address must not exceed 200 characters.');
     }
+    if (cleanEmail.isEmpty) {
+      throw StateError('Contact email is required.');
+    }
 
     final payload = <String, dynamic>{
       'user_id': userId,
       'name': name,
       'relationship': relationship,
       'phone': phone,
+      'email': cleanEmail,
       'address': cleanAddress,
       'is_primary': insertAsPrimary,
     };
@@ -187,6 +193,75 @@ class ContactRepository {
         // The contact was inserted successfully. Do not surface a false add
         // failure just because primary promotion lagged or hit an RLS/schema
         // edge case; the user can retry Set Primary from the contact list.
+      }
+    }
+  }
+
+  Future<void> updateContact({
+    required String userId,
+    required Map<String, dynamic> row,
+    required String name,
+    required String relationship,
+    required String phone,
+    required String email,
+    required String address,
+    required String addressState,
+    required String addressRegion,
+    required bool isPrimary,
+  }) async {
+    final id = row['id'] ?? row['contact_id'];
+    final originalPhone = row['phone']?.toString() ?? '';
+    if (id == null && originalPhone.trim().isEmpty) {
+      throw StateError('Contact identifier is missing.');
+    }
+
+    final existing = await client
+        .from('contacts')
+        .select('id,phone')
+        .eq('user_id', userId);
+    final normalizedPhone = _digits(phone);
+    final duplicate = existing.any((candidate) {
+      final sameRow = id != null && candidate['id']?.toString() == id.toString();
+      return !sameRow &&
+          _digits(candidate['phone']?.toString() ?? '') == normalizedPhone;
+    });
+    if (duplicate) {
+      throw StateError('This phone number is already an emergency contact.');
+    }
+
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty) throw StateError('Contact email is required.');
+    if (address.trim().isEmpty) {
+      throw StateError('Contact address is required.');
+    }
+
+    final payload = <String, dynamic>{
+      'name': name.trim(),
+      'relationship': relationship.trim(),
+      'phone': phone,
+      'email': cleanEmail,
+      'address': address.trim(),
+      'address_state': addressState.trim(),
+      'address_region': addressRegion.trim(),
+    };
+    if (id != null) {
+      await client
+          .from('contacts')
+          .update(payload)
+          .eq('user_id', userId)
+          .eq(row.containsKey('id') ? 'id' : 'contact_id', id);
+    } else {
+      await client
+          .from('contacts')
+          .update(payload)
+          .eq('user_id', userId)
+          .eq('phone', originalPhone);
+    }
+
+    if (isPrimary && row['is_primary'] != true) {
+      final updated = await _findContactByPhone(userId: userId, phone: phone);
+      if (updated != null) {
+        await setPrimaryContact(userId: userId, row: updated);
       }
     }
   }

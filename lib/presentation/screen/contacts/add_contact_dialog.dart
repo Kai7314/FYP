@@ -8,9 +8,14 @@ import '../../widgets/phone_otp_verification_card.dart';
 import '../../../services/phone_verification_service.dart';
 
 class AddContactPage extends StatefulWidget {
-  const AddContactPage({super.key, this.requirePhoneVerification = true});
+  const AddContactPage({
+    super.key,
+    this.requirePhoneVerification = true,
+    this.initialContact,
+  });
 
   final bool requirePhoneVerification;
+  final Map<String, dynamic>? initialContact;
 
   @override
   State<AddContactPage> createState() => _AddContactPageState();
@@ -25,6 +30,7 @@ class _AddContactPageState extends State<AddContactPage> {
   final nameController = TextEditingController();
   final relationshipController = TextEditingController();
   final phoneController = TextEditingController();
+  final emailController = TextEditingController();
   final addressController = TextEditingController();
   String phoneDialCode = AppValidators.defaultPhoneCountry.dialCode;
   String? selectedState = 'Kuala Lumpur';
@@ -32,11 +38,43 @@ class _AddContactPageState extends State<AddContactPage> {
   String? verifiedPhone;
   bool isPrimary = false;
 
+  bool get isEditing => widget.initialContact != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final contact = widget.initialContact;
+    if (contact == null) return;
+
+    nameController.text = contact['name']?.toString() ?? '';
+    relationshipController.text = contact['relationship']?.toString() ?? '';
+    emailController.text = contact['email']?.toString() ?? '';
+    addressController.text = contact['address']?.toString() ?? '';
+    selectedState = contact['address_state']?.toString();
+    selectedRegion = contact['address_region']?.toString();
+    isPrimary = contact['is_primary'] == true;
+
+    final phone = contact['phone']?.toString() ?? '';
+    final country = AppValidators.detectPhoneCountry(phone);
+    phoneDialCode = country.dialCode;
+    phoneController.text = AppValidators.localPhoneForCountry(
+      phone,
+      phoneDialCode,
+    );
+    if (contact['phone_verified_at'] != null) {
+      verifiedPhone = AppValidators.normalizePhoneWithCountry(
+        phone,
+        phoneDialCode,
+      );
+    }
+  }
+
   @override
   void dispose() {
     nameController.dispose();
     relationshipController.dispose();
     phoneController.dispose();
+    emailController.dispose();
     addressController.dispose();
     super.dispose();
   }
@@ -60,6 +98,7 @@ class _AddContactPageState extends State<AddContactPage> {
       'name': AppValidators.normalizeSpaces(nameController.text),
       'relationship': AppValidators.normalizeSpaces(relationshipController.text),
       'phone': phone,
+      'email': emailController.text.trim().toLowerCase(),
       'address': AppValidators.normalizeSpaces(addressController.text),
       'address_state': selectedState,
       'address_region': selectedRegion,
@@ -76,15 +115,15 @@ class _AddContactPageState extends State<AddContactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Contact')),
+      appBar: AppBar(title: Text(isEditing ? 'Edit Contact' : 'Add Contact')),
       body: SafeArea(
         child: Form(
           key: formKey,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             children: [
-              const Text(
-                'Emergency contact',
+              Text(
+                isEditing ? 'Contact details' : 'Emergency contact',
                 style: TextStyle(
                   color: AppColors.ink,
                   fontSize: 24,
@@ -148,6 +187,22 @@ class _AddContactPageState extends State<AddContactPage> {
                   },
                 ),
               const SizedBox(height: 16),
+              _ContactFieldShell(
+                label: 'Email',
+                child: TextFormField(
+                  key: const Key('contact-email-field'),
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autocorrect: false,
+                  validator: (value) => AppValidators.email(value ?? ''),
+                  decoration: const InputDecoration(
+                    hintText: 'trusted.contact@example.com',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               MalaysiaAddressFields(
                 addressController: addressController,
                 selectedState: selectedState,
@@ -165,12 +220,15 @@ class _AddContactPageState extends State<AddContactPage> {
                 stateLabel: 'State',
                 regionLabel: 'Region / district',
                 regionHelperText: null,
+                addressFieldKey: const Key('contact-address-field'),
               ),
               const SizedBox(height: 14),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 value: isPrimary,
-                onChanged: (value) => setState(() => isPrimary = value),
+                onChanged: isEditing && isPrimary
+                    ? null
+                    : (value) => setState(() => isPrimary = value),
                 title: const Text(
                   'Primary emergency contact',
                   style: TextStyle(fontWeight: FontWeight.w800),
@@ -198,7 +256,7 @@ class _AddContactPageState extends State<AddContactPage> {
             Expanded(
               child: FilledButton(
                 onPressed: _submit,
-                child: const Text('Save'),
+                child: Text(isEditing ? 'Update' : 'Save'),
               ),
             ),
           ],

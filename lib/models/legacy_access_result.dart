@@ -8,6 +8,7 @@ class LegacyAccessResult {
     required this.notes,
     required this.documents,
     required this.lastActivityAt,
+    this.accessExpiresAt,
   });
 
   final String ownerName;
@@ -15,6 +16,7 @@ class LegacyAccessResult {
   final List<LegacyNote> notes;
   final List<LegacyAccessDocument> documents;
   final DateTime? lastActivityAt;
+  final DateTime? accessExpiresAt;
 
   factory LegacyAccessResult.fromJson(Map<String, dynamic> json) {
     final preferencesData = json['preferences'];
@@ -49,6 +51,10 @@ class LegacyAccessResult {
           : const [],
       lastActivityAt: DateTime.tryParse(
         json['lastActivityAt']?.toString() ?? '',
+      ),
+      accessExpiresAt: DateTime.tryParse(
+        (json['accessExpiresAt'] ?? json['access_expires_at'])?.toString() ??
+            '',
       ),
     );
   }
@@ -87,6 +93,7 @@ class LegacyAccessRequestStatus {
     required this.message,
     required this.daysRemaining,
     required this.availableAt,
+    required this.accessExpiresAt,
   });
 
   final bool codeSent;
@@ -94,6 +101,7 @@ class LegacyAccessRequestStatus {
   final String message;
   final int? daysRemaining;
   final DateTime? availableAt;
+  final DateTime? accessExpiresAt;
 
   factory LegacyAccessRequestStatus.fromJson(Map<String, dynamic> json) {
     final rawDays = json['daysRemaining'] ?? json['days_remaining'];
@@ -108,6 +116,10 @@ class LegacyAccessRequestStatus {
           : int.tryParse(rawDays?.toString() ?? ''),
       availableAt: DateTime.tryParse(
         (json['availableAt'] ?? json['available_at'])?.toString() ?? '',
+      ),
+      accessExpiresAt: DateTime.tryParse(
+        (json['accessExpiresAt'] ?? json['access_expires_at'])?.toString() ??
+            '',
       ),
     );
   }

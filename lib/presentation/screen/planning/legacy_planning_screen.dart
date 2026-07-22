@@ -9,6 +9,8 @@ import '../../../models/document_model.dart';
 import '../../../models/legacy_note_model.dart';
 import '../../../services/contact_service.dart';
 import '../../../services/document_service.dart';
+import '../../../services/legacy_server_test_service.dart';
+import '../../../utils/validators.dart';
 import '../../widgets/error_dialog.dart';
 import '../../widgets/guidance_sheet.dart';
 
@@ -150,6 +152,11 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
     if (primaryContact['phone_verified_at'] == null) {
       throw StateError(
         'Verify the primary contact phone number before enabling Legacy Checking.',
+      );
+    }
+    if (AppValidators.email(primaryContact['email']?.toString() ?? '') != null) {
+      throw StateError(
+        'Add a valid email to the primary trusted contact before enabling Legacy Checking.',
       );
     }
   }
@@ -349,7 +356,7 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
           icon: Icons.verified_user_outlined,
           title: 'Legacy Checking',
           description:
-              'When enabled, your SMS-verified primary contact can use your Legacy UID after 90 days without a check-in to view preferences, Legacy Notes, and secure documents.',
+              'After 90 days without a check-in, the server emails your SMS-verified primary contact and opens Legacy Checking for seven days.',
           color: AppColors.accent,
         ),
       ],
@@ -406,7 +413,7 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   subtitle: const Text(
-                    'After 90 days without a check-in, your SMS-verified primary contact can view preferences and Legacy Notes using your Legacy UID.',
+                    'After 90 days without a check-in, your primary contact receives an email and can use Legacy Checking for seven days.',
                   ),
                 ),
               ),
@@ -440,6 +447,10 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
                     ),
                   ),
                 ),
+                if (data.legacyTestingAccessEnabled) ...[
+                  const SizedBox(height: 10),
+                  const _LegacyServerTestPanel(),
+                ],
               ],
               const SizedBox(height: 20),
               _SectionHeader(
@@ -601,6 +612,166 @@ class _LoadError extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LegacyServerTestPanel extends StatefulWidget {
+  const _LegacyServerTestPanel();
+
+  @override
+  State<_LegacyServerTestPanel> createState() =>
+      _LegacyServerTestPanelState();
+}
+
+class _LegacyServerTestPanelState extends State<_LegacyServerTestPanel> {
+  final service = LegacyServerTestService();
+  String? activeAction;
+  LegacyServerTestResult? result;
+
+  Future<void> _run(String action) async {
+    if (activeAction != null) return;
+    if (action == 'test_email') {
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.mark_email_read_outlined),
+          title: const Text('Send test email?'),
+          content: const Text(
+            'This sends a TEST ONLY email to the real primary contact. It does not change heartbeat or Legacy access.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Send Test'),
+            ),
+          ],
+        ),
+      );
+      if (approved != true || !mounted) return;
+    }
+
+    setState(() {
+      activeAction = action;
+      result = null;
+    });
+    try {
+      final testResult = await service.run(action);
+      if (mounted) setState(() => result = testResult);
+    } catch (error) {
+      if (mounted) {
+        await AppErrorDialog.show(
+          context,
+          title: 'Legacy server test failed',
+          error: error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => activeAction = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const tests = [
+      ('live_status', Icons.monitor_heart_outlined, 'Check Live Status'),
+      ('day_89', Icons.hourglass_bottom, 'Test Day 89'),
+      ('day_90', Icons.notifications_active_outlined, 'Test Day 90'),
+      ('day_97', Icons.event_busy_outlined, 'Test Day 97'),
+      ('test_email', Icons.outgoing_mail, 'Send Test Email'),
+    ];
+    final testResult = result;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.dns_outlined, color: AppColors.primary),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Legacy Server Tests',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Server diagnostics only. Day tests do not change real check-ins or access.',
+              style: TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final buttonWidth = constraints.maxWidth < 440
+                    ? constraints.maxWidth
+                    : (constraints.maxWidth - 10) / 2;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final test in tests)
+                      SizedBox(
+                        width: buttonWidth,
+                        child: OutlinedButton.icon(
+                          onPressed: activeAction == null
+                              ? () => _run(test.$1)
+                              : null,
+                          icon: activeAction == test.$1
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(test.$2),
+                          label: Text(test.$3),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+            if (testResult != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: testResult.ok
+                      ? AppColors.primarySoft
+                      : AppColors.danger.withValues(alpha: 0.08),
+                  border: Border.all(
+                    color: testResult.ok
+                        ? AppColors.primary
+                        : AppColors.danger,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      testResult.title,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(testResult.message),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

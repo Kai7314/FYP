@@ -4,6 +4,7 @@ class ContactModel {
     required this.name,
     required this.relationship,
     required this.phone,
+    required this.email,
     required this.address,
     this.addressState,
     this.addressRegion,
@@ -17,6 +18,7 @@ class ContactModel {
   final String name;
   final String relationship;
   final String phone;
+  final String email;
   final String address;
   final String? addressState;
   final String? addressRegion;
@@ -30,6 +32,7 @@ class ContactModel {
       name: json['name']?.toString() ?? '',
       relationship: json['relationship']?.toString() ?? 'Trusted contact',
       phone: json['phone']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
       address: json['address']?.toString() ?? '',
       addressState: json['address_state']?.toString(),
       addressRegion: json['address_region']?.toString(),
@@ -47,6 +50,7 @@ class ContactModel {
     'name': name,
     'relationship': relationship,
     'phone': phone,
+    'email': email,
     'address': address,
     if (addressState != null) 'address_state': addressState,
     if (addressRegion != null) 'address_region': addressRegion,

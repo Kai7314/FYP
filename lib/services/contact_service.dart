@@ -49,6 +49,7 @@ class ContactService {
     required String name,
     required String relationship,
     required String phone,
+    required String email,
     String? address,
     String? addressState,
     String? addressRegion,
@@ -60,7 +61,36 @@ class ContactService {
       userId: user.id,
       name: name,
       phone: phone,
+      email: email,
       relationship: relationship,
+      address: address,
+      addressState: addressState,
+      addressRegion: addressRegion,
+      isPrimary: isPrimary,
+    );
+    await _refreshCacheBestEffort(user.id);
+  }
+
+  Future<void> updateContact({
+    required Map<String, dynamic> row,
+    required String name,
+    required String relationship,
+    required String phone,
+    required String email,
+    required String address,
+    required String addressState,
+    required String addressRegion,
+    required bool isPrimary,
+  }) async {
+    final user = authRepository.currentUser;
+    if (user == null) throw StateError('You must be signed in.');
+    await contactRepository.updateContact(
+      userId: user.id,
+      row: row,
+      name: name,
+      relationship: relationship,
+      phone: phone,
+      email: email,
       address: address,
       addressState: addressState,
       addressRegion: addressRegion,

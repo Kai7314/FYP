@@ -42,6 +42,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         name: result['name']!,
         relationship: result['relationship']!,
         phone: result['phone']!,
+        email: result['email']!,
         address: result['address'],
         addressState: result['address_state'],
         addressRegion: result['address_region'],
@@ -63,6 +64,40 @@ class _ContactsScreenState extends State<ContactsScreen> {
         AppErrorDialog.show(
           context,
           title: 'Could not add contact',
+          error: error,
+        );
+      }
+    }
+  }
+
+  Future<void> _editContact(Map<String, dynamic> row) async {
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => AddContactPage(initialContact: row),
+      ),
+    );
+    if (result == null) return;
+
+    try {
+      await contactService.updateContact(
+        row: row,
+        name: result['name']?.toString() ?? '',
+        relationship: result['relationship']?.toString() ?? '',
+        phone: result['phone']?.toString() ?? '',
+        email: result['email']?.toString() ?? '',
+        address: result['address']?.toString() ?? '',
+        addressState: result['address_state']?.toString() ?? '',
+        addressRegion: result['address_region']?.toString() ?? '',
+        isPrimary: result['is_primary'] == true,
+      );
+      await _refreshContacts();
+      if (!mounted) return;
+      _showMessage('Emergency contact updated.');
+    } catch (error) {
+      if (mounted) {
+        AppErrorDialog.show(
+          context,
+          title: 'Could not update contact',
           error: error,
         );
       }
@@ -312,6 +347,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 (row) => _ContactCard(
                   row: row,
                   onCall: () => _callContact(row),
+                  onEdit: () => _editContact(row),
                   onDelete: () => _deleteContact(row),
                   onSetPrimary: () => _setPrimaryContact(row),
                 ),
@@ -327,12 +363,14 @@ class _ContactCard extends StatelessWidget {
   const _ContactCard({
     required this.row,
     required this.onCall,
+    required this.onEdit,
     required this.onDelete,
     required this.onSetPrimary,
   });
 
   final Map<String, dynamic> row;
   final VoidCallback onCall;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onSetPrimary;
 
@@ -436,6 +474,27 @@ class _ContactCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.email_outlined,
+                          size: 14,
+                          color: AppColors.muted,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            row['email']?.toString().trim().isNotEmpty == true
+                                ? row['email'].toString()
+                                : 'Email required for Legacy Checking',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 9),
                     Container(
                       width: double.infinity,
@@ -480,6 +539,12 @@ class _ContactCard extends StatelessWidget {
                     icon: const Icon(Icons.call_outlined),
                     color: AppColors.primary,
                     tooltip: 'Call contact',
+                  ),
+                  IconButton(
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit_outlined),
+                    color: AppColors.primary,
+                    tooltip: 'Edit contact',
                   ),
                   if (!isPrimary)
                     IconButton(

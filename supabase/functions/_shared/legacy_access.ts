@@ -15,13 +15,16 @@ export type LegacyEligibility = {
   contactMatched?: boolean;
   lastActivityAt?: string;
   availableAt?: string;
+  accessExpiresAt?: string;
   daysRemaining?: number;
   reason?:
     | "owner_not_found"
     | "contact_mismatch"
     | "phone_not_verified"
     | "access_disabled"
-    | "waiting_period";
+    | "waiting_period"
+    | "notice_pending"
+    | "access_expired";
   error?: string;
 };
 
@@ -136,16 +139,81 @@ export async function getLegacyEligibility(
   const availableAtMs = lastActivityMs + inactivityMs;
   const remainingMs = Math.max(0, availableAtMs - Date.now());
   const daysRemaining = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
-  const eligible = options.skipInactivityWait === true || remainingMs === 0;
+  if (options.skipInactivityWait === true) {
+    return {
+      eligible: true,
+      ownerName: String(owner.name ?? "EthernaCare user"),
+      contactId: String(primaryContact.id),
+      contactMatched: true,
+      lastActivityAt: new Date(lastActivityMs).toISOString(),
+      availableAt: new Date(availableAtMs).toISOString(),
+      daysRemaining: 0,
+    };
+  }
+
+  if (remainingMs > 0) {
+    return {
+      eligible: false,
+      ownerName: String(owner.name ?? "EthernaCare user"),
+      contactId: String(primaryContact.id),
+      contactMatched: true,
+      lastActivityAt: new Date(lastActivityMs).toISOString(),
+      availableAt: new Date(availableAtMs).toISOString(),
+      daysRemaining,
+      reason: "waiting_period",
+    };
+  }
+
+  const heartbeatAt = new Date(lastActivityMs).toISOString();
+  const { data: accessWindow, error: windowError } = await supabase
+    .from("legacy_access_windows")
+    .select(
+      "primary_contact_id, state, available_at, expires_at, notice_sent_at",
+    )
+    .eq("owner_user_id", ownerUid)
+    .eq("heartbeat_at", heartbeatAt)
+    .limit(1)
+    .maybeSingle();
+  if (windowError) return { eligible: false, error: windowError.message };
+
+  if (!accessWindow || accessWindow.state === "pending" ||
+    accessWindow.state === "sending") {
+    return {
+      eligible: false,
+      ownerName: String(owner.name ?? "EthernaCare user"),
+      contactId: String(primaryContact.id),
+      contactMatched: true,
+      lastActivityAt: heartbeatAt,
+      availableAt: new Date(availableAtMs).toISOString(),
+      daysRemaining: 0,
+      reason: "notice_pending",
+    };
+  }
+
+  const expiresAtMs = accessWindow.expires_at
+    ? Date.parse(String(accessWindow.expires_at))
+    : Number.NaN;
+  const windowMatchesContact =
+    String(accessWindow.primary_contact_id ?? "") === String(primaryContact.id);
+  const eligible = accessWindow.state === "open" &&
+    Boolean(accessWindow.notice_sent_at) &&
+    windowMatchesContact &&
+    Number.isFinite(expiresAtMs) &&
+    expiresAtMs > Date.now();
   return {
     eligible,
     ownerName: String(owner.name ?? "EthernaCare user"),
     contactId: String(primaryContact.id),
     contactMatched: true,
-    lastActivityAt: new Date(lastActivityMs).toISOString(),
-    availableAt: new Date(availableAtMs).toISOString(),
-    daysRemaining,
-    reason: eligible ? undefined : "waiting_period",
+    lastActivityAt: heartbeatAt,
+    availableAt: accessWindow.available_at
+      ? String(accessWindow.available_at)
+      : new Date(availableAtMs).toISOString(),
+    accessExpiresAt: accessWindow.expires_at
+      ? String(accessWindow.expires_at)
+      : undefined,
+    daysRemaining: 0,
+    reason: eligible ? undefined : "access_expired",
   };
 }
 

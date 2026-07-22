@@ -122,6 +122,33 @@ Deno.serve(async (request) => {
           { headers: corsHeaders },
         );
       }
+      if (eligibility.reason === "notice_pending") {
+        return Response.json(
+          {
+            accepted: false,
+            codeSent: false,
+            status: "notice_pending",
+            availableAt: eligibility.availableAt,
+            message:
+              "No SMS was sent. The 90-day threshold has been reached, but the daily server check has not opened the seven-day access window yet.",
+          },
+          { headers: corsHeaders },
+        );
+      }
+      if (eligibility.reason === "access_expired") {
+        return Response.json(
+          {
+            accepted: false,
+            codeSent: false,
+            status: "access_expired",
+            availableAt: eligibility.availableAt,
+            accessExpiresAt: eligibility.accessExpiresAt,
+            message:
+              "No SMS was sent. The seven-day Legacy Checking access period has expired.",
+          },
+          { headers: corsHeaders },
+        );
+      }
     }
     return Response.json(genericResponse, { headers: corsHeaders });
   }
@@ -206,8 +233,9 @@ Deno.serve(async (request) => {
       accepted: true,
       codeSent: true,
       status: "code_sent",
+      accessExpiresAt: eligibility.accessExpiresAt,
       message:
-        "A 6-digit verification code was sent to the primary contact. It expires in 10 minutes.",
+        "A 6-digit verification code was sent to the primary contact. It expires in 10 minutes, and Legacy Checking remains available only during its seven-day server window.",
     },
     { headers: corsHeaders },
   );

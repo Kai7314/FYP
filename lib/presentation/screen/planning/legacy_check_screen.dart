@@ -224,7 +224,7 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
           icon: Icons.schedule_outlined,
           title: 'When access becomes available',
           description:
-              'The owner must enable Legacy Checking, and the account must have no recorded check-in activity for at least 90 days.',
+              'The owner must enable Legacy Checking. After 90 days without a check-in, the daily server check emails the primary contact and opens access for seven days.',
           color: AppColors.accent,
         ),
         if (widget.showTestingMode)
@@ -300,7 +300,7 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
           Text(
             testingMode
                 ? 'Testing mode works only when the owner enabled account testing in Legacy Planning. The UID and verified primary contact phone must match.'
-                : 'Access is available only to the SMS-verified primary contact after 90 days without a user check-in.',
+                : 'After 90 days without a check-in, the server emails the primary contact and opens SMS-verified access for seven days.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.muted),
           ),
@@ -480,6 +480,16 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
             style: const TextStyle(color: AppColors.muted),
           ),
         ],
+        if (access.accessExpiresAt != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Access window closes: ${DateFormat('dd MMM yyyy, h:mm a').format(access.accessExpiresAt!.toLocal())}',
+            style: const TextStyle(
+              color: AppColors.danger,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
         const SizedBox(height: 20),
         const Text(
           'Funeral Preferences',
@@ -590,6 +600,11 @@ class _LegacyAvailabilityStatus extends StatelessWidget {
     final availableDate = status.availableAt == null
         ? null
         : DateFormat('dd MMM yyyy').format(status.availableAt!.toLocal());
+    final expiryDate = status.accessExpiresAt == null
+        ? null
+        : DateFormat(
+            'dd MMM yyyy, h:mm a',
+          ).format(status.accessExpiresAt!.toLocal());
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -627,6 +642,16 @@ class _LegacyAvailabilityStatus extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Expected availability: $availableDate',
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                if (expiryDate != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Access window closes: $expiryDate',
                     style: const TextStyle(
                       color: AppColors.muted,
                       fontSize: 12,

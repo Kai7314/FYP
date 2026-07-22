@@ -250,6 +250,7 @@ void main() {
       'name': 'Daughter',
       'relationship': 'Family',
       'phone': '0123456789',
+      'email': 'daughter@example.com',
       'address': 'Kuala Lumpur',
       'is_primary': true,
     });
@@ -268,6 +269,7 @@ void main() {
     });
 
     expect(contact.isPrimary, isTrue);
+    expect(contact.email, 'daughter@example.com');
     expect(checkin.status, 'active');
     expect(alert.status, 'triggered');
     expect(user.name, 'Kai Heng');
@@ -447,7 +449,14 @@ void main() {
     await tester.enterText(fields.at(0), 'Family Member');
     await tester.enterText(fields.at(1), 'Daughter');
     await tester.enterText(fields.at(2), '0123456789');
-    await tester.enterText(fields.at(3), 'Kuala Lumpur');
+    final emailField = find.byKey(const Key('contact-email-field'));
+    await tester.drag(find.byType(ListView), const Offset(0, -360));
+    await tester.pump();
+    await tester.enterText(emailField.first, 'family@example.com');
+    final addressField = find.byKey(const Key('contact-address-field'));
+    await tester.drag(find.byType(ListView), const Offset(0, -260));
+    await tester.pump();
+    await tester.enterText(addressField.first, 'Kuala Lumpur');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.byType(AddContactDialog), findsNothing);
@@ -462,7 +471,6 @@ void main() {
     await tester.enterText(fields.at(0), 'Daughter');
     await tester.enterText(fields.at(1), 'Daughter');
     await tester.enterText(fields.at(2), '123');
-    await tester.enterText(fields.at(3), 'Kuala Lumpur');
     await tester.tap(find.text('Save'));
     await tester.pump();
 
@@ -792,6 +800,18 @@ void main() {
     expect(status.message, contains('does not match'));
   });
 
+  test('legacy checking parses the seven-day server access window', () {
+    final status = LegacyAccessRequestStatus.fromJson({
+      'codeSent': true,
+      'status': 'code_sent',
+      'message': 'Code sent.',
+      'accessExpiresAt': '2026-10-08T04:00:00Z',
+    });
+
+    expect(status.codeSent, isTrue);
+    expect(status.accessExpiresAt, DateTime.utc(2026, 10, 8, 4));
+  });
+
   testWidgets('legacy checking debug switch shows owner-scoped testing', (
     tester,
   ) async {
@@ -816,7 +836,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Send Verification Code'), findsOneWidget);
-    expect(find.textContaining('after 90 days'), findsOneWidget);
+    expect(find.textContaining('After 90 days'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -831,7 +851,7 @@ void main() {
 
     expect(find.text('Testing mode'), findsNothing);
     expect(find.text('Send Verification Code'), findsOneWidget);
-    expect(find.textContaining('after 90 days'), findsOneWidget);
+    expect(find.textContaining('After 90 days'), findsOneWidget);
   });
 
   test('AI guidance has an offline safety fallback', () {

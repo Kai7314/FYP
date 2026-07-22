@@ -1,0 +1,1 @@
+"""EthernaCare Legacy inactivity server."""

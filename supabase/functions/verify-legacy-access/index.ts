@@ -250,6 +250,7 @@ Deno.serve(async (request) => {
       authorized: true,
       ownerName: eligibility.ownerName,
       lastActivityAt: eligibility.lastActivityAt,
+      accessExpiresAt: eligibility.accessExpiresAt,
       preferences: preferences ?? {},
       notes: notes ?? [],
       documents: releasedDocuments,

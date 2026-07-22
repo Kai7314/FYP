@@ -33,6 +33,11 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Python server local environment and secrets
+**/.venv/
+**/.env
+__pycache__/
+
 # Supabase CLI local connection metadata
 /supabase/.temp/*
 !/supabase/.temp/linked-project.json

@@ -18,6 +18,7 @@ class MalaysiaAddressFields extends StatelessWidget {
     this.regionLabel = 'Region / district',
     this.regionHelperText,
     this.externalLabels = false,
+    this.addressFieldKey,
   });
 
   final TextEditingController addressController;
@@ -32,6 +33,7 @@ class MalaysiaAddressFields extends StatelessWidget {
   final String regionLabel;
   final String? regionHelperText;
   final bool externalLabels;
+  final Key? addressFieldKey;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +47,7 @@ class MalaysiaAddressFields extends StatelessWidget {
         _AddressFieldShell(
           label: externalLabels ? addressLabel : null,
           child: TextFormField(
+            key: addressFieldKey,
             controller: addressController,
             maxLength: AppValidators.maxAddressLength,
             maxLines: 2,

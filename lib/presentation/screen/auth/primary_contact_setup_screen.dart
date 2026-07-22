@@ -27,6 +27,7 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
   final nameController = TextEditingController();
   final relationshipController = TextEditingController();
   final phoneController = TextEditingController();
+  final emailController = TextEditingController();
   final addressController = TextEditingController();
   String phoneDialCode = AppValidators.defaultPhoneCountry.dialCode;
   String? selectedState = 'Kuala Lumpur';
@@ -46,6 +47,7 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
     nameController.dispose();
     relationshipController.dispose();
     phoneController.dispose();
+    emailController.dispose();
     addressController.dispose();
     super.dispose();
   }
@@ -65,6 +67,7 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
           relationshipController.text,
         ),
         phone: phone,
+        email: emailController.text.trim().toLowerCase(),
         address: AppValidators.normalizeSpaces(addressController.text),
         addressState: selectedState,
         addressRegion: selectedRegion,
@@ -198,6 +201,7 @@ class _PrimaryContactSetupScreenState extends State<PrimaryContactSetupScreen> {
                   nameController: nameController,
                   relationshipController: relationshipController,
                   phoneController: phoneController,
+                  emailController: emailController,
                   phoneDialCode: phoneDialCode,
                   onPhoneDialCodeChanged: (value) =>
                       setState(() => phoneDialCode = value),
@@ -282,6 +286,7 @@ class _NewPrimaryContactForm extends StatelessWidget {
     required this.nameController,
     required this.relationshipController,
     required this.phoneController,
+    required this.emailController,
     required this.phoneDialCode,
     required this.onPhoneDialCodeChanged,
     required this.saving,
@@ -297,6 +302,7 @@ class _NewPrimaryContactForm extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController relationshipController;
   final TextEditingController phoneController;
+  final TextEditingController emailController;
   final String phoneDialCode;
   final ValueChanged<String> onPhoneDialCodeChanged;
   final bool saving;
@@ -349,6 +355,18 @@ class _NewPrimaryContactForm extends StatelessWidget {
                 onVerified: onPhoneVerified,
               );
             },
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autocorrect: false,
+            validator: (value) => AppValidators.email(value ?? ''),
+            decoration: const InputDecoration(
+              labelText: 'Contact email',
+              prefixIcon: Icon(Icons.email_outlined),
+            ),
           ),
           const SizedBox(height: 10),
           MalaysiaAddressFields(

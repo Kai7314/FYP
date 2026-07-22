@@ -1,8 +1,13 @@
 project_id = "fyp"
 
 [functions.request-legacy-access]
-verify_jwt = false
+verify_jwt = true
 
 [functions.verify-legacy-access]
-verify_jwt = false
+verify_jwt = true
 
+[functions.process-legacy-inactivity]
+verify_jwt = true
+
+[functions.legacy-server-test]
+verify_jwt = true
