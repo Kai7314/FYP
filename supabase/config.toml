@@ -9,5 +9,8 @@ verify_jwt = true
 [functions.process-legacy-inactivity]
 verify_jwt = true
 
+[functions.cancel-legacy-release]
+verify_jwt = false
+
 [functions.legacy-server-test]
 verify_jwt = true

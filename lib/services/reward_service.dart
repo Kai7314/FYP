@@ -1,5 +1,4 @@
 import '../dataAccessLayer/repositories/auth_repository.dart';
-import '../dataAccessLayer/repositories/checkin_repository.dart';
 import '../dataAccessLayer/repositories/reward_repository.dart';
 import '../models/reward_model.dart';
 import 'local_cache_service.dart';
@@ -8,16 +7,13 @@ class RewardService {
   RewardService({
     LocalCacheService? cache,
     AuthRepository? authRepository,
-    CheckinRepository? checkinRepository,
     RewardRepository? rewardRepository,
   }) : cache = cache ?? LocalCacheService(),
        authRepository = authRepository ?? AuthRepository(),
-       checkinRepository = checkinRepository ?? CheckinRepository(),
        rewardRepository = rewardRepository ?? RewardRepository();
 
   final LocalCacheService cache;
   final AuthRepository authRepository;
-  final CheckinRepository checkinRepository;
   final RewardRepository rewardRepository;
 
   static const fallbackCatalog = <RewardCatalogItem>[
@@ -163,25 +159,8 @@ class RewardService {
     final user = authRepository.currentUser;
     if (user == null) return;
 
-    final streak = calculateStreak(
-      await checkinRepository.getCheckinTimes(user.id),
-    );
-
-    var snapshot = await synchronize();
-    for (final item in snapshot.catalog) {
-      if (streak < item.milestoneDays ||
-          snapshot.earnedCodes.contains(item.code)) {
-        continue;
-      }
-
-      await rewardRepository.addEarnedReward(
-        userId: user.id,
-        code: item.code,
-        title: item.title,
-        milestoneDays: item.milestoneDays,
-      );
-    }
-    snapshot = await synchronize(forceCatalogRefresh: true);
+    await rewardRepository.synchronizeEarnedRewards();
+    final snapshot = await synchronize(forceCatalogRefresh: true);
     await cache.writeMap(_cacheKey(user.id), snapshot.toJson());
   }
 

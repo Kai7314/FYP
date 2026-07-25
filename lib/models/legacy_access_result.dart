@@ -9,6 +9,11 @@ class LegacyAccessResult {
     required this.documents,
     required this.lastActivityAt,
     this.accessExpiresAt,
+    this.protectedContentAvailable = false,
+    this.protectedStatus = 'unavailable',
+    this.protectedMessage = '',
+    this.protectedAvailableAt,
+    this.daysRemaining,
   });
 
   final String ownerName;
@@ -17,6 +22,11 @@ class LegacyAccessResult {
   final List<LegacyAccessDocument> documents;
   final DateTime? lastActivityAt;
   final DateTime? accessExpiresAt;
+  final bool protectedContentAvailable;
+  final String protectedStatus;
+  final String protectedMessage;
+  final DateTime? protectedAvailableAt;
+  final int? daysRemaining;
 
   factory LegacyAccessResult.fromJson(Map<String, dynamic> json) {
     final preferencesData = json['preferences'];
@@ -56,8 +66,30 @@ class LegacyAccessResult {
         (json['accessExpiresAt'] ?? json['access_expires_at'])?.toString() ??
             '',
       ),
+      protectedContentAvailable:
+          json['protectedContentAvailable'] == true ||
+          json['protected_content_available'] == true,
+      protectedStatus:
+          (json['protectedStatus'] ?? json['protected_status'])?.toString() ??
+          'unavailable',
+      protectedMessage:
+          (json['protectedMessage'] ?? json['protected_message'])?.toString() ??
+          '',
+      protectedAvailableAt: DateTime.tryParse(
+        (json['protectedAvailableAt'] ?? json['protected_available_at'])
+                ?.toString() ??
+            '',
+      ),
+      daysRemaining: _optionalInt(
+        json['daysRemaining'] ?? json['days_remaining'],
+      ),
     );
   }
+}
+
+int? _optionalInt(dynamic value) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '');
 }
 
 class LegacyAccessDocument {
@@ -77,8 +109,7 @@ class LegacyAccessDocument {
     return LegacyAccessDocument(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? 'Document',
-      signedUrl:
-          (json['signedUrl'] ?? json['signed_url'])?.toString() ?? '',
+      signedUrl: (json['signedUrl'] ?? json['signed_url'])?.toString() ?? '',
       uploadedAt: DateTime.tryParse(
         (json['uploadedAt'] ?? json['uploaded_at'])?.toString() ?? '',
       ),
@@ -94,6 +125,8 @@ class LegacyAccessRequestStatus {
     required this.daysRemaining,
     required this.availableAt,
     required this.accessExpiresAt,
+    this.protectedContentAvailable = false,
+    this.protectedStatus = 'unavailable',
   });
 
   final bool codeSent;
@@ -102,6 +135,8 @@ class LegacyAccessRequestStatus {
   final int? daysRemaining;
   final DateTime? availableAt;
   final DateTime? accessExpiresAt;
+  final bool protectedContentAvailable;
+  final String protectedStatus;
 
   factory LegacyAccessRequestStatus.fromJson(Map<String, dynamic> json) {
     final rawDays = json['daysRemaining'] ?? json['days_remaining'];
@@ -121,6 +156,12 @@ class LegacyAccessRequestStatus {
         (json['accessExpiresAt'] ?? json['access_expires_at'])?.toString() ??
             '',
       ),
+      protectedContentAvailable:
+          json['protectedContentAvailable'] == true ||
+          json['protected_content_available'] == true,
+      protectedStatus:
+          (json['protectedStatus'] ?? json['protected_status'])?.toString() ??
+          'unavailable',
     );
   }
 }

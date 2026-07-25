@@ -222,9 +222,9 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
         ),
         const GuidanceItem(
           icon: Icons.schedule_outlined,
-          title: 'When access becomes available',
+          title: 'What is available',
           description:
-              'The owner must enable Legacy Checking. After 90 days without a check-in, the daily server check emails the primary contact and opens access for seven days.',
+              'When the owner enables Legacy Checking, the SMS-verified primary contact can view funeral preferences at any time. Legacy Notes and secure documents remain locked until the protected seven-day window opens after 90 days without a check-in.',
           color: AppColors.accent,
         ),
         if (widget.showTestingMode)
@@ -237,9 +237,9 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
           ),
         const GuidanceItem(
           icon: Icons.visibility_outlined,
-          title: 'What can be viewed',
+          title: 'Protected content',
           description:
-              'Funeral preferences, Legacy Notes, and uploaded secure documents are shown. Document links expire after 10 minutes. Credentials are never shared. Results close after 10 minutes or when the app leaves the foreground.',
+              'Legacy Notes and uploaded documents appear only during an active server-authorized release window. Document links expire after 10 minutes. Credentials are never shared. Results close after 10 minutes or when the app leaves the foreground.',
           color: AppColors.blue,
         ),
       ],
@@ -300,7 +300,7 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
           Text(
             testingMode
                 ? 'Testing mode works only when the owner enabled account testing in Legacy Planning. The UID and verified primary contact phone must match.'
-                : 'After 90 days without a check-in, the server emails the primary contact and opens SMS-verified access for seven days.',
+                : 'The verified primary contact can view funeral preferences at any time. Legacy Notes and documents require the protected 90-day release.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.muted),
           ),
@@ -449,17 +449,19 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const GlassPanel(
+        GlassPanel(
           color: AppColors.primarySoft,
           borderColor: AppColors.primary,
           child: Row(
             children: [
-              Icon(Icons.verified_outlined, color: AppColors.primaryDark),
-              SizedBox(width: 12),
+              const Icon(Icons.verified_outlined, color: AppColors.primaryDark),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Primary contact verified. Legacy access is active for this session.',
-                  style: TextStyle(
+                  access.protectedContentAvailable
+                      ? 'Primary contact verified. Funeral preferences, Legacy Notes, and secure documents are available for this session.'
+                      : 'Primary contact verified. Funeral preferences are available for this session.',
+                  style: const TextStyle(
                     color: AppColors.primaryDark,
                     fontWeight: FontWeight.w700,
                   ),
@@ -480,7 +482,8 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
             style: const TextStyle(color: AppColors.muted),
           ),
         ],
-        if (access.accessExpiresAt != null) ...[
+        if (access.protectedContentAvailable &&
+            access.accessExpiresAt != null) ...[
           const SizedBox(height: 4),
           Text(
             'Access window closes: ${DateFormat('dd MMM yyyy, h:mm a').format(access.accessExpiresAt!.toLocal())}',
@@ -510,76 +513,151 @@ class _LegacyCheckScreenState extends State<LegacyCheckScreen>
             ],
           ),
         ),
-        const SizedBox(height: 20),
-        const Text(
-          'Legacy Notes',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 8),
-        if (access.notes.isEmpty)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('No Legacy Notes were provided.'),
-            ),
-          )
-        else
-          ...access.notes.map(
-            (note) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.sticky_note_2_outlined),
-                title: Text(
-                  note.title,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 7),
-                  child: Text(note.content),
+        if (!access.protectedContentAvailable) ...[
+          const SizedBox(height: 20),
+          _ProtectedLegacyContentStatus(access: access),
+        ] else ...[
+          const SizedBox(height: 20),
+          const Text(
+            'Legacy Notes',
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          if (access.notes.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No Legacy Notes were provided.'),
+              ),
+            )
+          else
+            ...access.notes.map(
+              (note) => Card(
+                child: ListTile(
+                  leading: const Icon(Icons.sticky_note_2_outlined),
+                  title: Text(
+                    note.title,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 7),
+                    child: Text(note.content),
+                  ),
                 ),
               ),
             ),
+          const SizedBox(height: 20),
+          const Text(
+            'Secure Documents',
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
           ),
-        const SizedBox(height: 20),
-        const Text(
-          'Secure Documents',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Links are private and expire after 10 minutes.',
-          style: TextStyle(color: AppColors.muted, fontSize: 12),
-        ),
-        const SizedBox(height: 8),
-        if (access.documents.isEmpty)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('No secure documents were provided.'),
-            ),
-          )
-        else
-          ...access.documents.map(
-            (document) => Card(
-              child: ListTile(
-                onTap: () => _openDocument(document),
-                leading: const Icon(Icons.description_outlined),
-                title: Text(
-                  document.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+          const SizedBox(height: 4),
+          const Text(
+            'Links are private and expire after 10 minutes.',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          if (access.documents.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No secure documents were provided.'),
+              ),
+            )
+          else
+            ...access.documents.map(
+              (document) => Card(
+                child: ListTile(
+                  onTap: () => _openDocument(document),
+                  leading: const Icon(Icons.description_outlined),
+                  title: Text(
+                    document.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    document.uploadedAt == null
+                        ? 'Tap to open securely'
+                        : '${DateFormat('dd MMM yyyy').format(document.uploadedAt!.toLocal())}\nTap to open securely',
+                  ),
+                  isThreeLine: document.uploadedAt != null,
+                  trailing: const Icon(Icons.open_in_new),
                 ),
-                subtitle: Text(
-                  document.uploadedAt == null
-                      ? 'Tap to open securely'
-                      : '${DateFormat('dd MMM yyyy').format(document.uploadedAt!.toLocal())}\nTap to open securely',
-                ),
-                isThreeLine: document.uploadedAt != null,
-                trailing: const Icon(Icons.open_in_new),
               ),
             ),
-          ),
+        ],
       ],
+    );
+  }
+}
+
+class _ProtectedLegacyContentStatus extends StatelessWidget {
+  const _ProtectedLegacyContentStatus({required this.access});
+
+  final LegacyAccessResult access;
+
+  @override
+  Widget build(BuildContext context) {
+    final availableAt = access.protectedAvailableAt;
+    final showExpectedDate =
+        availableAt != null &&
+        {
+          'waiting_period',
+          'owner_grace_period',
+          'notice_pending',
+        }.contains(access.protectedStatus);
+    final dateLabel = access.protectedStatus == 'owner_grace_period'
+        ? 'Owner protection ends'
+        : 'Protected access expected';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.08),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.45)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.lock_clock_outlined, color: AppColors.accent),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Legacy Notes and Documents Locked',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            access.protectedMessage.trim().isEmpty
+                ? 'This content requires an active protected release window.'
+                : access.protectedMessage,
+          ),
+          if (access.daysRemaining != null && access.daysRemaining! > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              '${access.daysRemaining} day${access.daysRemaining == 1 ? '' : 's'} remaining',
+              style: const TextStyle(
+                color: AppColors.accent,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+          if (showExpectedDate) ...[
+            const SizedBox(height: 6),
+            Text(
+              '$dateLabel: ${DateFormat('dd MMM yyyy, h:mm a').format(availableAt.toLocal())}',
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -591,15 +669,22 @@ class _LegacyAvailabilityStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final waiting = status.status == 'waiting_period';
+    final waiting =
+        status.status == 'waiting_period' ||
+        status.protectedStatus == 'waiting_period';
+    final ownerProtection =
+        status.status == 'owner_grace_period' ||
+        status.protectedStatus == 'owner_grace_period';
     final color = status.codeSent
         ? AppColors.primary
-        : waiting
+        : waiting || ownerProtection
         ? AppColors.accent
         : AppColors.danger;
     final availableDate = status.availableAt == null
         ? null
-        : DateFormat('dd MMM yyyy').format(status.availableAt!.toLocal());
+        : DateFormat(
+            ownerProtection ? 'dd MMM yyyy, h:mm a' : 'dd MMM yyyy',
+          ).format(status.availableAt!.toLocal());
     final expiryDate = status.accessExpiresAt == null
         ? null
         : DateFormat(
@@ -619,6 +704,8 @@ class _LegacyAvailabilityStatus extends StatelessWidget {
           Icon(
             status.codeSent
                 ? Icons.mark_email_read_outlined
+                : ownerProtection
+                ? Icons.shield_outlined
                 : waiting
                 ? Icons.schedule_outlined
                 : Icons.info_outline,
@@ -632,16 +719,15 @@ class _LegacyAvailabilityStatus extends StatelessWidget {
                 if (waiting && status.daysRemaining != null)
                   Text(
                     '${status.daysRemaining} day${status.daysRemaining == 1 ? '' : 's'} remaining',
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: TextStyle(color: color, fontWeight: FontWeight.w900),
                   ),
                 Text(status.message),
                 if (availableDate != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    'Expected availability: $availableDate',
+                    ownerProtection
+                        ? 'Owner protection ends: $availableDate'
+                        : 'Expected availability: $availableDate',
                     style: const TextStyle(
                       color: AppColors.muted,
                       fontSize: 12,

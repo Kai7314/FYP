@@ -15,6 +15,7 @@ import 'package:fyp/models/legacy_note_model.dart';
 import 'package:fyp/models/legacy_access_result.dart';
 import 'package:fyp/models/oren_care_model.dart';
 import 'package:fyp/models/reward_model.dart';
+import 'package:fyp/models/reward_request_model.dart';
 import 'package:fyp/models/user_model.dart';
 import 'package:fyp/businessLogicLayer/controllers/checkin_controller.dart';
 import 'package:fyp/businessLogicLayer/controllers/contact_controller.dart';
@@ -358,6 +359,7 @@ void main() {
       ),
     );
     expect(find.text('Status: Full energy'), findsOneWidget);
+    expect(find.textContaining('%'), findsNothing);
 
     await tester.pumpWidget(
       const MaterialApp(
@@ -410,6 +412,8 @@ void main() {
     await tester.pump();
 
     expect(find.text('Status: Playful'), findsOneWidget);
+    expect(find.text('JB'), findsOneWidget);
+    expect(tester.getCenter(find.text('JB')).dx, greaterThan(250));
     expect(find.text('Shop'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -567,6 +571,37 @@ void main() {
     expect(restored.earnedCodes, contains('tealive_bogo'));
     expect(restored.nextReward(3)?.code, 'milo_400g');
   });
+
+  test(
+    'reward fulfillment request keeps delivery and admin status details',
+    () {
+      final request = RewardRequest.fromJson({
+        'id': 'request-1',
+        'user_id': 'user-1',
+        'user_name': 'Kai Heng',
+        'user_email': 'kai@example.com',
+        'reward_code': 'milo_400g',
+        'reward_title': 'Milo Chocolate Drink',
+        'reward_sponsor': 'Nestle',
+        'reward_kind': 'physical',
+        'recipient_name': 'Kai Heng',
+        'contact_phone': '+60123456789',
+        'delivery_address': '12 Jalan Example',
+        'delivery_state': 'Johor',
+        'delivery_region': 'Johor Bahru',
+        'status': 'shipped',
+        'requested_at': '2026-07-25T04:00:00Z',
+        'status_updated_at': '2026-07-25T05:00:00Z',
+        'tracking_reference': 'TRACK-123',
+      });
+
+      expect(request.statusLabel, 'Shipped');
+      expect(request.isInFulfillment, isTrue);
+      expect(request.isPhysical, isTrue);
+      expect(request.deliveryAddressLabel, contains('Johor Bahru'));
+      expect(request.trackingReference, 'TRACK-123');
+    },
+  );
 
   test('weather selects rain and night backgrounds', () {
     final rainy = WeatherSnapshot(
@@ -775,6 +810,8 @@ void main() {
     final result = LegacyAccessResult.fromJson({
       'ownerName': 'Test User',
       'lastActivityAt': '2026-01-01T00:00:00Z',
+      'protectedContentAvailable': true,
+      'protectedStatus': 'available',
       'preferences': {
         'religion': 'Buddhism',
         'service_type': 'Cremation',
@@ -803,6 +840,7 @@ void main() {
     });
 
     expect(result.ownerName, 'Test User');
+    expect(result.protectedContentAvailable, isTrue);
     expect(result.preferences.serviceType, 'Cremation');
     expect(result.notes.single.title, 'Family message');
     expect(result.documents.single.name, 'private-will.pdf');
@@ -810,21 +848,47 @@ void main() {
     expect(const LegacyCheckScreen(), isA<LegacyCheckScreen>());
   });
 
-  test('legacy checking reports remaining days when no SMS is sent', () {
+  test('legacy checking supports preference-only verified access', () {
+    final result = LegacyAccessResult.fromJson({
+      'ownerName': 'Test User',
+      'protectedContentAvailable': false,
+      'protectedStatus': 'waiting_period',
+      'protectedMessage':
+          'Legacy Notes and secure documents remain locked until day 90.',
+      'protectedAvailableAt': '2026-09-02T00:00:00Z',
+      'daysRemaining': 47,
+      'preferences': {'religion': 'Buddhism', 'service_type': 'Cremation'},
+      'notes': [],
+      'documents': [],
+    });
+
+    expect(result.preferences.religion, 'Buddhism');
+    expect(result.protectedContentAvailable, isFalse);
+    expect(result.protectedStatus, 'waiting_period');
+    expect(result.daysRemaining, 47);
+    expect(result.notes, isEmpty);
+    expect(result.documents, isEmpty);
+  });
+
+  test('legacy checking sends SMS while protected content is waiting', () {
     final status = LegacyAccessRequestStatus.fromJson({
-      'codeSent': false,
-      'status': 'waiting_period',
+      'codeSent': true,
+      'status': 'code_sent',
+      'protectedContentAvailable': false,
+      'protectedStatus': 'waiting_period',
       'daysRemaining': 47,
       'availableAt': '2026-09-02T00:00:00Z',
       'message':
-          'No SMS was sent. 47 days remaining before Legacy Checking becomes available.',
+          'A code was sent. Funeral preferences are available after verification.',
     });
 
-    expect(status.codeSent, isFalse);
-    expect(status.status, 'waiting_period');
+    expect(status.codeSent, isTrue);
+    expect(status.status, 'code_sent');
+    expect(status.protectedContentAvailable, isFalse);
+    expect(status.protectedStatus, 'waiting_period');
     expect(status.daysRemaining, 47);
     expect(status.availableAt, DateTime.utc(2026, 9, 2));
-    expect(status.message, startsWith('No SMS was sent'));
+    expect(status.message, contains('Funeral preferences'));
   });
 
   test('legacy checking reports a non-primary contact phone', () {
@@ -838,6 +902,24 @@ void main() {
     expect(status.codeSent, isFalse);
     expect(status.status, 'contact_mismatch');
     expect(status.message, contains('does not match'));
+  });
+
+  test('legacy checking sends SMS during the owner protection period', () {
+    final status = LegacyAccessRequestStatus.fromJson({
+      'codeSent': true,
+      'status': 'code_sent',
+      'protectedContentAvailable': false,
+      'protectedStatus': 'owner_grace_period',
+      'availableAt': '2026-10-01T04:00:00Z',
+      'message':
+          'Funeral preferences are available. Protected content remains locked during the 24-hour protection period.',
+    });
+
+    expect(status.codeSent, isTrue);
+    expect(status.status, 'code_sent');
+    expect(status.protectedStatus, 'owner_grace_period');
+    expect(status.availableAt, DateTime.utc(2026, 10, 1, 4));
+    expect(status.message, contains('24-hour protection period'));
   });
 
   test('legacy checking parses the seven-day server access window', () {
@@ -863,20 +945,21 @@ void main() {
     });
 
     await tester.pumpWidget(
-      const MaterialApp(
-        home: LegacyCheckScreen(showTestingMode: true),
-      ),
+      const MaterialApp(home: LegacyCheckScreen(showTestingMode: true)),
     );
 
     expect(find.text('Testing mode'), findsOneWidget);
     expect(find.text('Verify UID and Phone'), findsOneWidget);
-    expect(find.textContaining('owner enabled account testing'), findsOneWidget);
+    expect(
+      find.textContaining('owner enabled account testing'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byType(SwitchListTile));
     await tester.pump();
 
     expect(find.text('Send Verification Code'), findsOneWidget);
-    expect(find.textContaining('After 90 days'), findsOneWidget);
+    expect(find.textContaining('protected 90-day release'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -884,14 +967,12 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: LegacyCheckScreen(showTestingMode: false),
-      ),
+      const MaterialApp(home: LegacyCheckScreen(showTestingMode: false)),
     );
 
     expect(find.text('Testing mode'), findsNothing);
     expect(find.text('Send Verification Code'), findsOneWidget);
-    expect(find.textContaining('After 90 days'), findsOneWidget);
+    expect(find.textContaining('protected 90-day release'), findsOneWidget);
   });
 
   test('AI guidance has an offline safety fallback', () {

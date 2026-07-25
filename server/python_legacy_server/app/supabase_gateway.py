@@ -32,6 +32,33 @@ class SupabaseGateway:
         )
         return result if isinstance(result, list) else []
 
+    async def claim_owner_notices(
+        self, run_at: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        result = await self._rpc(
+            "claim_legacy_owner_notice_candidates",
+            {"p_limit": limit, "p_now": run_at},
+        )
+        return result if isinstance(result, list) else []
+
+    async def complete_owner_notice(
+        self,
+        window_id: str,
+        success: bool,
+        error: str | None,
+        run_at: str,
+    ) -> bool:
+        result = await self._rpc(
+            "complete_legacy_owner_notice",
+            {
+                "p_window_id": window_id,
+                "p_success": success,
+                "p_error": error,
+                "p_now": run_at,
+            },
+        )
+        return result is True
+
     async def complete_notice(
         self,
         window_id: str,

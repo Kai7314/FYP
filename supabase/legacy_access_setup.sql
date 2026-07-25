@@ -32,7 +32,9 @@ create table if not exists public.legacy_access_audit (
   id bigint generated always as identity primary key,
   owner_user_id uuid not null references auth.users(id) on delete cascade,
   contact_id uuid references public.contacts(id) on delete set null,
-  event text not null check (event in ('legacy_data_released')),
+  event text not null check (
+    event in ('funeral_preferences_released', 'legacy_data_released')
+  ),
   created_at timestamptz not null default now()
 );
 

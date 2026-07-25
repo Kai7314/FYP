@@ -1411,7 +1411,7 @@ class _OrenStatusBar extends StatelessWidget {
 
     return Semantics(
       container: true,
-      label: 'Oren status: $status. Energy $energy percent.',
+      label: 'Oren status: $status.',
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -1438,25 +1438,6 @@ class _OrenStatusBar extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: AppColors.ink,
                   ),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.battery_charging_full_rounded,
-                      size: 14,
-                      color: statusColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Energy $energy%',
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),

@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../models/reward_model.dart';
+import '../../../models/reward_request_model.dart';
 import '../../../services/dashboard_service.dart';
+import '../../../services/reward_request_service.dart';
 import '../../../services/reward_service.dart';
 import '../../widgets/premium_shell.dart';
+import 'admin_reward_requests_screen.dart';
+import 'reward_request_screen.dart';
 
 class RewardsScreen extends StatefulWidget {
   const RewardsScreen({super.key});
@@ -16,9 +20,12 @@ class RewardsScreen extends StatefulWidget {
 class _RewardsScreenState extends State<RewardsScreen> {
   final rewardService = RewardService();
   final dashboardService = DashboardService();
+  final requestService = RewardRequestService();
 
   RewardSnapshot? rewards;
   DashboardSnapshot? dashboard;
+  List<RewardRequest> requests = const [];
+  bool isAdmin = false;
   bool refreshing = true;
   String? error;
 
@@ -29,6 +36,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
   }
 
   Future<void> _load() async {
+    if (mounted) setState(() => refreshing = true);
     final cached = await Future.wait([
       rewardService.loadCached(),
       dashboardService.loadCached(),
@@ -54,9 +62,49 @@ class _RewardsScreenState extends State<RewardsScreen> {
       if (mounted) {
         setState(() => error = 'Showing locally saved rewards.');
       }
+    }
+
+    try {
+      final results = await Future.wait([
+        requestService.getOwnRequests(),
+        requestService.isCurrentUserAdmin(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        requests = results[0] as List<RewardRequest>;
+        isAdmin = results[1] as bool;
+      });
+    } catch (_) {
+      // The reward catalog remains usable while the fulfillment schema deploys.
     } finally {
       if (mounted) setState(() => refreshing = false);
     }
+  }
+
+  Future<void> _requestReward(RewardCatalogItem item) async {
+    final request = await Navigator.of(context).push<RewardRequest>(
+      MaterialPageRoute(builder: (_) => RewardRequestScreen(item: item)),
+    );
+    if (request == null || !mounted) return;
+    setState(() {
+      requests = [
+        request,
+        ...requests.where((existing) => existing.id != request.id),
+      ];
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Reward request submitted for admin review.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _openAdminRequests() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const AdminRewardRequestsScreen()),
+    );
+    if (mounted) await _load();
   }
 
   @override
@@ -71,6 +119,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
         );
     final streak = dashboard?.streak ?? 0;
     final totalCheckins = dashboard?.totalCheckins ?? 0;
+    final requestByCode = {
+      for (final request in requests) request.rewardCode: request,
+    };
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -83,10 +134,15 @@ class _RewardsScreenState extends State<RewardsScreen> {
             orenAsset:
                 'lib/assets/images/pixel/oren_pixel_token_transparent.png',
             orenSemanticLabel: 'Oren holding a reward token',
-            action: refreshing
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
+            action: isAdmin
+                ? IconButton.filledTonal(
+                    onPressed: _openAdminRequests,
+                    icon: const Icon(Icons.admin_panel_settings_outlined),
+                    tooltip: 'Open reward requests',
+                  )
+                : refreshing
+                ? const SizedBox.square(
+                    dimension: 22,
                     child: CircularProgressIndicator(strokeWidth: 2.5),
                   )
                 : const PremiumStatusPill(
@@ -150,6 +206,8 @@ class _RewardsScreenState extends State<RewardsScreen> {
               item: item,
               streak: streak,
               earned: snapshot.earnedCodes.contains(item.code),
+              request: requestByCode[item.code],
+              onRequest: () => _requestReward(item),
             ),
           ),
         ],
@@ -178,29 +236,29 @@ class _MetricCard extends StatelessWidget {
       color: color,
       borderColor: Colors.white.withValues(alpha: .24),
       child: Container(
-      height: 102,
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: Colors.white, size: 22),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
+        height: 102,
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 22),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontSize: 10),
-          ),
-        ],
-      ),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 10),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -211,11 +269,15 @@ class _RewardCard extends StatelessWidget {
     required this.item,
     required this.streak,
     required this.earned,
+    required this.request,
+    required this.onRequest,
   });
 
   final RewardCatalogItem item;
   final int streak;
   final bool earned;
+  final RewardRequest? request;
+  final VoidCallback onRequest;
 
   @override
   Widget build(BuildContext context) {
@@ -303,6 +365,27 @@ class _RewardCard extends StatelessWidget {
                       color: voucher ? AppColors.accent : AppColors.primary,
                       backgroundColor: AppColors.surface,
                     ),
+                    if (request != null) ...[
+                      const SizedBox(height: 9),
+                      _UserRequestStatus(request: request!),
+                    ] else if (earned) ...[
+                      const SizedBox(height: 9),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: onRequest,
+                          icon: Icon(
+                            voucher
+                                ? Icons.confirmation_number_outlined
+                                : Icons.local_shipping_outlined,
+                            size: 18,
+                          ),
+                          label: Text(
+                            voucher ? 'Request Voucher' : 'Request Delivery',
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -313,3 +396,51 @@ class _RewardCard extends StatelessWidget {
     );
   }
 }
+
+class _UserRequestStatus extends StatelessWidget {
+  const _UserRequestStatus({required this.request});
+
+  final RewardRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _requestStatusColor(request.status);
+    return Row(
+      children: [
+        Icon(_requestStatusIcon(request.status), size: 17, color: color),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Request: ${request.statusLabel}',
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        if (request.trackingReference != null)
+          Tooltip(
+            message: 'Tracking: ${request.trackingReference}',
+            child: Icon(Icons.local_shipping_outlined, size: 18, color: color),
+          ),
+      ],
+    );
+  }
+}
+
+Color _requestStatusColor(String status) => switch (status) {
+  'preparing' => AppColors.purple,
+  'shipped' => AppColors.blue,
+  'delivered' => AppColors.primary,
+  'rejected' => AppColors.danger,
+  _ => AppColors.accent,
+};
+
+IconData _requestStatusIcon(String status) => switch (status) {
+  'preparing' => Icons.inventory_2_outlined,
+  'shipped' => Icons.local_shipping_outlined,
+  'delivered' => Icons.check_circle_outline,
+  'rejected' => Icons.cancel_outlined,
+  _ => Icons.schedule_outlined,
+};

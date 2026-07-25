@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 
 INACTIVITY_THRESHOLD_DAYS = 90
+OWNER_GRACE_PERIOD_HOURS = 24
 ACCESS_WINDOW_DAYS = 7
 
 
@@ -15,6 +16,14 @@ def no_heartbeat_days(last_heartbeat: datetime, now: datetime) -> int:
 
 def threshold_reached(last_heartbeat: datetime, now: datetime) -> bool:
     return no_heartbeat_days(last_heartbeat, now) >= INACTIVITY_THRESHOLD_DAYS
+
+
+def owner_cancel_deadline(notice_sent_at: datetime) -> datetime:
+    return _as_utc(notice_sent_at) + timedelta(hours=OWNER_GRACE_PERIOD_HOURS)
+
+
+def owner_grace_elapsed(notice_sent_at: datetime, now: datetime) -> bool:
+    return _as_utc(now) >= owner_cancel_deadline(notice_sent_at)
 
 
 def access_expires_at(notice_sent_at: datetime) -> datetime:

@@ -7,6 +7,7 @@ import {
   getLegacyEligibility,
   hashLegacyCode,
   isUuid,
+  type LegacyEligibility,
   normalizePhone,
   sendTwilioSms,
 } from "../_shared/legacy_access.ts";
@@ -69,7 +70,10 @@ Deno.serve(async (request) => {
       { status: 500, headers: corsHeaders },
     );
   }
-  if (!eligibility.eligible || !eligibility.contactId) {
+  if (
+    eligibility.preferencesEligible !== true ||
+    !eligibility.contactId
+  ) {
     if (eligibility.reason === "contact_mismatch") {
       return Response.json(
         {
@@ -92,8 +96,9 @@ Deno.serve(async (request) => {
             status: "waiting_period",
             daysRemaining: days,
             availableAt: eligibility.availableAt,
-            message:
-              `No SMS was sent. ${days} day${days === 1 ? "" : "s"} remaining before Legacy Checking becomes available.`,
+            message: `No SMS was sent. ${days} day${
+              days === 1 ? "" : "s"
+            } remaining before Legacy Checking becomes available.`,
           },
           { headers: corsHeaders },
         );
@@ -131,6 +136,19 @@ Deno.serve(async (request) => {
             availableAt: eligibility.availableAt,
             message:
               "No SMS was sent. The 90-day threshold has been reached, but the daily server check has not opened the seven-day access window yet.",
+          },
+          { headers: corsHeaders },
+        );
+      }
+      if (eligibility.reason === "owner_grace_period") {
+        return Response.json(
+          {
+            accepted: false,
+            codeSent: false,
+            status: "owner_grace_period",
+            availableAt: eligibility.availableAt,
+            message:
+              "No SMS was sent. The account owner is in the 24-hour protection period and may still cancel or check in.",
           },
           { headers: corsHeaders },
         );
@@ -233,10 +251,40 @@ Deno.serve(async (request) => {
       accepted: true,
       codeSent: true,
       status: "code_sent",
+      protectedContentAvailable: eligibility.eligible,
+      protectedStatus: eligibility.eligible ? "available" : eligibility.reason,
+      daysRemaining: eligibility.daysRemaining,
+      availableAt: eligibility.availableAt,
       accessExpiresAt: eligibility.accessExpiresAt,
-      message:
-        "A 6-digit verification code was sent to the primary contact. It expires in 10 minutes, and Legacy Checking remains available only during its seven-day server window.",
+      message: codeSentMessage(eligibility),
     },
     { headers: corsHeaders },
   );
 });
+
+function codeSentMessage(eligibility: LegacyEligibility) {
+  const prefix =
+    "A 6-digit verification code was sent to the primary contact. Funeral preferences are available after verification.";
+  if (eligibility.eligible) {
+    return `${prefix} Legacy Notes and secure documents are also available during the active seven-day release window.`;
+  }
+
+  switch (eligibility.reason) {
+    case "waiting_period": {
+      const days = eligibility.daysRemaining ?? 1;
+      return `${prefix} Legacy Notes and secure documents remain locked for ${days} more day${
+        days === 1 ? "" : "s"
+      } unless a new check-in resets the inactivity period.`;
+    }
+    case "owner_grace_period":
+      return `${prefix} Legacy Notes and secure documents remain locked while the owner has 24 hours to cancel or check in.`;
+    case "notice_pending":
+      return `${prefix} Legacy Notes and secure documents remain locked until the daily server opens the protected release window.`;
+    case "release_cancelled":
+      return `${prefix} The owner cancelled the protected release, so Legacy Notes and secure documents remain locked.`;
+    case "access_expired":
+      return `${prefix} The seven-day protected release has expired, so Legacy Notes and secure documents remain locked.`;
+    default:
+      return `${prefix} Legacy Notes and secure documents remain protected until the server-authorized release window is active.`;
+  }
+}

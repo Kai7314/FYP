@@ -133,7 +133,7 @@ Deno.serve(async (request) => {
     );
   }
   if (
-    !eligibility.eligible || !eligibility.contactId ||
+    eligibility.preferencesEligible !== true || !eligibility.contactId ||
     (!testingMode && eligibility.contactId !== String(otp?.contact_id))
   ) {
     return Response.json(
@@ -142,48 +142,60 @@ Deno.serve(async (request) => {
     );
   }
 
-  const [{ data: preferences, error: preferencesError }, {
-    data: notes,
-    error: notesError,
-  }, {
-    data: documents,
-    error: documentsError,
-  }] = await Promise.all([
-    supabase
-      .from("funeral_preferences")
-      .select(
-        "religion, service_type, venue, notes, authorized_contact, updated_at",
-      )
-      .eq("user_id", ownerUid)
-      .maybeSingle(),
-    supabase
-      .from("legacy_notes")
-      .select("id, title, content, created_at, updated_at")
-      .eq("user_id", ownerUid)
-      .order("updated_at", { ascending: false }),
-    supabase
-      .from("documents")
-      .select("id, name, storage_path, uploaded_at")
-      .eq("user_id", ownerUid)
-      .order("uploaded_at", { ascending: false }),
-  ]);
-  if (preferencesError || notesError || documentsError) {
+  const protectedContentAvailable = eligibility.eligible;
+  const { data: preferences, error: preferencesError } = await supabase
+    .from("funeral_preferences")
+    .select(
+      "religion, service_type, venue, notes, authorized_contact, updated_at",
+    )
+    .eq("user_id", ownerUid)
+    .maybeSingle();
+  if (preferencesError) {
     return Response.json(
-      {
-        error: preferencesError?.message ?? notesError?.message ??
-          documentsError?.message,
-      },
+      { error: preferencesError.message },
       { status: 500, headers: corsHeaders },
     );
   }
 
+  let notes: Array<Record<string, unknown>> = [];
+  let documents: Array<Record<string, unknown>> = [];
+  if (protectedContentAvailable) {
+    const [{
+      data: protectedNotes,
+      error: notesError,
+    }, {
+      data: protectedDocuments,
+      error: documentsError,
+    }] = await Promise.all([
+      supabase
+        .from("legacy_notes")
+        .select("id, title, content, created_at, updated_at")
+        .eq("user_id", ownerUid)
+        .order("updated_at", { ascending: false }),
+      supabase
+        .from("documents")
+        .select("id, name, storage_path, uploaded_at")
+        .eq("user_id", ownerUid)
+        .order("uploaded_at", { ascending: false }),
+    ]);
+    if (notesError || documentsError) {
+      return Response.json(
+        { error: notesError?.message ?? documentsError?.message },
+        { status: 500, headers: corsHeaders },
+      );
+    }
+    notes = protectedNotes ?? [];
+    documents = protectedDocuments ?? [];
+  }
+
   const releasedDocuments: Array<Record<string, unknown>> = [];
-  if (documents && documents.length > 0) {
+  if (documents.length > 0) {
     const paths = documents.map((document) => String(document.storage_path));
-    const { data: signedDocuments, error: signedDocumentsError } = await supabase
-      .storage
-      .from("legacy-documents")
-      .createSignedUrls(paths, 600);
+    const { data: signedDocuments, error: signedDocumentsError } =
+      await supabase
+        .storage
+        .from("legacy-documents")
+        .createSignedUrls(paths, 600);
     if (signedDocumentsError) {
       return Response.json(
         { error: "Secure documents could not be released." },
@@ -236,7 +248,9 @@ Deno.serve(async (request) => {
     .insert({
       owner_user_id: ownerUid,
       contact_id: eligibility.contactId,
-      event: "legacy_data_released",
+      event: protectedContentAvailable
+        ? "legacy_data_released"
+        : "funeral_preferences_released",
     });
   if (auditError) {
     return Response.json(
@@ -251,6 +265,14 @@ Deno.serve(async (request) => {
       ownerName: eligibility.ownerName,
       lastActivityAt: eligibility.lastActivityAt,
       accessExpiresAt: eligibility.accessExpiresAt,
+      accessLevel: protectedContentAvailable ? "full" : "preferences_only",
+      protectedContentAvailable,
+      protectedStatus: protectedContentAvailable
+        ? "available"
+        : eligibility.reason,
+      protectedMessage: protectedContentMessage(eligibility.reason),
+      protectedAvailableAt: eligibility.availableAt,
+      daysRemaining: eligibility.daysRemaining,
       preferences: preferences ?? {},
       notes: notes ?? [],
       documents: releasedDocuments,
@@ -258,3 +280,20 @@ Deno.serve(async (request) => {
     { headers: corsHeaders },
   );
 });
+
+function protectedContentMessage(reason?: string) {
+  switch (reason) {
+    case "waiting_period":
+      return "Legacy Notes and secure documents remain locked until the 90-day inactivity process completes.";
+    case "owner_grace_period":
+      return "Legacy Notes and secure documents remain locked during the owner's 24-hour protection period.";
+    case "notice_pending":
+      return "Legacy Notes and secure documents remain locked until the daily server opens the release window.";
+    case "release_cancelled":
+      return "The owner cancelled this protected release. Legacy Notes and secure documents remain locked.";
+    case "access_expired":
+      return "The seven-day release window has expired. Legacy Notes and secure documents remain locked.";
+    default:
+      return "Legacy Notes and secure documents are available only during a server-authorized seven-day release window.";
+  }
+}

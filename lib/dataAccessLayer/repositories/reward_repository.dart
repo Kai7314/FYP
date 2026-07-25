@@ -32,30 +32,7 @@ class RewardRepository {
     return List<Map<String, dynamic>>.from(rows);
   }
 
-  Future<void> addEarnedReward({
-    required String userId,
-    required String code,
-    required String title,
-    required int milestoneDays,
-  }) async {
-    try {
-      await client.from('rewards').insert({
-        'user_id': userId,
-        'streak_days': milestoneDays,
-        'reward_type': title,
-        'reward_code': code,
-        'status': 'earned',
-      });
-    } on PostgrestException catch (error) {
-      final message = error.message.toLowerCase();
-      if (!message.contains('reward_code') && !message.contains('status')) {
-        rethrow;
-      }
-      await client.from('rewards').insert({
-        'user_id': userId,
-        'streak_days': milestoneDays,
-        'reward_type': title,
-      });
-    }
+  Future<void> synchronizeEarnedRewards() async {
+    await client.rpc('sync_current_user_rewards');
   }
 }

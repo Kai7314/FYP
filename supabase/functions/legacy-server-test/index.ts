@@ -1,5 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
 
 import { sendBrevoEmail } from "../_shared/brevo_email.ts";
 import { corsHeaders } from "../_shared/legacy_access.ts";
@@ -8,9 +11,13 @@ const allowedActions = new Set([
   "live_status",
   "day_89",
   "day_90",
+  "day_91",
   "day_97",
+  "day_98",
   "test_email",
 ]);
+
+type ServiceClient = SupabaseClient<any, "public", "public", any, any>;
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -85,8 +92,22 @@ Deno.serve(async (request) => {
   try {
     response = action === "live_status"
       ? await liveStatus(service, ownerUid, owner)
+      : action === "day_90"
+      ? await sendOwnerWarningTestEmail(service, ownerUid, owner)
+      : action === "day_91"
+      ? await sendPrimaryContactTestEmail(
+        service,
+        ownerUid,
+        owner,
+        "day_91",
+      )
       : action === "test_email"
-      ? await sendTestEmail(service, ownerUid, owner)
+      ? await sendPrimaryContactTestEmail(
+        service,
+        ownerUid,
+        owner,
+        "test_email",
+      )
       : scenarioResult(action);
     succeeded = response.ok === true;
   } catch (error) {
@@ -109,17 +130,22 @@ Deno.serve(async (request) => {
 });
 
 async function liveStatus(
-  service: ReturnType<typeof createClient>,
+  service: ServiceClient,
   ownerUid: string,
   owner: Record<string, unknown>,
 ) {
-  const [{ data: checkin, error: checkinError }, {
-    data: contact,
-    error: contactError,
-  }, { data: heartbeatStatus, error: heartbeatError }, {
-    data: accessWindow,
-    error: windowError,
-  }] = await Promise.all([
+  const [
+    { data: checkin, error: checkinError },
+    {
+      data: contact,
+      error: contactError,
+    },
+    { data: heartbeatStatus, error: heartbeatError },
+    {
+      data: accessWindow,
+      error: windowError,
+    },
+  ] = await Promise.all([
     service.from("checkins").select("checkin_time").eq("user_id", ownerUid)
       .order("checkin_time", { ascending: false }).limit(1).maybeSingle(),
     service.from("contacts").select("email, phone_verified_at").eq(
@@ -134,7 +160,8 @@ async function liveStatus(
     ).eq("owner_user_id", ownerUid).order("created_at", { ascending: false })
       .limit(1).maybeSingle(),
   ]);
-  const queryError = checkinError ?? contactError ?? heartbeatError ?? windowError;
+  const queryError = checkinError ?? contactError ?? heartbeatError ??
+    windowError;
   if (queryError) throw new Error(queryError.message);
 
   const accessStarted = Date.parse(String(owner.legacy_access_started_at));
@@ -152,9 +179,10 @@ async function liveStatus(
   return {
     ok: true,
     title: "Live server status",
-    message:
-      `${liveDays} no-heartbeat day${liveDays === 1 ? "" : "s"}. ` +
-      `Primary contact ${contactReady ? "is" : "is not"} ready for email and SMS verification.`,
+    message: `${liveDays} no-heartbeat day${liveDays === 1 ? "" : "s"}. ` +
+      `Primary contact ${
+        contactReady ? "is" : "is not"
+      } ready for email and SMS verification.`,
     details: {
       calculatedNoHeartbeatDays: liveDays,
       latestHeartbeatAt: new Date(heartbeatMs).toISOString(),
@@ -166,59 +194,93 @@ async function liveStatus(
 }
 
 function scenarioResult(action: string) {
-  const day = action === "day_89" ? 89 : action === "day_90" ? 90 : 97;
+  const day = Number(action.replace("day_", ""));
   const thresholdReached = day >= 90;
   const state = day < 90
     ? "waiting"
-    : day < 97
+    : day === 90
+    ? "owner_grace_period"
+    : day < 98
     ? "seven_day_window"
     : "window_expired";
-  const expected = action === "day_89"
+  const expected = day === 89
     ? !thresholdReached && state === "waiting"
-    : action === "day_90"
+    : day === 90
+    ? thresholdReached && state === "owner_grace_period"
+    : day < 98
     ? thresholdReached && state === "seven_day_window"
     : thresholdReached && state === "window_expired";
   return {
     ok: expected,
     title: `Day ${day} rule test`,
-    message: action === "day_89"
+    message: day === 89
       ? "PASS: email and Legacy access remain unavailable before day 90."
-      : action === "day_90"
-      ? "PASS: day 90 queues the primary-contact email and starts the seven-day period after delivery."
-      : "PASS: the seven-day Legacy access period is expired on day 97.",
+      : day === 90
+      ? "PASS: day 90 warns the account owner and starts the 24-hour cancellation period."
+      : day < 98
+      ? "PASS: after the protection period, the primary-contact email can open the seven-day access window."
+      : "PASS: the protected seven-day Legacy access period is expired on day 98.",
     details: { simulatedDay: day, thresholdReached, expectedState: state },
   };
 }
 
-async function sendTestEmail(
-  service: ReturnType<typeof createClient>,
+async function sendOwnerWarningTestEmail(
+  service: ServiceClient,
   ownerUid: string,
   owner: Record<string, unknown>,
 ) {
-  const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
-  const oneHourAgo = new Date(Date.now() - 3_600_000).toISOString();
-  const [{ count: minuteCount }, { count: hourCount }] = await Promise.all([
-    service.from("legacy_server_test_events").select("id", {
-      count: "exact",
-      head: true,
-    }).eq("owner_user_id", ownerUid).eq("action", "test_email").gte(
-      "created_at",
-      oneMinuteAgo,
-    ),
-    service.from("legacy_server_test_events").select("id", {
-      count: "exact",
-      head: true,
-    }).eq("owner_user_id", ownerUid).eq("action", "test_email").gte(
-      "created_at",
-      oneHourAgo,
-    ),
-  ]);
-  if ((minuteCount ?? 0) > 0 || (hourCount ?? 0) >= 3) {
+  const rateLimitError = await testEmailRateLimit(
+    service,
+    ownerUid,
+    "day_90",
+  );
+  if (rateLimitError) return { ok: false, error: rateLimitError };
+
+  const { data: authData, error: authError } = await service.auth.admin
+    .getUserById(ownerUid);
+  if (authError) throw new Error(authError.message);
+  const ownerEmail = authData.user?.email?.trim();
+  if (!ownerEmail) {
     return {
       ok: false,
-      error: "Wait before sending another test email. The limit is three per hour.",
+      error: "The account owner does not have an email address.",
     };
   }
+
+  const emailConfig = testEmailConfig();
+  if ("error" in emailConfig) return { ok: false, error: emailConfig.error };
+
+  const ownerName = String(owner.name ?? "EthernaCare user");
+  const delivery = await sendBrevoEmail({
+    ...emailConfig,
+    toEmail: ownerEmail,
+    toName: ownerName,
+    subject: "TEST ONLY - Day 90 owner protection warning",
+    textContent:
+      `Hello ${ownerName},\n\nTEST ONLY: In the real day-90 flow, EthernaCare warns you before sharing protected Legacy Notes and documents. You would have 24 hours to cancel or complete a check-in. No heartbeat or Legacy access was changed by this test.`,
+    htmlContent: `<h2>TEST ONLY - Day 90</h2><p>Hello ${
+      escapeHtml(ownerName)
+    },</p><p>In the real flow, EthernaCare warns you before sharing protected Legacy Notes and documents. You would have <strong>24 hours to cancel or complete a check-in</strong>.</p><p><strong>No heartbeat or Legacy access was changed by this test.</strong></p>`,
+    tags: ["legacy-day-90-owner-test"],
+  });
+  if (!delivery.ok) return { ok: false, error: delivery.error };
+  return {
+    ok: true,
+    title: "Day 90 owner email sent",
+    message: `A TEST ONLY owner warning was sent to ${
+      maskEmail(ownerEmail)
+    }. The primary contact was not emailed and no access window was created.`,
+  };
+}
+
+async function sendPrimaryContactTestEmail(
+  service: ServiceClient,
+  ownerUid: string,
+  owner: Record<string, unknown>,
+  action: "day_91" | "test_email",
+) {
+  const rateLimitError = await testEmailRateLimit(service, ownerUid, action);
+  if (rateLimitError) return { ok: false, error: rateLimitError };
 
   const { data: contact, error: contactError } = await service.from("contacts")
     .select("name,email,phone_verified_at").eq("user_id", ownerUid).eq(
@@ -236,40 +298,100 @@ async function sendTestEmail(
     };
   }
 
-  const apiKey = Deno.env.get("BREVO_API_KEY");
-  const fromEmail = Deno.env.get("LEGACY_NOTICE_FROM_EMAIL")?.trim();
-  const fromName = Deno.env.get("LEGACY_NOTICE_FROM_NAME")?.trim() ||
-    "EthernaCare";
-  if (!apiKey || !fromEmail) {
-    return {
-      ok: false,
-      error:
-        "Test email is unavailable until BREVO_API_KEY and LEGACY_NOTICE_FROM_EMAIL are configured.",
-    };
-  }
+  const emailConfig = testEmailConfig();
+  if ("error" in emailConfig) return { ok: false, error: emailConfig.error };
 
   const ownerName = String(owner.name ?? "EthernaCare user");
   const contactName = String(contact.name ?? "Primary trusted contact");
+  const isDay91 = action === "day_91";
   const delivery = await sendBrevoEmail({
-    apiKey,
-    fromEmail,
-    fromName,
+    ...emailConfig,
     toEmail: String(contact.email),
     toName: contactName,
-    subject: "TEST ONLY - EthernaCare Legacy server email",
-    textContent:
-      `Hello ${contactName},\n\nThis is a test only. ${ownerName}'s real heartbeat and Legacy access were not changed.`,
-    htmlContent:
-      `<h2>TEST ONLY</h2><p>Hello ${escapeHtml(contactName)},</p><p>This checks EthernaCare server email delivery. <strong>No real heartbeat or Legacy access was changed.</strong></p>`,
-    tags: ["legacy-server-test"],
+    subject: isDay91
+      ? "TEST ONLY - Day 91 primary-contact Legacy notice"
+      : "TEST ONLY - EthernaCare Legacy server email",
+    textContent: isDay91
+      ? `Hello ${contactName},\n\nTEST ONLY: In the real post-grace flow, ${ownerName}'s primary contact would be told that protected Legacy Notes and documents are available for seven days. Funeral preferences remain available after primary-contact verification whenever Legacy Checking is enabled. No heartbeat or Legacy access was changed by this test.`
+      : `Hello ${contactName},\n\nThis is a test only. ${ownerName}'s real heartbeat and Legacy access were not changed.`,
+    htmlContent: isDay91
+      ? `<h2>TEST ONLY - Day 91</h2><p>Hello ${
+        escapeHtml(contactName)
+      },</p><p>In the real post-grace flow, ${
+        escapeHtml(ownerName)
+      }'s protected Legacy Notes and documents would be available for seven days. Funeral preferences remain available after primary-contact verification whenever Legacy Checking is enabled.</p><p><strong>No heartbeat or Legacy access was changed by this test.</strong></p>`
+      : `<h2>TEST ONLY</h2><p>Hello ${
+        escapeHtml(contactName)
+      },</p><p>This checks EthernaCare server email delivery. <strong>No real heartbeat or Legacy access was changed.</strong></p>`,
+    tags: [isDay91 ? "legacy-day-91-contact-test" : "legacy-server-test"],
   });
   if (!delivery.ok) return { ok: false, error: delivery.error };
   return {
     ok: true,
-    title: "Test email sent",
-    message:
-      `A TEST ONLY email was sent to ${maskEmail(String(contact.email))}. No access window was created.`,
+    title: isDay91 ? "Day 91 contact email sent" : "Test email sent",
+    message: `A TEST ONLY email was sent to ${
+      maskEmail(String(contact.email))
+    }. No access window was created.`,
   };
+}
+
+async function testEmailRateLimit(
+  service: ServiceClient,
+  ownerUid: string,
+  action: "day_90" | "day_91" | "test_email",
+) {
+  const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
+  const oneHourAgo = new Date(Date.now() - 3_600_000).toISOString();
+  const emailActions = ["day_90", "day_91", "test_email"];
+  const [{
+    count: minuteCount,
+    error: minuteError,
+  }, {
+    count: hourCount,
+    error: hourError,
+  }] = await Promise.all([
+    service.from("legacy_server_test_events").select("id", {
+      count: "exact",
+      head: true,
+    }).eq("owner_user_id", ownerUid).eq("action", action).gte(
+      "created_at",
+      oneMinuteAgo,
+    ),
+    service.from("legacy_server_test_events").select("id", {
+      count: "exact",
+      head: true,
+    }).eq("owner_user_id", ownerUid).in("action", emailActions).gte(
+      "created_at",
+      oneHourAgo,
+    ),
+  ]);
+  if (minuteError || hourError) {
+    throw new Error(minuteError?.message ?? hourError?.message);
+  }
+  if ((minuteCount ?? 0) > 0 || (hourCount ?? 0) >= 3) {
+    return "Wait before sending another test email. The limit is three per hour.";
+  }
+  return null;
+}
+
+function testEmailConfig():
+  | {
+    apiKey: string;
+    fromEmail: string;
+    fromName: string;
+  }
+  | { error: string } {
+  const apiKey = Deno.env.get("BREVO_API_KEY");
+  const fromEmail = Deno.env.get("LEGACY_NOTICE_FROM_EMAIL")?.trim();
+  if (!apiKey || !fromEmail) {
+    return {
+      error:
+        "Test email is unavailable until BREVO_API_KEY and LEGACY_NOTICE_FROM_EMAIL are configured.",
+    };
+  }
+  const fromName = Deno.env.get("LEGACY_NOTICE_FROM_NAME")?.trim() ||
+    "EthernaCare";
+  return { apiKey, fromEmail, fromName };
 }
 
 function maskEmail(email: string) {
@@ -279,13 +401,14 @@ function maskEmail(email: string) {
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>'"]/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "'": "&#39;",
-    '"': "&quot;",
-  })[character] ?? character);
+  return value.replace(/[&<>'"]/g, (character) =>
+    ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "'": "&#39;",
+      '"': "&quot;",
+    })[character] ?? character);
 }
 
 function serverError(message: string) {

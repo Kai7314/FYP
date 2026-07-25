@@ -10,6 +10,7 @@ export const legacyInactivityDays = 90;
 
 export type LegacyEligibility = {
   eligible: boolean;
+  preferencesEligible?: boolean;
   ownerName?: string;
   contactId?: string;
   contactMatched?: boolean;
@@ -23,7 +24,9 @@ export type LegacyEligibility = {
     | "phone_not_verified"
     | "access_disabled"
     | "waiting_period"
+    | "owner_grace_period"
     | "notice_pending"
+    | "release_cancelled"
     | "access_expired";
   error?: string;
 };
@@ -111,11 +114,19 @@ export async function getLegacyEligibility(
   if (!owner.legacy_access_enabled || !owner.legacy_access_started_at) {
     return {
       eligible: false,
+      preferencesEligible: false,
       contactId: String(primaryContact.id),
       contactMatched: true,
       reason: "access_disabled",
     };
   }
+
+  const preferenceAccess = {
+    preferencesEligible: true,
+    ownerName: String(owner.name ?? "EthernaCare user"),
+    contactId: String(primaryContact.id),
+    contactMatched: true,
+  };
 
   const { data: lastCheckin, error: checkinError } = await supabase
     .from("checkins")
@@ -124,10 +135,18 @@ export async function getLegacyEligibility(
     .order("checkin_time", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (checkinError) return { eligible: false, error: checkinError.message };
+  if (checkinError) {
+    return {
+      eligible: false,
+      ...preferenceAccess,
+      error: checkinError.message,
+    };
+  }
 
   const accessStartedMs = Date.parse(String(owner.legacy_access_started_at));
-  if (!Number.isFinite(accessStartedMs)) return { eligible: false };
+  if (!Number.isFinite(accessStartedMs)) {
+    return { eligible: false, ...preferenceAccess };
+  }
   const lastCheckinMs = lastCheckin?.checkin_time
     ? Date.parse(String(lastCheckin.checkin_time))
     : 0;
@@ -137,28 +156,32 @@ export async function getLegacyEligibility(
   );
   const inactivityMs = legacyInactivityDays * 24 * 60 * 60 * 1000;
   const availableAtMs = lastActivityMs + inactivityMs;
-  const remainingMs = Math.max(0, availableAtMs - Date.now());
-  const daysRemaining = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+  const ownerProtectionMs = 24 * 60 * 60 * 1000;
+  const protectedAvailableAtMs = availableAtMs + ownerProtectionMs;
+  const thresholdRemainingMs = Math.max(0, availableAtMs - Date.now());
+  const protectedRemainingMs = Math.max(
+    0,
+    protectedAvailableAtMs - Date.now(),
+  );
+  const daysRemaining = Math.ceil(
+    protectedRemainingMs / (24 * 60 * 60 * 1000),
+  );
   if (options.skipInactivityWait === true) {
     return {
       eligible: true,
-      ownerName: String(owner.name ?? "EthernaCare user"),
-      contactId: String(primaryContact.id),
-      contactMatched: true,
+      ...preferenceAccess,
       lastActivityAt: new Date(lastActivityMs).toISOString(),
       availableAt: new Date(availableAtMs).toISOString(),
       daysRemaining: 0,
     };
   }
 
-  if (remainingMs > 0) {
+  if (thresholdRemainingMs > 0) {
     return {
       eligible: false,
-      ownerName: String(owner.name ?? "EthernaCare user"),
-      contactId: String(primaryContact.id),
-      contactMatched: true,
+      ...preferenceAccess,
       lastActivityAt: new Date(lastActivityMs).toISOString(),
-      availableAt: new Date(availableAtMs).toISOString(),
+      availableAt: new Date(protectedAvailableAtMs).toISOString(),
       daysRemaining,
       reason: "waiting_period",
     };
@@ -168,25 +191,64 @@ export async function getLegacyEligibility(
   const { data: accessWindow, error: windowError } = await supabase
     .from("legacy_access_windows")
     .select(
-      "primary_contact_id, state, available_at, expires_at, notice_sent_at",
+      "primary_contact_id, state, available_at, expires_at, notice_sent_at, owner_cancel_deadline",
     )
     .eq("owner_user_id", ownerUid)
     .eq("heartbeat_at", heartbeatAt)
     .limit(1)
     .maybeSingle();
-  if (windowError) return { eligible: false, error: windowError.message };
-
-  if (!accessWindow || accessWindow.state === "pending" ||
-    accessWindow.state === "sending") {
+  if (windowError) {
     return {
       eligible: false,
-      ownerName: String(owner.name ?? "EthernaCare user"),
-      contactId: String(primaryContact.id),
-      contactMatched: true,
+      ...preferenceAccess,
+      error: windowError.message,
+    };
+  }
+
+  if (
+    accessWindow?.state === "owner_grace_period"
+  ) {
+    return {
+      eligible: false,
+      ...preferenceAccess,
       lastActivityAt: heartbeatAt,
-      availableAt: new Date(availableAtMs).toISOString(),
+      availableAt: accessWindow.owner_cancel_deadline
+        ? String(accessWindow.owner_cancel_deadline)
+        : new Date(protectedAvailableAtMs).toISOString(),
+      daysRemaining: 0,
+      reason: "owner_grace_period",
+    };
+  }
+
+  if (
+    !accessWindow ||
+    [
+      "owner_notice_pending",
+      "owner_notice_sending",
+      "pending",
+      "sending",
+    ].includes(String(accessWindow.state))
+  ) {
+    return {
+      eligible: false,
+      ...preferenceAccess,
+      lastActivityAt: heartbeatAt,
+      availableAt: new Date(protectedAvailableAtMs).toISOString(),
       daysRemaining: 0,
       reason: "notice_pending",
+    };
+  }
+
+  if (accessWindow.state === "revoked") {
+    return {
+      eligible: false,
+      ...preferenceAccess,
+      lastActivityAt: heartbeatAt,
+      availableAt: accessWindow.available_at
+        ? String(accessWindow.available_at)
+        : new Date(availableAtMs).toISOString(),
+      daysRemaining: 0,
+      reason: "release_cancelled",
     };
   }
 
@@ -202,9 +264,7 @@ export async function getLegacyEligibility(
     expiresAtMs > Date.now();
   return {
     eligible,
-    ownerName: String(owner.name ?? "EthernaCare user"),
-    contactId: String(primaryContact.id),
-    contactMatched: true,
+    ...preferenceAccess,
     lastActivityAt: heartbeatAt,
     availableAt: accessWindow.available_at
       ? String(accessWindow.available_at)
@@ -229,7 +289,9 @@ export async function sendTwilioSms(input: {
     {
       method: "POST",
       headers: {
-        Authorization: `Basic ${btoa(`${input.accountSid}:${input.authToken}`)}`,
+        Authorization: `Basic ${
+          btoa(`${input.accountSid}:${input.authToken}`)
+        }`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
@@ -242,9 +304,7 @@ export async function sendTwilioSms(input: {
   const payload = await response.json().catch(() => ({}));
   return {
     ok: response.ok,
-    error: response.ok
-      ? null
-      : friendlyTwilioError(payload, response.status),
+    error: response.ok ? null : friendlyTwilioError(payload, response.status),
   };
 }
 

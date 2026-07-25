@@ -154,7 +154,8 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
         'Verify the primary contact phone number before enabling Legacy Checking.',
       );
     }
-    if (AppValidators.email(primaryContact['email']?.toString() ?? '') != null) {
+    if (AppValidators.email(primaryContact['email']?.toString() ?? '') !=
+        null) {
       throw StateError(
         'Add a valid email to the primary trusted contact before enabling Legacy Checking.',
       );
@@ -622,8 +623,7 @@ class _LegacyServerTestPanel extends StatefulWidget {
   const _LegacyServerTestPanel();
 
   @override
-  State<_LegacyServerTestPanel> createState() =>
-      _LegacyServerTestPanelState();
+  State<_LegacyServerTestPanel> createState() => _LegacyServerTestPanelState();
 }
 
 class _LegacyServerTestPanelState extends State<_LegacyServerTestPanel> {
@@ -633,14 +633,27 @@ class _LegacyServerTestPanelState extends State<_LegacyServerTestPanel> {
 
   Future<void> _run(String action) async {
     if (activeAction != null) return;
-    if (action == 'test_email') {
+    final sendsEmail = {'day_90', 'day_91', 'test_email'}.contains(action);
+    if (sendsEmail) {
+      final ownerWarning = action == 'day_90';
+      final day91Notice = action == 'day_91';
       final approved = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           icon: const Icon(Icons.mark_email_read_outlined),
-          title: const Text('Send test email?'),
-          content: const Text(
-            'This sends a TEST ONLY email to the real primary contact. It does not change heartbeat or Legacy access.',
+          title: Text(
+            ownerWarning
+                ? 'Send owner warning test?'
+                : day91Notice
+                ? 'Send primary contact test?'
+                : 'Send test email?',
+          ),
+          content: Text(
+            ownerWarning
+                ? 'This sends a TEST ONLY day-90 warning to your account email. The primary contact is not emailed, and no heartbeat or Legacy access changes.'
+                : day91Notice
+                ? 'This sends a TEST ONLY post-grace notice to the real primary contact. It does not open access or change the heartbeat.'
+                : 'This sends a TEST ONLY email to the real primary contact. It does not change heartbeat or Legacy access.',
           ),
           actions: [
             TextButton(
@@ -682,8 +695,14 @@ class _LegacyServerTestPanelState extends State<_LegacyServerTestPanel> {
     const tests = [
       ('live_status', Icons.monitor_heart_outlined, 'Check Live Status'),
       ('day_89', Icons.hourglass_bottom, 'Test Day 89'),
-      ('day_90', Icons.notifications_active_outlined, 'Test Day 90'),
+      (
+        'day_90',
+        Icons.notifications_active_outlined,
+        'Test Day 90 Owner Email',
+      ),
+      ('day_91', Icons.mark_email_read_outlined, 'Test Day 91 Contact Email'),
       ('day_97', Icons.event_busy_outlined, 'Test Day 97'),
+      ('day_98', Icons.event_busy_outlined, 'Test Day 98'),
       ('test_email', Icons.outgoing_mail, 'Send Test Email'),
     ];
     final testResult = result;
@@ -708,7 +727,7 @@ class _LegacyServerTestPanelState extends State<_LegacyServerTestPanel> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Server diagnostics only. Day tests do not change real check-ins or access.',
+              'Day 90 emails the owner; Day 91 emails the primary contact. Tests never change real check-ins or access.',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 14),
@@ -752,9 +771,7 @@ class _LegacyServerTestPanelState extends State<_LegacyServerTestPanel> {
                       ? AppColors.primarySoft
                       : AppColors.danger.withValues(alpha: 0.08),
                   border: Border.all(
-                    color: testResult.ok
-                        ? AppColors.primary
-                        : AppColors.danger,
+                    color: testResult.ok ? AppColors.primary : AppColors.danger,
                   ),
                   borderRadius: BorderRadius.circular(8),
                 ),

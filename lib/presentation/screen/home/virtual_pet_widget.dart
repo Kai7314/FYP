@@ -241,11 +241,6 @@ class _VirtualPetWidgetState extends State<VirtualPetWidget>
                               ),
                             ),
                           ),
-                        Positioned(
-                          top: 48,
-                          left: 12,
-                          child: _EnergyChip(energy: widget.energy),
-                        ),
                         if (widget.activeToyAsset != null &&
                             widget.activeToyId != null)
                           Positioned(
@@ -274,12 +269,15 @@ class _VirtualPetWidgetState extends State<VirtualPetWidget>
                               ),
                               const Spacer(),
                               Flexible(
-                                child: _Badge(
-                                  text: widget.weather == null
-                                      ? 'Weather unavailable'
-                                      : widget.weather!.compactMalaysiaRegion,
-                                  icon: Icons.cloud_outlined,
-                                  alignRight: true,
+                                child: Align(
+                                  alignment: Alignment.topRight,
+                                  child: _Badge(
+                                    text: widget.weather == null
+                                        ? 'Weather unavailable'
+                                        : widget.weather!.compactMalaysiaRegion,
+                                    icon: Icons.cloud_outlined,
+                                    alignRight: true,
+                                  ),
                                 ),
                               ),
                             ],
@@ -461,46 +459,6 @@ class _FloatingGlyph extends StatelessWidget {
           fontSize: 18,
           fontWeight: FontWeight.w900,
         ),
-      ),
-    );
-  }
-}
-
-class _EnergyChip extends StatelessWidget {
-  const _EnergyChip({required this.energy});
-
-  final int energy;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = energy >= 90
-        ? AppColors.accent
-        : energy <= 25
-        ? AppColors.muted
-        : AppColors.primary;
-    final label = energy >= 90
-        ? 'Full'
-        : energy <= 25
-        ? 'Low'
-        : '$energy%';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.battery_charging_full_rounded, size: 14, color: color),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              shadows: _sceneTextShadows,
-            ),
-          ),
-        ],
       ),
     );
   }

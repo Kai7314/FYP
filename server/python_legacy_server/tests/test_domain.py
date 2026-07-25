@@ -5,6 +5,8 @@ from app.domain import (
     access_expires_at,
     access_is_open,
     no_heartbeat_days,
+    owner_cancel_deadline,
+    owner_grace_elapsed,
     threshold_reached,
 )
 
@@ -27,6 +29,19 @@ class LegacyDomainTests(unittest.TestCase):
         self.assertEqual(access_expires_at(notice_sent), self.now + timedelta(days=7))
         self.assertTrue(access_is_open(notice_sent, self.now + timedelta(days=6)))
         self.assertFalse(access_is_open(notice_sent, self.now + timedelta(days=7)))
+
+    def test_owner_has_a_full_day_to_cancel(self) -> None:
+        notice_sent = self.now
+        self.assertEqual(
+            owner_cancel_deadline(notice_sent),
+            self.now + timedelta(hours=24),
+        )
+        self.assertFalse(
+            owner_grace_elapsed(notice_sent, self.now + timedelta(hours=23))
+        )
+        self.assertTrue(
+            owner_grace_elapsed(notice_sent, self.now + timedelta(hours=24))
+        )
 
     def test_future_heartbeat_never_creates_negative_days(self) -> None:
         heartbeat = self.now + timedelta(hours=1)
