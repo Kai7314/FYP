@@ -1,14 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../models/reward_model.dart';
-import '../../../models/reward_request_model.dart';
 import '../../../services/dashboard_service.dart';
-import '../../../services/reward_request_service.dart';
 import '../../../services/reward_service.dart';
 import '../../widgets/premium_shell.dart';
-import 'admin_reward_requests_screen.dart';
-import 'reward_request_screen.dart';
+import 'reward_detail_screen.dart';
 
 class RewardsScreen extends StatefulWidget {
   const RewardsScreen({super.key});
@@ -17,22 +16,55 @@ class RewardsScreen extends StatefulWidget {
   State<RewardsScreen> createState() => _RewardsScreenState();
 }
 
-class _RewardsScreenState extends State<RewardsScreen> {
+class _RewardsScreenState extends State<RewardsScreen>
+    with WidgetsBindingObserver {
   final rewardService = RewardService();
   final dashboardService = DashboardService();
-  final requestService = RewardRequestService();
 
   RewardSnapshot? rewards;
   DashboardSnapshot? dashboard;
-  List<RewardRequest> requests = const [];
-  bool isAdmin = false;
   bool refreshing = true;
   String? error;
+  Timer? catalogRefreshDebounce;
+  bool catalogRefreshRunning = false;
+  final Set<String> claimingBadgeCodes = {};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    rewardService.startCatalogRealtime(_queueCatalogRefresh);
     _load();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _queueCatalogRefresh();
+    }
+  }
+
+  void _queueCatalogRefresh() {
+    catalogRefreshDebounce?.cancel();
+    catalogRefreshDebounce = Timer(
+      const Duration(milliseconds: 350),
+      _refreshCatalog,
+    );
+  }
+
+  Future<void> _refreshCatalog() async {
+    if (!mounted || catalogRefreshRunning) return;
+    catalogRefreshRunning = true;
+    try {
+      final fresh = await rewardService.synchronize(forceCatalogRefresh: true);
+      if (!mounted) return;
+      setState(() {
+        rewards = fresh;
+        error = null;
+      });
+    } finally {
+      catalogRefreshRunning = false;
+    }
   }
 
   Future<void> _load() async {
@@ -60,51 +92,67 @@ class _RewardsScreenState extends State<RewardsScreen> {
       });
     } catch (_) {
       if (mounted) {
-        setState(() => error = 'Showing locally saved rewards.');
+        setState(() => error = 'Showing your saved virtual collection.');
       }
-    }
-
-    try {
-      final results = await Future.wait([
-        requestService.getOwnRequests(),
-        requestService.isCurrentUserAdmin(),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        requests = results[0] as List<RewardRequest>;
-        isAdmin = results[1] as bool;
-      });
-    } catch (_) {
-      // The reward catalog remains usable while the fulfillment schema deploys.
     } finally {
       if (mounted) setState(() => refreshing = false);
     }
   }
 
-  Future<void> _requestReward(RewardCatalogItem item) async {
-    final request = await Navigator.of(context).push<RewardRequest>(
-      MaterialPageRoute(builder: (_) => RewardRequestScreen(item: item)),
-    );
-    if (request == null || !mounted) return;
-    setState(() {
-      requests = [
-        request,
-        ...requests.where((existing) => existing.id != request.id),
-      ];
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Reward request submitted for admin review.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<void> _openReward(
+    RewardCatalogItem item,
+    RewardSnapshot snapshot,
+  ) async {
+    if (item.isVoucher || snapshot.isBadgeClaimed(item.code)) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RewardDetailScreen(
+            reward: item,
+            redemptionCode: snapshot.redemptionCodeFor(item.code),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (claimingBadgeCodes.contains(item.code)) return;
+    setState(() => claimingBadgeCodes.add(item.code));
+    try {
+      final fresh = await rewardService.claimBadge(item.code);
+      if (!mounted) return;
+      setState(() {
+        rewards = fresh;
+        error = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${item.title} was added to My Badge List.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not collect this badge. Refresh your rewards and try again.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => claimingBadgeCodes.remove(item.code));
+      }
+    }
   }
 
-  Future<void> _openAdminRequests() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => const AdminRewardRequestsScreen()),
-    );
-    if (mounted) await _load();
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    catalogRefreshDebounce?.cancel();
+    unawaited(rewardService.stopCatalogRealtime());
+    super.dispose();
   }
 
   @override
@@ -114,14 +162,14 @@ class _RewardsScreenState extends State<RewardsScreen> {
         RewardSnapshot(
           catalog: RewardService.fallbackCatalog,
           earnedCodes: const {},
-          catalogVersion: 1,
+          catalogVersion: RewardService.fallbackCatalogVersion,
           syncedAt: DateTime.fromMillisecondsSinceEpoch(0),
         );
     final streak = dashboard?.streak ?? 0;
     final totalCheckins = dashboard?.totalCheckins ?? 0;
-    final requestByCode = {
-      for (final request in requests) request.rewardCode: request,
-    };
+    final claimedBadges = snapshot.catalog
+        .where((item) => !item.isVoucher && snapshot.isBadgeClaimed(item.code))
+        .toList();
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -130,23 +178,17 @@ class _RewardsScreenState extends State<RewardsScreen> {
         children: [
           PremiumHeader(
             title: 'Rewards',
-            subtitle: 'Physical gifts and virtual vouchers',
+            subtitle: 'Your virtual milestone collection',
             orenAsset:
                 'lib/assets/images/pixel/oren_pixel_token_transparent.png',
-            orenSemanticLabel: 'Oren holding a reward token',
-            action: isAdmin
-                ? IconButton.filledTonal(
-                    onPressed: _openAdminRequests,
-                    icon: const Icon(Icons.admin_panel_settings_outlined),
-                    tooltip: 'Open reward requests',
-                  )
-                : refreshing
+            orenSemanticLabel: 'Oren holding a virtual reward token',
+            action: refreshing
                 ? const SizedBox.square(
                     dimension: 22,
                     child: CircularProgressIndicator(strokeWidth: 2.5),
                   )
                 : const PremiumStatusPill(
-                    icon: Icons.offline_bolt_outlined,
+                    icon: Icons.cloud_done_outlined,
                     label: 'Synced',
                     color: AppColors.primary,
                   ),
@@ -171,16 +213,16 @@ class _RewardsScreenState extends State<RewardsScreen> {
                 child: _MetricCard(
                   label: 'Check-Ins',
                   value: '$totalCheckins',
-                  icon: Icons.star_outline,
-                  color: AppColors.purple,
+                  icon: Icons.check_circle_outline,
+                  color: AppColors.blue,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _MetricCard(
-                  label: 'Earned',
+                  label: 'Unlocked',
                   value: '${snapshot.earnedCodes.length}',
-                  icon: Icons.card_giftcard,
+                  icon: Icons.workspace_premium_outlined,
                   color: AppColors.accent,
                 ),
               ),
@@ -191,26 +233,122 @@ class _RewardsScreenState extends State<RewardsScreen> {
             padding: const EdgeInsets.all(15),
             color: AppColors.primarySoft,
             borderColor: AppColors.primary.withValues(alpha: .24),
-            child: Text(
-              'Catalog version ${snapshot.catalogVersion}. Cached rewards open instantly; the server is checked for new items and earned status when online.',
-              style: const TextStyle(
-                color: AppColors.primaryDark,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.auto_awesome_outlined, color: AppColors.primaryDark),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Virtual rewards unlock with your check-in streak. Tap Collect Badge once to save an earned badge in My Badge List. Vouchers include a personal redeem code.',
+                    style: TextStyle(
+                      color: AppColors.primaryDark,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'My Badge List',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              Text(
+                '${claimedBadges.length} collected',
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (claimedBadges.isEmpty)
+            const Text(
+              'Complete a badge goal, then tap Collect Badge to store it here.',
+              style: TextStyle(color: AppColors.muted, height: 1.35),
+            )
+          else
+            SizedBox(
+              height: 122,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: claimedBadges.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final badge = claimedBadges[index];
+                  return _CollectedBadgeTile(
+                    item: badge,
+                    onTap: () => _openReward(badge, snapshot),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 20),
+          Text('Reward Goals', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 10),
           ...snapshot.catalog.map(
-            (item) => _RewardCard(
+            (item) => _VirtualRewardCard(
               item: item,
               streak: streak,
-              earned: snapshot.earnedCodes.contains(item.code),
-              request: requestByCode[item.code],
-              onRequest: () => _requestReward(item),
+              unlocked: snapshot.earnedCodes.contains(item.code),
+              claimed: snapshot.isBadgeClaimed(item.code),
+              claiming: claimingBadgeCodes.contains(item.code),
+              onCheck: snapshot.earnedCodes.contains(item.code)
+                  ? () => _openReward(item, snapshot)
+                  : null,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CollectedBadgeTile extends StatelessWidget {
+  const _CollectedBadgeTile({required this.item, required this.onTap});
+
+  final RewardCatalogItem item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = _badgeStyle(item);
+    return SizedBox(
+      width: 136,
+      child: GlassPanel(
+        onTap: onTap,
+        padding: const EdgeInsets.all(12),
+        color: style.softColor,
+        borderColor: style.color.withValues(alpha: .38),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(style.icon, color: style.color, size: 34),
+            const SizedBox(height: 7),
+            Text(
+              item.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.ink,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                height: 1.15,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -235,12 +373,8 @@ class _MetricCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       color: color,
       borderColor: Colors.white.withValues(alpha: .24),
-      child: Container(
+      child: SizedBox(
         height: 102,
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -264,183 +398,262 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _RewardCard extends StatelessWidget {
-  const _RewardCard({
+class _VirtualRewardCard extends StatelessWidget {
+  const _VirtualRewardCard({
     required this.item,
     required this.streak,
-    required this.earned,
-    required this.request,
-    required this.onRequest,
+    required this.unlocked,
+    required this.claimed,
+    required this.claiming,
+    required this.onCheck,
   });
 
   final RewardCatalogItem item;
   final int streak;
-  final bool earned;
-  final RewardRequest? request;
-  final VoidCallback onRequest;
+  final bool unlocked;
+  final bool claimed;
+  final bool claiming;
+  final VoidCallback? onCheck;
 
   @override
   Widget build(BuildContext context) {
-    final progress = (streak.clamp(0, item.milestoneDays) / item.milestoneDays)
-        .toDouble();
-    final remaining = item.milestoneDays - streak.clamp(0, item.milestoneDays);
-    final voucher = item.rewardKind == 'voucher';
+    final completedDays = streak.clamp(0, item.milestoneDays);
+    final progress = item.milestoneDays == 0
+        ? 0.0
+        : (completedDays / item.milestoneDays).toDouble();
+    final remaining = item.milestoneDays - completedDays;
+    final style = _badgeStyle(item);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 11),
       child: GlassPanel(
-        color: earned ? AppColors.primarySoft : AppColors.glassStrong,
-        borderColor: earned
-            ? AppColors.primary.withValues(alpha: .34)
+        color: unlocked ? style.softColor : AppColors.glassStrong,
+        borderColor: unlocked
+            ? style.color.withValues(alpha: .38)
             : AppColors.border,
-        padding: const EdgeInsets.all(13),
-        child: Padding(
-          padding: EdgeInsets.zero,
-          child: Row(
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: voucher
-                      ? AppColors.warningSoft
-                      : AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  voucher
-                      ? Icons.confirmation_number_outlined
-                      : Icons.inventory_2_outlined,
-                  color: voucher ? AppColors.accent : AppColors.primary,
-                  size: 30,
-                ),
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                color: unlocked ? style.color : AppColors.surface,
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.title,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
+              child: Icon(
+                style.icon,
+                color: unlocked ? Colors.white : AppColors.muted,
+                size: 32,
+              ),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.title,
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
-                        Text(
-                          earned ? 'Earned' : '$remaining left',
+                      ),
+                      const SizedBox(width: 8),
+                      _RewardStatusLabel(
+                        label: !unlocked
+                            ? 'Locked'
+                            : item.isVoucher
+                            ? 'Ready'
+                            : claimed
+                            ? 'Collected'
+                            : 'Earned',
+                        active: unlocked,
+                        color: style.color,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${item.milestoneDays}-day check-in streak',
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    item.description,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  LinearProgressIndicator(
+                    value: unlocked ? 1 : progress,
+                    minHeight: 7,
+                    borderRadius: BorderRadius.circular(6),
+                    color: style.color,
+                    backgroundColor: AppColors.surface,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        unlocked
+                            ? Icons.check_circle_outline
+                            : Icons.lock_clock_outlined,
+                        size: 17,
+                        color: unlocked ? style.color : AppColors.muted,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          unlocked
+                              ? item.isVoucher
+                                    ? 'Your personal redeem code is ready'
+                                    : claimed
+                                    ? 'Stored in My Badge List'
+                                    : 'Goal complete. Collect this badge to store it'
+                              : '$remaining more consecutive ${remaining == 1 ? 'day' : 'days'} to unlock',
                           style: TextStyle(
-                            color: earned ? AppColors.primary : AppColors.muted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      '${item.sponsor} - ${item.milestoneDays}-day streak',
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      item.voucherValue == null
-                          ? item.description
-                          : '${item.description} Value: ${item.voucherValue}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(height: 9),
-                    LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 6,
-                      borderRadius: BorderRadius.circular(6),
-                      color: voucher ? AppColors.accent : AppColors.primary,
-                      backgroundColor: AppColors.surface,
-                    ),
-                    if (request != null) ...[
-                      const SizedBox(height: 9),
-                      _UserRequestStatus(request: request!),
-                    ] else if (earned) ...[
-                      const SizedBox(height: 9),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: onRequest,
-                          icon: Icon(
-                            voucher
-                                ? Icons.confirmation_number_outlined
-                                : Icons.local_shipping_outlined,
-                            size: 18,
-                          ),
-                          label: Text(
-                            voucher ? 'Request Voucher' : 'Request Delivery',
+                            color: unlocked ? style.color : AppColors.muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
                     ],
+                  ),
+                  if (unlocked) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: item.isVoucher || claimed
+                          ? OutlinedButton.icon(
+                              onPressed: onCheck,
+                              icon: Icon(
+                                item.isVoucher
+                                    ? Icons.confirmation_number_outlined
+                                    : Icons.workspace_premium_outlined,
+                              ),
+                              label: Text(
+                                item.isVoucher ? 'Check Reward' : 'View Badge',
+                              ),
+                            )
+                          : FilledButton.icon(
+                              onPressed: claiming ? null : onCheck,
+                              icon: claiming
+                                  ? const SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.add_circle_outline),
+                              label: Text(
+                                claiming ? 'Collecting...' : 'Collect Badge',
+                              ),
+                            ),
+                    ),
                   ],
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _UserRequestStatus extends StatelessWidget {
-  const _UserRequestStatus({required this.request});
+class _RewardStatusLabel extends StatelessWidget {
+  const _RewardStatusLabel({
+    required this.label,
+    required this.active,
+    required this.color,
+  });
 
-  final RewardRequest request;
+  final String label;
+  final bool active;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final color = _requestStatusColor(request.status);
-    return Row(
-      children: [
-        Icon(_requestStatusIcon(request.status), size: 17, color: color),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            'Request: ${request.statusLabel}',
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        if (request.trackingReference != null)
-          Tooltip(
-            message: 'Tracking: ${request.trackingReference}',
-            child: Icon(Icons.local_shipping_outlined, size: 18, color: color),
-          ),
-      ],
+    return Text(
+      label,
+      style: TextStyle(
+        color: active ? color : AppColors.muted,
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+      ),
     );
   }
 }
 
-Color _requestStatusColor(String status) => switch (status) {
-  'preparing' => AppColors.purple,
-  'shipped' => AppColors.blue,
-  'delivered' => AppColors.primary,
-  'rejected' => AppColors.danger,
-  _ => AppColors.accent,
-};
+_BadgeStyle _badgeStyle(RewardCatalogItem item) {
+  if (item.isVoucher) {
+    return const _BadgeStyle(
+      icon: Icons.confirmation_number_outlined,
+      color: AppColors.accent,
+      softColor: AppColors.warningSoft,
+    );
+  }
+  final code = item.code;
+  final milestoneDays = item.milestoneDays;
+  if (code.contains('sprout') || milestoneDays <= 3) {
+    return const _BadgeStyle(
+      icon: Icons.eco_outlined,
+      color: AppColors.primary,
+      softColor: AppColors.primarySoft,
+    );
+  }
+  if (code.contains('companion') || milestoneDays <= 7) {
+    return const _BadgeStyle(
+      icon: Icons.favorite_outline,
+      color: AppColors.pink,
+      softColor: Color(0xFFFFECF2),
+    );
+  }
+  if (code.contains('safety') || milestoneDays <= 10) {
+    return const _BadgeStyle(
+      icon: Icons.shield_outlined,
+      color: AppColors.blue,
+      softColor: AppColors.sky,
+    );
+  }
+  if (code.contains('guardian') || milestoneDays <= 14) {
+    return const _BadgeStyle(
+      icon: Icons.auto_awesome_outlined,
+      color: AppColors.purple,
+      softColor: Color(0xFFF0EEFF),
+    );
+  }
+  return const _BadgeStyle(
+    icon: Icons.workspace_premium_outlined,
+    color: AppColors.accent,
+    softColor: AppColors.warningSoft,
+  );
+}
 
-IconData _requestStatusIcon(String status) => switch (status) {
-  'preparing' => Icons.inventory_2_outlined,
-  'shipped' => Icons.local_shipping_outlined,
-  'delivered' => Icons.check_circle_outline,
-  'rejected' => Icons.cancel_outlined,
-  _ => Icons.schedule_outlined,
-};
+class _BadgeStyle {
+  const _BadgeStyle({
+    required this.icon,
+    required this.color,
+    required this.softColor,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Color softColor;
+}

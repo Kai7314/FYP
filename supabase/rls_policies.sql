@@ -73,8 +73,8 @@ using ((select auth.uid()) = user_id);
 drop policy if exists "rewards_insert_own" on public.rewards;
 drop policy if exists "rewards_update_own" on public.rewards;
 
--- Reward ownership and claiming are validated by the server-side
--- sync_current_user_rewards() and request_current_user_reward() functions.
+-- Reward ownership and badge collection are validated by server-side
+-- sync_current_user_rewards() and claim_current_user_badge().
 revoke insert, update, delete on public.rewards from authenticated;
 
 drop policy if exists "alerts_select_own" on public.emergency_alerts;

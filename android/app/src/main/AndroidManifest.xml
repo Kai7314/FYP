@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
-        android:label="fyp"
+        android:label="EthernaCare"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

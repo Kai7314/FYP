@@ -59,7 +59,7 @@ python -m unittest discover -s tests -v
 ## Schedule
 
 After deployment, replace `YOUR-PYTHON-SERVER` in `supabase_cron.sql` and run
-that SQL once. The schedule `0 4 * * *` means 12:00 noon Malaysia time.
+that SQL once. The schedule `0 16 * * *` means 12:00 AM Malaysia time.
 
 Run either the Python Cron target or the TypeScript Edge Function target, not
 both. Database claim locking prevents duplicate work, but one configured

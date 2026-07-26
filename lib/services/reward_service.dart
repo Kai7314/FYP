@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/reward_repository.dart';
 import '../models/reward_model.dart';
@@ -15,58 +19,59 @@ class RewardService {
   final LocalCacheService cache;
   final AuthRepository authRepository;
   final RewardRepository rewardRepository;
+  RealtimeChannel? _catalogChannel;
+
+  static const fallbackCatalogVersion = 2;
 
   static const fallbackCatalog = <RewardCatalogItem>[
     RewardCatalogItem(
-      code: 'tealive_bogo',
-      title: 'Tealive Buy 1 Free 1',
-      sponsor: 'Tealive',
-      description: 'A virtual buy-one-free-one beverage voucher.',
+      code: 'oren_sprout_badge',
+      title: 'Oren Sprout Badge',
+      sponsor: 'EthernaCare',
+      description: 'A fresh start badge for building your check-in habit.',
       milestoneDays: 3,
-      rewardKind: 'voucher',
-      voucherValue: 'Buy 1 Free 1',
-      catalogVersion: 1,
+      rewardKind: 'virtual',
+      catalogVersion: fallbackCatalogVersion,
     ),
     RewardCatalogItem(
-      code: 'milo_400g',
-      title: 'Milo Chocolate Drink',
-      sponsor: 'Nestle',
-      description: 'One Milo 400g tin.',
+      code: 'oren_companion_badge',
+      title: 'Caring Companion Badge',
+      sponsor: 'EthernaCare',
+      description: 'A virtual badge celebrating one week with Oren.',
       milestoneDays: 7,
-      rewardKind: 'physical',
-      catalogVersion: 1,
+      rewardKind: 'virtual',
+      catalogVersion: fallbackCatalogVersion,
     ),
     RewardCatalogItem(
-      code: 'shopee_rm5',
-      title: 'Shopee RM5 Voucher',
-      sponsor: 'Shopee',
-      description: 'A virtual RM5 shopping voucher.',
+      code: 'oren_safety_star_badge',
+      title: 'Safety Star Badge',
+      sponsor: 'EthernaCare',
+      description: 'A virtual star for ten consistent safety check-ins.',
       milestoneDays: 10,
-      rewardKind: 'voucher',
-      voucherValue: 'RM5',
-      catalogVersion: 1,
+      rewardKind: 'virtual',
+      catalogVersion: fallbackCatalogVersion,
     ),
     RewardCatalogItem(
-      code: 'tissue_bundle',
-      title: 'Premium Tissue Bundle',
-      sponsor: 'Kleenex',
-      description: 'Three premium soft tissue boxes.',
+      code: 'oren_guardian_badge',
+      title: 'Trusted Guardian Badge',
+      sponsor: 'EthernaCare',
+      description: 'A virtual badge for two dependable check-in weeks.',
       milestoneDays: 14,
-      rewardKind: 'physical',
-      catalogVersion: 1,
+      rewardKind: 'virtual',
+      catalogVersion: fallbackCatalogVersion,
     ),
     RewardCatalogItem(
-      code: 'green_tea',
-      title: 'Green Tea Collection',
-      sponsor: 'TWG Tea',
-      description: 'A calming premium tea collection.',
+      code: 'oren_golden_badge',
+      title: 'Golden Oren Badge',
+      sponsor: 'EthernaCare',
+      description: 'The highest virtual badge for a 30-day check-in streak.',
       milestoneDays: 30,
-      rewardKind: 'physical',
-      catalogVersion: 1,
+      rewardKind: 'virtual',
+      catalogVersion: fallbackCatalogVersion,
     ),
   ];
 
-  String _cacheKey(String userId) => 'rewards_snapshot_v2_$userId';
+  String _cacheKey(String userId) => 'rewards_snapshot_v3_$userId';
 
   Future<RewardSnapshot?> loadCached() async {
     final user = authRepository.currentUser;
@@ -75,13 +80,29 @@ class RewardService {
     return value == null ? null : RewardSnapshot.fromJson(value);
   }
 
+  void startCatalogRealtime(void Function() onChange) {
+    final previous = _catalogChannel;
+    if (previous != null) {
+      unawaited(rewardRepository.unsubscribeFromCatalogChanges(previous));
+    }
+    _catalogChannel = rewardRepository.subscribeToCatalogChanges(onChange);
+  }
+
+  Future<void> stopCatalogRealtime() async {
+    final channel = _catalogChannel;
+    _catalogChannel = null;
+    if (channel != null) {
+      await rewardRepository.unsubscribeFromCatalogChanges(channel);
+    }
+  }
+
   Future<RewardSnapshot> synchronize({bool forceCatalogRefresh = false}) async {
     final user = authRepository.currentUser;
     if (user == null) {
       return RewardSnapshot(
         catalog: fallbackCatalog,
         earnedCodes: const {},
-        catalogVersion: 1,
+        catalogVersion: fallbackCatalogVersion,
         syncedAt: DateTime.now(),
       );
     }
@@ -96,7 +117,7 @@ class RewardService {
 
         if (forceCatalogRefresh ||
             cached == null ||
-            remoteVersion > catalogVersion) {
+            remoteVersion != catalogVersion) {
           final catalogRows = await rewardRepository.getActiveCatalog();
           final remoteCatalog = catalogRows
               .map(
@@ -105,25 +126,43 @@ class RewardService {
               )
               .where((item) => item.code.isNotEmpty)
               .toList();
-          if (remoteCatalog.isNotEmpty) {
-            catalog = remoteCatalog;
-            catalogVersion = remoteVersion;
-          }
+          catalog = remoteCatalog;
+          catalogVersion = remoteVersion;
         }
       } catch (_) {
         if (catalog.isEmpty) catalog = fallbackCatalog;
-        if (catalogVersion == 0) catalogVersion = 1;
+        if (catalogVersion == 0) {
+          catalogVersion = fallbackCatalogVersion;
+        }
       }
 
+      await rewardRepository.synchronizeEarnedRewards();
       final earnedRows = await rewardRepository.getEarnedRewards(user.id);
       final earnedCodes = earnedRows
           .map((row) => _resolveEarnedCode(row, catalog))
           .whereType<String>()
           .toSet();
+      final catalogByCode = {for (final item in catalog) item.code: item};
+      final claimedBadgeCodes = earnedRows
+          .where((row) => row['status']?.toString() == 'claimed')
+          .map((row) => _resolveEarnedCode(row, catalog))
+          .whereType<String>()
+          .where((code) => catalogByCode[code]?.isVoucher == false)
+          .toSet();
+      final redemptionCodes = <String, String>{};
+      for (final row in earnedRows) {
+        final code = _resolveEarnedCode(row, catalog);
+        final redemptionCode = row['redeem_code']?.toString().trim() ?? '';
+        if (code != null && redemptionCode.isNotEmpty) {
+          redemptionCodes[code] = redemptionCode;
+        }
+      }
 
       final snapshot = RewardSnapshot(
         catalog: catalog,
         earnedCodes: earnedCodes,
+        claimedBadgeCodes: claimedBadgeCodes,
+        redemptionCodes: redemptionCodes,
         catalogVersion: catalogVersion,
         syncedAt: DateTime.now(),
       );
@@ -134,7 +173,7 @@ class RewardService {
           RewardSnapshot(
             catalog: fallbackCatalog,
             earnedCodes: const {},
-            catalogVersion: 1,
+            catalogVersion: fallbackCatalogVersion,
             syncedAt: DateTime.now(),
           );
     }
@@ -145,7 +184,9 @@ class RewardService {
     List<RewardCatalogItem> catalog,
   ) {
     final code = row['reward_code']?.toString();
-    if (code != null && code.isNotEmpty) return code;
+    if (code != null && code.isNotEmpty) {
+      return catalog.any((item) => item.code == code) ? code : null;
+    }
 
     final type = row['reward_type']?.toString();
     if (type == null) return null;
@@ -159,9 +200,18 @@ class RewardService {
     final user = authRepository.currentUser;
     if (user == null) return;
 
-    await rewardRepository.synchronizeEarnedRewards();
     final snapshot = await synchronize(forceCatalogRefresh: true);
     await cache.writeMap(_cacheKey(user.id), snapshot.toJson());
+  }
+
+  Future<RewardSnapshot> claimBadge(String rewardCode) async {
+    final user = authRepository.currentUser;
+    if (user == null) {
+      throw StateError('Sign in to collect this badge.');
+    }
+
+    await rewardRepository.claimBadge(rewardCode);
+    return synchronize();
   }
 
   static int calculateStreak(List<DateTime> times) {

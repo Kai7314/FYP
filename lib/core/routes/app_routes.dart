@@ -5,4 +5,5 @@ class AppRoutes {
   static const contacts = '/contacts';
   static const rewards = '/rewards';
   static const profile = '/profile';
+  static const adminRewards = '/admin/rewards';
 }

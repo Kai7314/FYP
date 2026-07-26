@@ -47,16 +47,9 @@ class AppErrorDialog {
     if (lowered.contains('complete the reward goal')) {
       return 'Keep checking in until this reward goal is completed, then try again.';
     }
-    if (lowered.contains('reward has already been requested')) {
-      return 'This reward already has a fulfillment request. Check its status on the Rewards page.';
-    }
-    if (lowered.contains('reward administrator access is required')) {
-      return 'This page is available only to an approved reward administrator.';
-    }
-    if (lowered.contains('reward_requests') ||
-        lowered.contains('request_current_user_reward') ||
+    if (lowered.contains('reward_catalog') ||
         lowered.contains('sync_current_user_rewards')) {
-      return 'Reward delivery requests are not configured on the server yet. Apply the reward fulfillment migration and try again.';
+      return 'Virtual rewards are still being synchronized. Refresh the Rewards page and try again.';
     }
     if (lowered.contains('contact address is required')) {
       return 'Please enter the contact address. If you already entered it, run the contacts validation SQL in Supabase and hot restart the app.';

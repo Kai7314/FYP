@@ -9,6 +9,7 @@ import '../../widgets/country_phone_field.dart';
 import '../../widgets/malaysia_address_fields.dart';
 import '../../widgets/phone_otp_verification_card.dart';
 import '../../../services/phone_verification_service.dart';
+import '../legal/terms_and_conditions_screen.dart';
 
 class FirstLoginSetupScreen extends StatefulWidget {
   const FirstLoginSetupScreen({
@@ -38,6 +39,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
   late String phoneDialCode;
   String? verifiedPhone;
   bool acceptedTerms = false;
+  bool termsReviewed = false;
   bool saving = false;
 
   @override
@@ -65,6 +67,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     selectedRegion = _initialRegion(selectedState);
     acceptedTerms =
         (widget.profile['terms_accepted_at']?.toString() ?? '').isNotEmpty;
+    termsReviewed = acceptedTerms;
   }
 
   String? _initialState() {
@@ -122,6 +125,28 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     } finally {
       if (mounted) setState(() => saving = false);
     }
+  }
+
+  Future<void> _openTerms() async {
+    final accepted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            const TermsAndConditionsScreen(acceptanceMode: true),
+      ),
+    );
+    if (!mounted || accepted != true) return;
+    setState(() {
+      termsReviewed = true;
+      acceptedTerms = true;
+    });
+  }
+
+  Future<void> _setTermsAccepted(bool? value) async {
+    if (value == true && !termsReviewed) {
+      await _openTerms();
+      return;
+    }
+    setState(() => acceptedTerms = value ?? false);
   }
 
   String _normalizedPhone() {
@@ -300,17 +325,27 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                     ),
                     const SizedBox(height: 10),
                     const Text(
-                      'By continuing, you agree that EthernaCare stores your profile, check-ins, location-based emergency records, trusted contacts, rewards, and legacy-planning data to provide app features. Emergency alerts support user follow-up, but they do not replace official emergency services. For immediate danger in Malaysia, call 999.',
+                      'Read how check-ins, alerts, trusted contacts, sensitive profile data, rewards, and Legacy Planning work before continuing.',
                       style: TextStyle(color: AppColors.muted, height: 1.35),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      key: const Key('read-setup-terms-button'),
+                      onPressed: saving ? null : _openTerms,
+                      icon: const Icon(Icons.menu_book_outlined),
+                      label: Text(
+                        termsReviewed
+                            ? 'Review Terms and Conditions'
+                            : 'Read Terms and Conditions',
+                      ),
                     ),
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       value: acceptedTerms,
-                      onChanged: saving
-                          ? null
-                          : (value) =>
-                                setState(() => acceptedTerms = value ?? false),
-                      title: const Text('I accept the Terms and Conditions'),
+                      onChanged: saving ? null : _setTermsAccepted,
+                      title: const Text(
+                        'I agree to the Terms and Conditions, including the privacy and safety notices.',
+                      ),
                       controlAffinity: ListTileControlAffinity.leading,
                     ),
                   ],

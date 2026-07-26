@@ -1,5 +1,5 @@
 -- Run after deploying process-legacy-inactivity.
--- Schedule: every day at 12:00 noon Malaysia time (04:00 UTC).
+-- Schedule: every day at 12:00 AM Malaysia time (16:00 UTC).
 -- Replace both placeholders. LEGACY_CRON_SECRET must match the Edge Function
 -- secret. The anon key is public, but keeping it in Vault avoids duplicating
 -- configuration inside the scheduled command. Never commit the real values.
@@ -68,11 +68,14 @@ $$;
 
 select cron.unschedule(jobid)
 from cron.job
-where jobname = 'ethernacare-legacy-heartbeat-noon-myt';
+where jobname in (
+  'ethernacare-legacy-heartbeat-noon-myt',
+  'ethernacare-legacy-heartbeat-midnight-myt'
+);
 
 select cron.schedule(
-  'ethernacare-legacy-heartbeat-noon-myt',
-  '0 4 * * *',
+  'ethernacare-legacy-heartbeat-midnight-myt',
+  '0 16 * * *',
   $cron$
     select net.http_post(
       url := 'https://mekiduxpnrorkfphjgpc.supabase.co/functions/v1/process-legacy-inactivity',
@@ -111,4 +114,4 @@ select cron.schedule(
 
 select jobid, jobname, schedule, active
 from cron.job
-where jobname = 'ethernacare-legacy-heartbeat-noon-myt';
+where jobname = 'ethernacare-legacy-heartbeat-midnight-myt';

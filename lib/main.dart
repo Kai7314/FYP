@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'core/config/supabase_config.dart';
 import 'core/constants/strings.dart';
+import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
+import 'presentation/screen/admin/admin_auth_gate.dart';
 import 'presentation/screen/auth/auth_gate.dart';
 import 'services/background_service.dart';
 
@@ -16,6 +19,24 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  static const configuredAdminMode = bool.fromEnvironment('ADMIN_MODE');
+
+  bool get adminEntry {
+    if (configuredAdminMode) return true;
+    final platformRoute = Uri.tryParse(
+      WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+    );
+    if (platformRoute?.path == AppRoutes.adminRewards) return true;
+    if (!kIsWeb) return false;
+
+    final uri = Uri.base;
+    final fragment = uri.fragment.startsWith('/')
+        ? uri.fragment
+        : '/${uri.fragment}';
+    return uri.path == AppRoutes.adminRewards ||
+        fragment == AppRoutes.adminRewards;
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -27,13 +48,15 @@ class MyApp extends StatelessWidget {
           child: child ?? const _StartupScreen(message: 'Starting EthernaCare'),
         );
       },
-      home: const _AppBootstrap(),
+      home: _AppBootstrap(adminMode: adminEntry),
     );
   }
 }
 
 class _AppBootstrap extends StatefulWidget {
-  const _AppBootstrap();
+  const _AppBootstrap({this.adminMode = false});
+
+  final bool adminMode;
 
   @override
   State<_AppBootstrap> createState() => _AppBootstrapState();
@@ -73,7 +96,7 @@ class _AppBootstrapState extends State<_AppBootstrap> {
           );
         }
 
-        return const AuthGate();
+        return widget.adminMode ? const AdminAuthGate() : const AuthGate();
       },
     );
   }

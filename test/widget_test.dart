@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fyp/main.dart' as app;
+import 'package:fyp/core/routes/app_routes.dart';
 import 'package:fyp/core/theme/app_theme.dart';
 import 'package:fyp/models/ai_chat_message.dart';
 import 'package:fyp/models/location_model.dart';
@@ -15,17 +16,19 @@ import 'package:fyp/models/legacy_note_model.dart';
 import 'package:fyp/models/legacy_access_result.dart';
 import 'package:fyp/models/oren_care_model.dart';
 import 'package:fyp/models/reward_model.dart';
-import 'package:fyp/models/reward_request_model.dart';
 import 'package:fyp/models/user_model.dart';
 import 'package:fyp/businessLogicLayer/controllers/checkin_controller.dart';
 import 'package:fyp/businessLogicLayer/controllers/contact_controller.dart';
 import 'package:fyp/businessLogicLayer/providers/auth_provider.dart';
+import 'package:fyp/presentation/screen/admin/admin_auth_gate.dart';
+import 'package:fyp/presentation/screen/admin/admin_reward_catalog_screen.dart';
 import 'package:fyp/presentation/screen/auth/login_screen.dart';
 import 'package:fyp/presentation/screen/auth/tutorial_screen.dart';
 import 'package:fyp/presentation/screen/contacts/add_contact_dialog.dart';
 import 'package:fyp/presentation/screen/home/home_screen.dart';
 import 'package:fyp/presentation/screen/home/pet_button.dart';
 import 'package:fyp/presentation/screen/home/virtual_pet_widget.dart';
+import 'package:fyp/presentation/screen/legal/terms_and_conditions_screen.dart';
 import 'package:fyp/presentation/screen/planning/legacy_check_screen.dart';
 import 'package:fyp/presentation/screen/profile/profile_screen.dart';
 import 'package:fyp/presentation/widgets/custom_button.dart';
@@ -52,6 +55,12 @@ void main() {
 
   test('auth screen remains available for email and OAuth flows', () {
     expect(LoginScreen, isNotNull);
+  });
+
+  test('reward admin uses a separate direct route and protected gate', () {
+    expect(AppRoutes.adminRewards, '/admin/rewards');
+    expect(AdminAuthGate, isNotNull);
+    expect(AdminRewardCatalogScreen, isNotNull);
   });
 
   test('inactivity escalates only after three missed threshold windows', () {
@@ -97,6 +106,52 @@ void main() {
     expect(find.text('Quick Guide'), findsOneWidget);
     expect(find.text('Meet Oren'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
+  });
+
+  testWidgets('Terms document can be reviewed and explicitly accepted', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    bool? accepted;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () async {
+                  accepted = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const TermsAndConditionsScreen(acceptanceMode: true),
+                    ),
+                  );
+                },
+                child: const Text('Open Terms'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open Terms'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('EthernaCare Terms and Conditions'), findsOneWidget);
+    expect(find.text('1. Agreement and eligibility'), findsOneWidget);
+    expect(find.byKey(const Key('accept-terms-button')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('accept-terms-button')));
+    await tester.pumpAndSettle();
+    expect(accepted, isTrue);
   });
 
   testWidgets('contextual guidance opens and closes without overflow', (
@@ -560,7 +615,9 @@ void main() {
   test('reward snapshot survives local JSON caching', () {
     final snapshot = RewardSnapshot(
       catalog: RewardService.fallbackCatalog,
-      earnedCodes: const {'tealive_bogo'},
+      earnedCodes: const {'oren_sprout_badge'},
+      claimedBadgeCodes: const {'oren_sprout_badge'},
+      redemptionCodes: const {'oren_sprout_badge': 'EC-1234ABCD-5678EF90'},
       catalogVersion: 4,
       syncedAt: DateTime(2026, 6, 22),
     );
@@ -568,40 +625,62 @@ void main() {
     final restored = RewardSnapshot.fromJson(snapshot.toJson());
 
     expect(restored.catalogVersion, 4);
-    expect(restored.earnedCodes, contains('tealive_bogo'));
-    expect(restored.nextReward(3)?.code, 'milo_400g');
+    expect(restored.earnedCodes, contains('oren_sprout_badge'));
+    expect(restored.isBadgeClaimed('oren_sprout_badge'), isTrue);
+    expect(restored.isBadgeClaimed('oren_companion_badge'), isFalse);
+    expect(
+      restored.redemptionCodeFor('oren_sprout_badge'),
+      'EC-1234ABCD-5678EF90',
+    );
+    expect(restored.nextReward(3)?.code, 'oren_companion_badge');
   });
 
-  test(
-    'reward fulfillment request keeps delivery and admin status details',
-    () {
-      final request = RewardRequest.fromJson({
-        'id': 'request-1',
-        'user_id': 'user-1',
-        'user_name': 'Kai Heng',
-        'user_email': 'kai@example.com',
-        'reward_code': 'milo_400g',
-        'reward_title': 'Milo Chocolate Drink',
-        'reward_sponsor': 'Nestle',
-        'reward_kind': 'physical',
-        'recipient_name': 'Kai Heng',
-        'contact_phone': '+60123456789',
-        'delivery_address': '12 Jalan Example',
-        'delivery_state': 'Johor',
-        'delivery_region': 'Johor Bahru',
-        'status': 'shipped',
-        'requested_at': '2026-07-25T04:00:00Z',
-        'status_updated_at': '2026-07-25T05:00:00Z',
-        'tracking_reference': 'TRACK-123',
-      });
+  test('fallback rewards remain automatic virtual badge unlocks', () {
+    expect(RewardService.fallbackCatalog, hasLength(5));
+    expect(
+      RewardService.fallbackCatalog.every(
+        (reward) => reward.rewardKind == 'virtual',
+      ),
+      isTrue,
+    );
+    expect(
+      RewardService.fallbackCatalog.map((reward) => reward.milestoneDays),
+      orderedEquals([3, 7, 10, 14, 30]),
+    );
+  });
 
-      expect(request.statusLabel, 'Shipped');
-      expect(request.isInFulfillment, isTrue);
-      expect(request.isPhysical, isTrue);
-      expect(request.deliveryAddressLabel, contains('Johor Bahru'));
-      expect(request.trackingReference, 'TRACK-123');
-    },
-  );
+  test('inactive virtual rewards remain identifiable in admin data', () {
+    final item = RewardCatalogItem.fromJson({
+      'code': 'oren_test_badge',
+      'title': 'Oren Test Badge',
+      'sponsor': 'EthernaCare',
+      'description': 'A virtual test reward.',
+      'milestone_days': 5,
+      'reward_kind': 'virtual',
+      'catalog_version': 9,
+      'active': false,
+    });
+
+    expect(item.active, isFalse);
+    expect(item.toJson()['active'], isFalse);
+  });
+
+  test('voucher catalog entries keep their displayed value', () {
+    final voucher = RewardCatalogItem.fromJson({
+      'code': 'oren_rm5_voucher',
+      'title': 'RM5 Wellness Voucher',
+      'sponsor': 'EthernaCare',
+      'description': 'A virtual RM5 wellness voucher.',
+      'milestone_days': 5,
+      'reward_kind': 'voucher',
+      'voucher_value': 'RM5',
+      'catalog_version': 10,
+      'active': true,
+    });
+
+    expect(voucher.isVoucher, isTrue);
+    expect(voucher.voucherValue, 'RM5');
+  });
 
   test('weather selects rain and night backgrounds', () {
     final rainy = WeatherSnapshot(

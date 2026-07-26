@@ -61,11 +61,11 @@ because the owner opens it from email. It never accepts a user ID alone: the
 database requires the random one-time token, its unexpired hash, the matching
 release window, and an explicit confirmation POST.
 
-## 4. Schedule the noon job
+## 4. Schedule the midnight job
 
 Open `legacy_inactivity_cron_setup.sql`, replace both placeholders with the
 same cron secret from step 2 and the project anon key, then run the file once
-in Supabase SQL Editor. The schedule is `0 4 * * *`, which is 12:00 noon in
+in Supabase SQL Editor. The schedule is `0 16 * * *`, which is 12:00 AM in
 Malaysia (UTC+8).
 
 ## 5. Check server state
@@ -73,7 +73,7 @@ Malaysia (UTC+8).
 ```sql
 select jobid, jobname, schedule, active
 from cron.job
-where jobname = 'ethernacare-legacy-heartbeat-noon-myt';
+where jobname = 'ethernacare-legacy-heartbeat-midnight-myt';
 
 select *
 from public.legacy_heartbeat_status

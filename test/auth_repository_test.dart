@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:fyp/core/constants/app_terms.dart';
 import 'package:fyp/dataAccessLayer/repositories/auth_repository.dart';
 import 'package:fyp/utils/validators.dart';
 
@@ -43,6 +44,50 @@ void main() {
     expect(AppValidators.emailVerificationCode('12345678'), isNull);
     expect(AppValidators.emailVerificationCode('123456'), isNotNull);
     expect(AppValidators.emailVerificationCode('1234567a'), isNotNull);
+  });
+
+  test('signup sends the accepted Terms version and timestamp', () async {
+    late http.BaseRequest capturedRequest;
+    final client = SupabaseClient(
+      'https://example.supabase.co',
+      'test-anon-key',
+      authOptions: const AuthClientOptions(
+        authFlowType: AuthFlowType.implicit,
+      ),
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(
+          jsonEncode({'message': 'Request captured'}),
+          400,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+    addTearDown(client.dispose);
+
+    final repository = AuthRepository(client: client);
+    final acceptedAt = DateTime.utc(2026, 7, 26, 9, 30);
+
+    await expectLater(
+      repository.register(
+        email: 'new.user@example.com',
+        password: 'Strong#Pass9',
+        fullName: 'New User',
+        emailRedirectTo: 'io.supabase.flutter://login-callback/',
+        termsVersion: AppTerms.version,
+        termsAcceptedAt: acceptedAt,
+      ),
+      throwsA(isA<AuthException>()),
+    );
+
+    expect(capturedRequest.url.path, '/auth/v1/signup');
+    final body = jsonDecode((capturedRequest as http.Request).body);
+    expect(body['data']['full_name'], 'New User');
+    expect(body['data']['terms_version'], AppTerms.version);
+    expect(
+      body['data']['terms_accepted_at'],
+      acceptedAt.toIso8601String(),
+    );
   });
 
   test('signup email codes are verified with the email OTP type', () async {

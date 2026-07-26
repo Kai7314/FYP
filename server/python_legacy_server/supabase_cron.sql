@@ -7,11 +7,14 @@ create extension if not exists pg_net with schema extensions;
 
 select cron.unschedule(jobid)
 from cron.job
-where jobname = 'ethernacare-python-legacy-heartbeat-noon-myt';
+where jobname in (
+  'ethernacare-python-legacy-heartbeat-noon-myt',
+  'ethernacare-python-legacy-heartbeat-midnight-myt'
+);
 
 select cron.schedule(
-  'ethernacare-python-legacy-heartbeat-noon-myt',
-  '0 4 * * *',
+  'ethernacare-python-legacy-heartbeat-midnight-myt',
+  '0 16 * * *',
   $cron$
     select net.http_post(
       url := 'https://YOUR-PYTHON-SERVER/jobs/legacy-inactivity',

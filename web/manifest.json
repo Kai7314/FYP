@@ -1,11 +1,11 @@
 {
-    "name": "fyp",
-    "short_name": "fyp",
+    "name": "EthernaCare",
+    "short_name": "EthernaCare",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F2F7F4",
+    "theme_color": "#08A878",
+    "description": "Daily well-being check-ins, safety support, and legacy planning.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

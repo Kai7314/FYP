@@ -1,5 +1,6 @@
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/user_repository.dart';
+import '../core/constants/app_terms.dart';
 import '../utils/validators.dart';
 import 'local_cache_service.dart';
 import 'oren_care_service.dart';
@@ -21,7 +22,7 @@ class UserService {
 
   String _cacheKey(String userId) => 'profile_snapshot_v1_$userId';
 
-  static const termsVersion = '2026-06-24';
+  static const termsVersion = AppTerms.version;
 
   static bool isProfileSetupComplete(Map<String, dynamic> profile) {
     return AppProfileRules.missingSetupItems(profile).isEmpty;
@@ -54,12 +55,21 @@ class UserService {
     final user = authRepository.currentUser;
     if (user == null) throw StateError('You must be signed in.');
     final now = DateTime.now().toUtc().toIso8601String();
+    final existing = await userRepository.getProfile(user.id);
+    final existingTermsAcceptedAt =
+        existing?['terms_accepted_at']?.toString().trim() ?? '';
+    final existingTermsVersion =
+        existing?['terms_version']?.toString().trim() ?? '';
     await userRepository.updateProfile(
       userId: user.id,
       values: {
         ...values,
-        'terms_version': termsVersion,
-        'terms_accepted_at': now,
+        'terms_version': existingTermsVersion.isEmpty
+            ? termsVersion
+            : existingTermsVersion,
+        'terms_accepted_at': existingTermsAcceptedAt.isEmpty
+            ? now
+            : existingTermsAcceptedAt,
         'profile_completed_at': now,
       },
     );

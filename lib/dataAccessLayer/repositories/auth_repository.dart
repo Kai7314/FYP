@@ -29,11 +29,17 @@ class AuthRepository {
     required String password,
     required String fullName,
     required String emailRedirectTo,
+    required String termsVersion,
+    required DateTime termsAcceptedAt,
   }) {
     return client.auth.signUp(
       email: email,
       password: password,
-      data: {'full_name': fullName},
+      data: {
+        'full_name': fullName,
+        'terms_version': termsVersion,
+        'terms_accepted_at': termsAcceptedAt.toUtc().toIso8601String(),
+      },
       emailRedirectTo: emailRedirectTo,
     );
   }

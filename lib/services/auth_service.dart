@@ -31,12 +31,16 @@ class AuthService {
     required String password,
     required String fullName,
     required String emailRedirectTo,
+    required String termsVersion,
+    required DateTime termsAcceptedAt,
   }) {
     return authRepository.register(
       email: email,
       password: password,
       fullName: fullName,
       emailRedirectTo: emailRedirectTo,
+      termsVersion: termsVersion,
+      termsAcceptedAt: termsAcceptedAt,
     );
   }
 

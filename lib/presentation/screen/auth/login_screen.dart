@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/constants/app_terms.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/auth_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/premium_shell.dart';
+import '../legal/terms_and_conditions_screen.dart';
 import '../planning/legacy_check_screen.dart';
 
 enum _AuthView { login, register, verifyEmail, forgotPassword }
@@ -38,6 +40,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool loading = false;
   bool passwordVisible = false;
   bool passwordResetEmailSent = false;
+  bool registrationTermsReviewed = false;
+  bool acceptedRegistrationTerms = false;
+  DateTime? registrationTermsAcceptedAt;
   int resendSeconds = 0;
   String? fieldError;
 
@@ -76,6 +81,9 @@ class _LoginScreenState extends State<LoginScreen> {
           password: password,
           fullName: AppValidators.normalizeSpaces(name),
           emailRedirectTo: redirectUrl,
+          termsVersion: AppTerms.version,
+          termsAcceptedAt:
+              registrationTermsAcceptedAt ?? DateTime.now().toUtc(),
         );
 
         if (!mounted) return;
@@ -258,9 +266,43 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     final emailError = AppValidators.email(email);
     if (emailError != null) return emailError;
-    return view == _AuthView.register
+    final passwordError = view == _AuthView.register
         ? AppValidators.registrationPassword(password, email: email, name: name)
         : AppValidators.loginPassword(password);
+    if (passwordError != null) return passwordError;
+    if (view == _AuthView.register && !acceptedRegistrationTerms) {
+      return 'Read and accept the Terms and Conditions before creating an account.';
+    }
+    return null;
+  }
+
+  Future<void> _openRegistrationTerms() async {
+    final accepted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            const TermsAndConditionsScreen(acceptanceMode: true),
+      ),
+    );
+    if (!mounted || accepted != true) return;
+    setState(() {
+      registrationTermsReviewed = true;
+      acceptedRegistrationTerms = true;
+      registrationTermsAcceptedAt = DateTime.now().toUtc();
+      fieldError = null;
+    });
+  }
+
+  Future<void> _setRegistrationTerms(bool? value) async {
+    if (value == true && !registrationTermsReviewed) {
+      await _openRegistrationTerms();
+      return;
+    }
+    setState(() {
+      acceptedRegistrationTerms = value ?? false;
+      registrationTermsAcceptedAt = acceptedRegistrationTerms
+          ? DateTime.now().toUtc()
+          : null;
+    });
   }
 
   void _startResendCooldown() {
@@ -325,6 +367,11 @@ class _LoginScreenState extends State<LoginScreen> {
       if (next != _AuthView.forgotPassword) {
         passwordResetEmailSent = false;
         recoveryCodeController.clear();
+      }
+      if (next != _AuthView.register) {
+        registrationTermsReviewed = false;
+        acceptedRegistrationTerms = false;
+        registrationTermsAcceptedAt = null;
       }
     });
   }
@@ -449,6 +496,30 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+              if (registering) ...[
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  key: const Key('read-registration-terms-button'),
+                  onPressed: loading ? null : _openRegistrationTerms,
+                  icon: const Icon(Icons.policy_outlined),
+                  label: Text(
+                    registrationTermsReviewed
+                        ? 'Review Terms and Conditions'
+                        : 'Read Terms and Conditions',
+                  ),
+                ),
+                CheckboxListTile(
+                  key: const Key('registration-terms-checkbox'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: acceptedRegistrationTerms,
+                  onChanged: loading ? null : _setRegistrationTerms,
+                  title: const Text(
+                    'I agree to the Terms and Conditions, including the privacy and safety notices.',
+                    style: TextStyle(fontSize: 14, height: 1.3),
+                  ),
+                ),
+              ],
               if (!registering)
                 Align(
                   alignment: Alignment.centerRight,

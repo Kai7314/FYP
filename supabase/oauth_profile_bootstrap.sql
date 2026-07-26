@@ -7,6 +7,10 @@ create table if not exists public.users (
   name text not null default 'EthernaCare User'
 );
 
+alter table public.users
+  add column if not exists terms_version text,
+  add column if not exists terms_accepted_at timestamptz;
+
 create or replace function public.safe_auth_display_name(
   metadata jsonb,
   email text
@@ -43,6 +47,43 @@ begin
 end;
 $$;
 
+create or replace function public.safe_auth_terms_version(metadata jsonb)
+returns text
+language sql
+immutable
+as $$
+  select case
+    when char_length(btrim(coalesce(metadata ->> 'terms_version', '')))
+      between 4 and 30
+      then btrim(metadata ->> 'terms_version')
+    else null
+  end;
+$$;
+
+create or replace function public.safe_auth_terms_accepted_at(metadata jsonb)
+returns timestamptz
+language plpgsql
+stable
+as $$
+declare
+  accepted_at timestamptz;
+begin
+  begin
+    accepted_at := nullif(
+      btrim(coalesce(metadata ->> 'terms_accepted_at', '')),
+      ''
+    )::timestamptz;
+  exception when others then
+    return null;
+  end;
+
+  if accepted_at > now() + interval '5 minutes' then
+    return null;
+  end if;
+  return accepted_at;
+end;
+$$;
+
 create or replace function public.handle_new_auth_user()
 returns trigger
 language plpgsql
@@ -50,14 +91,36 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.users (id, name)
+  insert into public.users (
+    id,
+    name,
+    terms_version,
+    terms_accepted_at
+  )
   values (
     new.id,
-    public.safe_auth_display_name(new.raw_user_meta_data, new.email)
+    public.safe_auth_display_name(new.raw_user_meta_data, new.email),
+    public.safe_auth_terms_version(new.raw_user_meta_data),
+    public.safe_auth_terms_accepted_at(new.raw_user_meta_data)
   )
   on conflict (id) do update
-  set name = excluded.name
-  where public.users.name in ('EthernaCare User', 'User');
+  set
+    name = case
+      when public.users.name in ('EthernaCare User', 'User')
+        then excluded.name
+      else public.users.name
+    end,
+    terms_version = coalesce(
+      public.users.terms_version,
+      excluded.terms_version
+    ),
+    terms_accepted_at = coalesce(
+      public.users.terms_accepted_at,
+      excluded.terms_accepted_at
+    )
+  where public.users.name in ('EthernaCare User', 'User')
+     or public.users.terms_version is null
+     or public.users.terms_accepted_at is null;
 
   return new;
 end;
@@ -89,17 +152,39 @@ begin
     raise exception 'Authenticated user could not be found';
   end if;
 
-  insert into public.users (id, name)
+  insert into public.users (
+    id,
+    name,
+    terms_version,
+    terms_accepted_at
+  )
   values (
     auth_user.id,
     public.safe_auth_display_name(
       auth_user.raw_user_meta_data,
       auth_user.email
-    )
+    ),
+    public.safe_auth_terms_version(auth_user.raw_user_meta_data),
+    public.safe_auth_terms_accepted_at(auth_user.raw_user_meta_data)
   )
   on conflict (id) do update
-  set name = excluded.name
-  where public.users.name in ('EthernaCare User', 'User');
+  set
+    name = case
+      when public.users.name in ('EthernaCare User', 'User')
+        then excluded.name
+      else public.users.name
+    end,
+    terms_version = coalesce(
+      public.users.terms_version,
+      excluded.terms_version
+    ),
+    terms_accepted_at = coalesce(
+      public.users.terms_accepted_at,
+      excluded.terms_accepted_at
+    )
+  where public.users.name in ('EthernaCare User', 'User')
+     or public.users.terms_version is null
+     or public.users.terms_accepted_at is null;
 end;
 $$;
 
@@ -111,14 +196,36 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_auth_user();
 
-insert into public.users (id, name)
+insert into public.users (
+  id,
+  name,
+  terms_version,
+  terms_accepted_at
+)
 select
   users.id,
-  public.safe_auth_display_name(users.raw_user_meta_data, users.email)
+  public.safe_auth_display_name(users.raw_user_meta_data, users.email),
+  public.safe_auth_terms_version(users.raw_user_meta_data),
+  public.safe_auth_terms_accepted_at(users.raw_user_meta_data)
 from auth.users
 on conflict (id) do update
-set name = excluded.name
-where public.users.name in ('EthernaCare User', 'User');
+set
+  name = case
+    when public.users.name in ('EthernaCare User', 'User')
+      then excluded.name
+    else public.users.name
+  end,
+  terms_version = coalesce(
+    public.users.terms_version,
+    excluded.terms_version
+  ),
+  terms_accepted_at = coalesce(
+    public.users.terms_accepted_at,
+    excluded.terms_accepted_at
+  )
+where public.users.name in ('EthernaCare User', 'User')
+   or public.users.terms_version is null
+   or public.users.terms_accepted_at is null;
 
 select
   auth_users.id,

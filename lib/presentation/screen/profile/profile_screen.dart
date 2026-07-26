@@ -13,6 +13,7 @@ import '../../widgets/malaysia_address_fields.dart';
 import '../../widgets/phone_otp_verification_card.dart';
 import '../../widgets/premium_shell.dart';
 import '../../../services/phone_verification_service.dart';
+import '../legal/terms_and_conditions_screen.dart';
 import '../planning/ai_guidance_screen.dart';
 import '../planning/legacy_planning_screen.dart';
 
@@ -108,7 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.redeem_outlined,
           title: 'Rewards, tokens, and Oren',
           description:
-              'Daily activity earns tokens. Use them in Oren\'s shop, select an owned toy, then tap Play to see Oren interact with it.',
+              'Daily activity earns Oren tokens, while check-in streaks automatically unlock virtual badges and vouchers. Use tokens in Oren\'s shop, select an owned toy, then tap Play.',
           color: AppColors.accent,
         ),
         GuidanceItem(
@@ -158,6 +159,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ],
     );
+  }
+
+  void _openTerms(Map<String, dynamic> profile) {
+    final acceptedAt = DateTime.tryParse(
+      profile['terms_accepted_at']?.toString() ?? '',
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TermsAndConditionsScreen(
+          acceptedVersion: profile['terms_version']?.toString(),
+          acceptedAt: acceptedAt,
+        ),
+      ),
+    );
+  }
+
+  String _termsSubtitle(Map<String, dynamic> profile) {
+    final version = profile['terms_version']?.toString().trim() ?? '';
+    final acceptedAt = DateTime.tryParse(
+      profile['terms_accepted_at']?.toString() ?? '',
+    );
+    if (version.isEmpty && acceptedAt == null) {
+      return 'Read how EthernaCare works and uses your information';
+    }
+    final date = acceptedAt == null
+        ? null
+        : '${acceptedAt.toLocal().day}/${acceptedAt.toLocal().month}/${acceptedAt.toLocal().year}';
+    return [
+      if (date != null) 'Accepted $date',
+      if (version.isNotEmpty) 'version $version',
+    ].join('  |  ');
   }
 
   @override
@@ -371,6 +403,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const LegacyPlanningScreen()),
               ),
+            ),
+            const SizedBox(height: 10),
+            _ProfileAction(
+              icon: Icons.policy_outlined,
+              title: 'Terms and Conditions',
+              subtitle: _termsSubtitle(profile),
+              onTap: () => _openTerms(profile),
             ),
             const SizedBox(height: 10),
             _ProfileAction(

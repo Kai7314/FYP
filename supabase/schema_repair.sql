@@ -77,6 +77,7 @@ create table if not exists public.rewards (
   reward_code text,
   status text not null default 'earned',
   earned_at timestamptz not null default now(),
+  claimed_at timestamptz,
   redeemed_at timestamptz
 );
 
@@ -87,6 +88,7 @@ alter table public.rewards
   add column if not exists reward_code text,
   add column if not exists status text not null default 'earned',
   add column if not exists earned_at timestamptz not null default now(),
+  add column if not exists claimed_at timestamptz,
   add column if not exists redeemed_at timestamptz;
 
 create table if not exists public.emergency_alerts (

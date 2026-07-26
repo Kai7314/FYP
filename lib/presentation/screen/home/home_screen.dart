@@ -799,7 +799,7 @@ class _HomeDashboard extends StatelessWidget {
                   const CircleAvatar(
                     backgroundColor: AppColors.accent,
                     foregroundColor: Colors.white,
-                    child: Icon(Icons.card_giftcard),
+                    child: Icon(Icons.workspace_premium_outlined),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -839,11 +839,9 @@ class _HomeDashboard extends StatelessWidget {
                         ),
                         if (nextReward != null) ...[
                           const SizedBox(height: 6),
-                          Text(
-                            nextReward.rewardKind == 'voucher'
-                                ? '${nextReward.sponsor} virtual voucher'
-                                : 'Sponsored by ${nextReward.sponsor}',
-                            style: const TextStyle(
+                          const Text(
+                            'Virtual badge unlocks automatically',
+                            style: TextStyle(
                               color: AppColors.muted,
                               fontSize: 11,
                             ),
