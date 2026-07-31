@@ -49,6 +49,10 @@ Deno.serve(async (request) => {
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  let eligibilityOptions: {
+    skipInactivityWait?: boolean;
+    simulatedDay?: number;
+  } = {};
   if (testingMode) {
     const { data: owner, error: testingAccessError } = await supabase
       .from("users")
@@ -70,6 +74,39 @@ Deno.serve(async (request) => {
         { status: 403, headers: corsHeaders },
       );
     }
+
+    const { data: latestTest, error: latestTestError } = await supabase
+      .from("legacy_server_test_events")
+      .select("action")
+      .eq("owner_user_id", ownerUid)
+      .eq("succeeded", true)
+      .in("action", [
+        "live_status",
+        "day_89",
+        "day_90",
+        "day_91",
+        "day_97",
+        "day_98",
+      ])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestTestError) {
+      return Response.json(
+        { error: latestTestError.message },
+        { status: 500, headers: corsHeaders },
+      );
+    }
+
+    const latestAction = String(latestTest?.action ?? "");
+    const simulatedDay = latestAction.startsWith("day_")
+      ? Number(latestAction.replace("day_", ""))
+      : Number.NaN;
+    eligibilityOptions = Number.isFinite(simulatedDay)
+      ? { simulatedDay }
+      : latestAction === "live_status"
+      ? {}
+      : { skipInactivityWait: true };
   }
   let otp: Record<string, unknown> | null = null;
   if (!testingMode) {
@@ -124,7 +161,7 @@ Deno.serve(async (request) => {
     supabase,
     ownerUid,
     phone,
-    { skipInactivityWait: testingMode },
+    eligibilityOptions,
   );
   if (eligibility.error) {
     return Response.json(

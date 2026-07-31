@@ -650,9 +650,9 @@ class _LegacyServerTestPanelState extends State<_LegacyServerTestPanel> {
           ),
           content: Text(
             ownerWarning
-                ? 'This sends a TEST ONLY day-90 warning to your account email. The primary contact is not emailed, and no heartbeat or Legacy access changes.'
+                ? 'This sends a TEST ONLY day-90 warning to your account email and sets the isolated testing timeline to Day 90. The primary contact is not emailed, and the real heartbeat does not change.'
                 : day91Notice
-                ? 'This sends a TEST ONLY post-grace notice to the real primary contact. It does not open access or change the heartbeat.'
+                ? 'This sends a TEST ONLY post-grace notice to the real primary contact and sets the isolated testing timeline to Day 91. It does not change the real heartbeat.'
                 : 'This sends a TEST ONLY email to the real primary contact. It does not change heartbeat or Legacy access.',
           ),
           actions: [
@@ -693,7 +693,7 @@ class _LegacyServerTestPanelState extends State<_LegacyServerTestPanel> {
   @override
   Widget build(BuildContext context) {
     const tests = [
-      ('live_status', Icons.monitor_heart_outlined, 'Check Live Status'),
+      ('live_status', Icons.monitor_heart_outlined, 'Restore Live Timeline'),
       ('day_89', Icons.hourglass_bottom, 'Test Day 89'),
       (
         'day_90',
@@ -727,7 +727,7 @@ class _LegacyServerTestPanelState extends State<_LegacyServerTestPanel> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Day 90 emails the owner; Day 91 emails the primary contact. Tests never change real check-ins or access.',
+              'Day buttons set the isolated timeline used by Legacy Check Testing mode. Day 90 emails the owner, Day 91 emails the primary contact, and Restore Live Timeline returns to real heartbeat status.',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 14),

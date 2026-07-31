@@ -4,11 +4,11 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.telephony.SmsManager
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private val emergencySmsChannelName = "com.example.fyp/emergency_sms"
     private val smsPermissionRequestCode = 9401
     private var pendingSms: PendingSms? = null

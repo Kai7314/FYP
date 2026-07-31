@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/malaysia_locations.dart';
 import '../../../models/emergency_escalation_target.dart';
+import '../../../services/biometric_auth_service.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
@@ -26,16 +27,133 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final userService = UserService();
+  final biometricAuthService = BiometricAuthService();
   late Future<Map<String, dynamic>> profileFuture;
+  late Future<BiometricSetting> biometricSettingFuture;
+  bool biometricSettingBusy = false;
 
   @override
   void initState() {
     super.initState();
     profileFuture = _loadProfile();
+    biometricSettingFuture = _loadBiometricSetting();
   }
 
   Future<Map<String, dynamic>> _loadProfile() async {
     return userService.getCurrentProfile();
+  }
+
+  Future<BiometricSetting> _loadBiometricSetting() {
+    final userId = userService.currentUserId;
+    if (userId == null) {
+      return Future.value(
+        const BiometricSetting(
+          enabled: false,
+          availability: BiometricAvailability.unsupported(),
+        ),
+      );
+    }
+    return biometricAuthService.getSetting(userId);
+  }
+
+  Future<void> _setBiometricUnlock(bool enabled) async {
+    final userId = userService.currentUserId;
+    if (userId == null || biometricSettingBusy) return;
+    setState(() => biometricSettingBusy = true);
+    try {
+      if (enabled) {
+        final availability = await biometricAuthService.checkAvailability();
+        if (!availability.available) {
+          throw BiometricAuthException(
+            availability.platformSupported
+                ? 'Set up ${availability.methodLabel} in your device settings first.'
+                : 'Biometric unlock is not supported on this platform.',
+          );
+        }
+        final authenticated = await biometricAuthService.authenticate(
+          reason: 'Confirm ${availability.methodLabel} for EthernaCare.',
+        );
+        if (!authenticated) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Biometric unlock was not enabled.'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      await biometricAuthService.setEnabledForUser(userId, enabled);
+      if (!mounted) return;
+      setState(() => biometricSettingFuture = _loadBiometricSetting());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            enabled
+                ? 'Biometric unlock enabled on this device.'
+                : 'Biometric unlock disabled on this device.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      await AppErrorDialog.show(
+        context,
+        title: 'Could not update biometric unlock',
+        error: error,
+      );
+    } finally {
+      if (mounted) setState(() => biometricSettingBusy = false);
+    }
+  }
+
+  Widget _buildBiometricSetting() {
+    return FutureBuilder<BiometricSetting>(
+      future: biometricSettingFuture,
+      builder: (context, snapshot) {
+        final setting = snapshot.data;
+        final availability = setting?.availability;
+        final loading =
+            snapshot.connectionState != ConnectionState.done ||
+            biometricSettingBusy;
+        final enabled = setting?.enabled ?? false;
+        final available = availability?.available ?? false;
+        final method = availability?.methodLabel ?? 'Biometrics';
+        final subtitle = snapshot.hasError
+            ? 'Device authentication status is unavailable.'
+            : enabled
+            ? '$method is required when EthernaCare opens or returns from the background.'
+            : available
+            ? 'Use $method to unlock your signed-in account.'
+            : 'Set up fingerprint, face recognition, or device authentication first.';
+
+        return SwitchListTile.adaptive(
+          key: const Key('biometric-unlock-switch'),
+          value: enabled,
+          onChanged: loading || (!available && !enabled)
+              ? null
+              : _setBiometricUnlock,
+          secondary: CircleAvatar(
+            radius: 20,
+            backgroundColor: AppColors.primary.withValues(alpha: .1),
+            foregroundColor: AppColors.primary,
+            child: Icon(
+              method.contains('Face') ? Icons.face_outlined : Icons.fingerprint,
+              size: 22,
+            ),
+          ),
+          title: const Text(
+            'Biometric unlock',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          subtitle: Text(subtitle),
+        );
+      },
+    );
   }
 
   Future<void> _editProfile(Map<String, dynamic> profile) async {
@@ -118,6 +236,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           description:
               'Update personal and safety details, copy your Legacy UID, manage Legacy Planning, and open general AI Guidance.',
           color: AppColors.purple,
+        ),
+        GuidanceItem(
+          icon: Icons.fingerprint,
+          title: 'Biometric unlock',
+          description:
+              'Enable fingerprint, face recognition, Touch ID, or Windows Hello under Account Security. It protects the saved sign-in session on this device.',
+          color: AppColors.primary,
         ),
         GuidanceItem(
           icon: Icons.warning_amber_rounded,
@@ -227,8 +352,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(width: 4),
                   IconButton.filled(
-                    onPressed:
-                        snapshot.connectionState == ConnectionState.done
+                    onPressed: snapshot.connectionState == ConnectionState.done
                         ? () => _editProfile(profile)
                         : null,
                     icon: const Icon(Icons.edit_outlined),
@@ -394,6 +518,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   value: EmergencyEscalationTarget.label(escalationTarget),
                 ),
               ],
+            ),
+            const SizedBox(height: 18),
+            _InfoSection(
+              title: 'ACCOUNT SECURITY',
+              children: [_buildBiometricSetting()],
             ),
             const SizedBox(height: 18),
             _ProfileAction(

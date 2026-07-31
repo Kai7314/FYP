@@ -178,8 +178,11 @@ async function liveStatus(
   );
   return {
     ok: true,
-    title: "Live server status",
-    message: `${liveDays} no-heartbeat day${liveDays === 1 ? "" : "s"}. ` +
+    title: "Live timeline restored",
+    message:
+      `Testing access now follows the real heartbeat: ${liveDays} no-heartbeat day${
+        liveDays === 1 ? "" : "s"
+      }. ` +
       `Primary contact ${
         contactReady ? "is" : "is not"
       } ready for email and SMS verification.`,
@@ -214,12 +217,12 @@ function scenarioResult(action: string) {
     ok: expected,
     title: `Day ${day} rule test`,
     message: day === 89
-      ? "PASS: email and Legacy access remain unavailable before day 90."
+      ? "Testing timeline set to Day 89. Protected Legacy content remains locked."
       : day === 90
-      ? "PASS: day 90 warns the account owner and starts the 24-hour cancellation period."
+      ? "Testing timeline set to Day 90. The owner protection period is active."
       : day < 98
-      ? "PASS: after the protection period, the primary-contact email can open the seven-day access window."
-      : "PASS: the protected seven-day Legacy access period is expired on day 98.",
+      ? `Testing timeline set to Day ${day}. The seven-day Legacy access window is open in Testing mode.`
+      : "Testing timeline set to Day 98. The seven-day Legacy access window is expired in Testing mode.",
     details: { simulatedDay: day, thresholdReached, expectedState: state },
   };
 }
@@ -269,7 +272,7 @@ async function sendOwnerWarningTestEmail(
     title: "Day 90 owner email sent",
     message: `A TEST ONLY owner warning was sent to ${
       maskEmail(ownerEmail)
-    }. The primary contact was not emailed and no access window was created.`,
+    }. Testing mode now uses Day 90. The primary contact was not emailed and no real access window was created.`,
   };
 }
 
@@ -331,7 +334,11 @@ async function sendPrimaryContactTestEmail(
     title: isDay91 ? "Day 91 contact email sent" : "Test email sent",
     message: `A TEST ONLY email was sent to ${
       maskEmail(String(contact.email))
-    }. No access window was created.`,
+    }. ${
+      isDay91
+        ? "Testing mode now uses Day 91. No real access window was created."
+        : "No heartbeat, testing timeline, or access window was changed."
+    }`,
   };
 }
 

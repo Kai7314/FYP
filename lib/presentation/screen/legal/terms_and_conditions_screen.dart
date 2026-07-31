@@ -99,6 +99,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
                       'Provide accurate information and keep your email, phone number, home region, safety settings, and trusted contacts current. One email address may be associated with only one EthernaCare account.',
                       'Keep your password, email codes, SMS codes, and device access private. You are responsible for activity performed through your account unless you promptly report unauthorized access to the administrator.',
                       'Phone and email verification reduce misuse but do not prove identity in every situation. Do not register a phone number or email address that you do not control or have permission to use.',
+                      'If you enable biometric unlock, EthernaCare asks the device operating system to verify fingerprint, face recognition, Touch ID, Windows Hello, or another supported device credential before showing a saved signed-in session. EthernaCare does not receive or store your biometric template. The setting applies only to that device and does not replace your account password or Supabase authentication.',
                     ],
                   ),
                   const _TermsSection(

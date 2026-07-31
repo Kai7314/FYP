@@ -77,7 +77,7 @@ export async function getLegacyEligibility(
   supabase: SupabaseClient,
   ownerUid: string,
   requestedPhone: string,
-  options: { skipInactivityWait?: boolean } = {},
+  options: { skipInactivityWait?: boolean; simulatedDay?: number } = {},
 ): Promise<LegacyEligibility> {
   const { data: owner, error: ownerError } = await supabase
     .from("users")
@@ -154,6 +154,52 @@ export async function getLegacyEligibility(
     accessStartedMs,
     Number.isFinite(lastCheckinMs) ? lastCheckinMs : 0,
   );
+  if (options.simulatedDay !== undefined) {
+    const simulatedDay = Math.max(0, Math.floor(options.simulatedDay));
+    const dayMs = 24 * 60 * 60 * 1000;
+    const simulatedNowMs = Date.now();
+    const simulatedLastActivityMs = simulatedNowMs - simulatedDay * dayMs;
+    const simulatedAvailableAtMs = simulatedLastActivityMs + 91 * dayMs;
+    const simulatedExpiresAtMs = simulatedLastActivityMs + 98 * dayMs;
+    const simulatedBase = {
+      ...preferenceAccess,
+      lastActivityAt: new Date(simulatedLastActivityMs).toISOString(),
+      availableAt: new Date(simulatedAvailableAtMs).toISOString(),
+    };
+
+    if (simulatedDay < 90) {
+      return {
+        eligible: false,
+        ...simulatedBase,
+        daysRemaining: 91 - simulatedDay,
+        reason: "waiting_period",
+      };
+    }
+    if (simulatedDay === 90) {
+      return {
+        eligible: false,
+        ...simulatedBase,
+        daysRemaining: 1,
+        reason: "owner_grace_period",
+      };
+    }
+    if (simulatedDay < 98) {
+      return {
+        eligible: true,
+        ...simulatedBase,
+        accessExpiresAt: new Date(simulatedExpiresAtMs).toISOString(),
+        daysRemaining: 0,
+      };
+    }
+    return {
+      eligible: false,
+      ...simulatedBase,
+      accessExpiresAt: new Date(simulatedExpiresAtMs).toISOString(),
+      daysRemaining: 0,
+      reason: "access_expired",
+    };
+  }
+
   const inactivityMs = legacyInactivityDays * 24 * 60 * 60 * 1000;
   const availableAtMs = lastActivityMs + inactivityMs;
   const ownerProtectionMs = 24 * 60 * 60 * 1000;
