@@ -130,8 +130,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
   Future<void> _openTerms() async {
     final accepted = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) =>
-            const TermsAndConditionsScreen(acceptanceMode: true),
+        builder: (_) => const TermsAndConditionsScreen(acceptanceMode: true),
       ),
     );
     if (!mounted || accepted != true) return;
@@ -241,13 +240,11 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
-                    value: selectedBloodType,
+                    initialValue: selectedBloodType,
                     items: AppValidators.bloodTypes
                         .map(
-                          (type) => DropdownMenuItem(
-                            value: type,
-                            child: Text(type),
-                          ),
+                          (type) =>
+                              DropdownMenuItem(value: type, child: Text(type)),
                         )
                         .toList(),
                     onChanged: saving
@@ -270,7 +267,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
-                    value: escalationTarget,
+                    initialValue: escalationTarget,
                     items: EmergencyEscalationTarget.values
                         .map(
                           (value) => DropdownMenuItem(

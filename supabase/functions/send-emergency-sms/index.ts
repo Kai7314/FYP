@@ -68,7 +68,8 @@ Deno.serve(async (request) => {
   let query = supabase
     .from("emergency_delivery_outbox")
     .select("id, contact_phone, message_body, attempt_count")
-    .eq("status", "pending")
+    .in("status", ["pending", "failed"])
+    .lt("attempt_count", 3)
     .order("created_at", { ascending: true });
 
   if (authenticatedUserId) {
@@ -88,10 +89,14 @@ Deno.serve(async (request) => {
   let failed = 0;
   for (const row of rows ?? []) {
     const attemptCount = Number(row.attempt_count ?? 0) + 1;
-    await supabase
+    const { data: claimed, error: claimError } = await supabase
       .from("emergency_delivery_outbox")
       .update({ status: "processing", attempt_count: attemptCount })
-      .eq("id", row.id);
+      .eq("id", row.id)
+      .in("status", ["pending", "failed"])
+      .select("id")
+      .maybeSingle();
+    if (claimError || !claimed) continue;
 
     const message =
       row.message_body ??
@@ -142,5 +147,18 @@ Deno.serve(async (request) => {
     }
   }
 
-  return Response.json({ sent, failed }, { headers: corsHeaders });
+  let exhaustedQuery = supabase
+    .from("emergency_delivery_outbox")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "failed")
+    .gte("attempt_count", 3);
+  if (authenticatedUserId) {
+    exhaustedQuery = exhaustedQuery.eq("user_id", authenticatedUserId);
+  }
+  const { count: exhausted = 0 } = await exhaustedQuery;
+
+  return Response.json(
+    { sent, failed, exhausted: exhausted ?? 0 },
+    { headers: corsHeaders },
+  );
 });

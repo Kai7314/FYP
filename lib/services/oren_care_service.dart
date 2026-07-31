@@ -12,6 +12,8 @@ class OrenCareService {
 
   static const dailyLoginTokenReward = 5;
   static const dailyCheckInTokenReward = 3;
+  static const energyDecayInterval = Duration(hours: 1);
+  static const energyDecayPerInterval = 1;
 
   static const toyCatalog = <OrenToy>[
     OrenToy(
@@ -49,9 +51,36 @@ class OrenCareService {
     final user = authRepository.currentUser;
     if (user == null) return OrenCareState.initial();
     final cached = await cache.readMap(cacheKeyForUser(user.id));
-    return cached == null
+    final restored = cached == null
         ? OrenCareState.initial()
         : OrenCareState.fromJson(cached);
+    final decayed = applyEnergyDecay(restored, DateTime.now());
+    if (decayed.updatedAt != restored.updatedAt) {
+      await cache.writeMap(cacheKeyForUser(user.id), decayed.toJson());
+    }
+    return decayed;
+  }
+
+  static OrenCareState applyEnergyDecay(OrenCareState state, DateTime now) {
+    final elapsed = now.difference(state.updatedAt);
+    if (elapsed.isNegative) return state;
+
+    final elapsedIntervals = elapsed.inSeconds ~/ energyDecayInterval.inSeconds;
+    if (elapsedIntervals <= 0) return state;
+
+    final nextEnergy =
+        (state.energy - elapsedIntervals * energyDecayPerInterval)
+            .clamp(0, 100)
+            .toInt();
+    final decayedThrough = state.updatedAt.add(
+      Duration(seconds: elapsedIntervals * energyDecayInterval.inSeconds),
+    );
+    return state.copyWith(
+      energy: nextEnergy,
+      mood: _moodForEnergy(nextEnergy),
+      lastAction: _actionForEnergy(nextEnergy),
+      updatedAt: decayedThrough,
+    );
   }
 
   Future<OrenCareState> claimDailyLoginToken() async {
@@ -207,12 +236,20 @@ class OrenCareService {
   }
 
   String _restingMoodForEnergy(int energy) {
+    return _moodForEnergy(energy);
+  }
+
+  String _restingActionForEnergy(int energy) {
+    return _actionForEnergy(energy);
+  }
+
+  static String _moodForEnergy(int energy) {
     if (energy >= 90) return 'Energetic';
     if (energy <= 25) return 'Tired';
     return 'Calm';
   }
 
-  String _restingActionForEnergy(int energy) {
+  static String _actionForEnergy(int energy) {
     if (energy >= 90) return 'Oren is full of energy.';
     if (energy <= 25) return 'Oren is sleepy. A snack would help.';
     return 'Oren is ready for today.';

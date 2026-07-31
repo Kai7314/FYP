@@ -2,19 +2,23 @@ import 'dart:async';
 
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/checkin_repository.dart';
+import '../dataAccessLayer/repositories/user_repository.dart';
 import 'local_cache_service.dart';
 
 class CheckinService {
   CheckinService({
     AuthRepository? authRepository,
     CheckinRepository? checkinRepository,
+    UserRepository? userRepository,
     LocalCacheService? cache,
   }) : authRepository = authRepository ?? AuthRepository(),
        checkinRepository = checkinRepository ?? CheckinRepository(),
+       userRepository = userRepository ?? UserRepository(),
        cache = cache ?? LocalCacheService();
 
   final AuthRepository authRepository;
   final CheckinRepository checkinRepository;
+  final UserRepository userRepository;
   final LocalCacheService cache;
 
   static final StreamController<void> _updates =
@@ -54,7 +58,14 @@ class CheckinService {
     }
 
     final checkedAt = DateTime.now();
-    final created = await checkinRepository.addDailyCheckin(user.id, checkedAt);
+    final profile = await userRepository.getProfile(user.id);
+    final configuredThreshold =
+        int.tryParse(profile?['inactivity_threshold']?.toString() ?? '') ?? 24;
+    final created = await checkinRepository.addThresholdCheckin(
+      userId: user.id,
+      now: checkedAt,
+      thresholdHours: configuredThreshold,
+    );
     if (created) {
       await _cacheCreatedCheckin(user.id, checkedAt);
       _updates.add(null);
@@ -72,13 +83,10 @@ class CheckinService {
 
   Future<void> _cacheCreatedCheckin(String userId, DateTime checkedAt) async {
     final rows = await getCachedCheckins();
-    final localDay = DateTime(checkedAt.year, checkedAt.month, checkedAt.day);
     final alreadyCached = rows.any((row) {
-      final parsed = DateTime.tryParse(
-        row['checkin_time'].toString(),
-      )?.toLocal();
+      final parsed = DateTime.tryParse(row['checkin_time'].toString());
       if (parsed == null) return false;
-      return DateTime(parsed.year, parsed.month, parsed.day) == localDay;
+      return parsed.difference(checkedAt).abs() < const Duration(seconds: 1);
     });
     if (alreadyCached) return;
 

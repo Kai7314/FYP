@@ -124,7 +124,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
                     title: 'Check-ins and inactivity',
                     paragraphs: [
                       'A check-in records that you interacted with the check-in control at that time. It does not confirm your medical condition or guarantee your safety.',
-                      'If no new check-in is recorded, the system may issue inactivity reminders according to your threshold. Where configured, the third reminder may send an SMS alert to the selected escalation target. A failed or triggered alarm does not create a check-in and inactivity continues until a valid check-in is recorded.',
+                      'If no new check-in is recorded, the system may issue inactivity reminders according to your threshold. The second missed window may send an SMS reminder to your verified phone. Where configured, the third reminder may send an SMS alert to the selected escalation target. A failed or triggered alarm does not create a check-in and inactivity continues until a valid check-in is recorded.',
                     ],
                   ),
                   const _TermsSection(

@@ -8,6 +8,8 @@ class AppScheduler {
 
   Future<void> initializeDailyTasks() async {
     await notificationService.initialize();
-    await notificationService.scheduleDailyCheckInReminder();
+    // Threshold reminders are evaluated by InactivityService. Remove the old
+    // calendar-day notification so it cannot disagree with the user's hours.
+    await notificationService.cancelDailyCheckInReminder();
   }
 }

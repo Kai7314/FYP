@@ -10,12 +10,15 @@ import 'notification_service.dart';
 class InactivityReminderTestResult {
   const InactivityReminderTestResult({
     required this.reminderCount,
+    this.userSmsResult,
     this.emergencyResult,
   });
 
   final int reminderCount;
+  final InactivityUserSmsResult? userSmsResult;
   final EmergencyTriggerResult? emergencyResult;
 
+  bool get userSmsTriggered => userSmsResult?.accepted == true;
   bool get smsTriggered => emergencyResult != null;
 }
 
@@ -23,14 +26,20 @@ class InactivityMonitorStatus {
   const InactivityMonitorStatus({
     required this.notificationCount,
     required this.escalated,
+    this.userSmsAccepted = false,
+    this.userSmsError,
   });
 
   const InactivityMonitorStatus.clear()
     : notificationCount = 0,
-      escalated = false;
+      escalated = false,
+      userSmsAccepted = false,
+      userSmsError = null;
 
   final int notificationCount;
   final bool escalated;
+  final bool userSmsAccepted;
+  final String? userSmsError;
 }
 
 class InactivityService {
@@ -49,10 +58,13 @@ class InactivityService {
        emergencyRepository = emergencyRepository ?? EmergencyRepository(),
        emergencyService = emergencyService ?? EmergencyService(),
        cache = cache ?? LocalCacheService(),
-       notificationService = notificationService ?? NotificationService.instance,
+       notificationService =
+           notificationService ?? NotificationService.instance,
        clock = clock ?? DateTime.now;
 
   static const missedCheckInsBeforeEscalation = 3;
+  static const userSmsReminderMiss = 2;
+  static const userSmsRetryDelay = Duration(minutes: 30);
 
   static int calculateMissedCheckIns({
     required DateTime lastCheckIn,
@@ -63,6 +75,50 @@ class InactivityService {
     final elapsed = now.difference(lastCheckIn);
     if (elapsed.isNegative) return 0;
     return elapsed.inSeconds ~/ Duration(hours: safeThreshold).inSeconds;
+  }
+
+  static bool isCheckInCurrent({
+    required DateTime? lastCheckIn,
+    required DateTime now,
+    required int thresholdHours,
+  }) {
+    if (lastCheckIn == null) return false;
+    return calculateMissedCheckIns(
+          lastCheckIn: lastCheckIn,
+          now: now,
+          thresholdHours: thresholdHours,
+        ) ==
+        0;
+  }
+
+  static DateTime? nextCheckInDueAt({
+    required DateTime? lastCheckIn,
+    required int thresholdHours,
+  }) {
+    if (lastCheckIn == null) return null;
+    final safeThreshold = thresholdHours.clamp(1, 168).toInt();
+    return lastCheckIn.add(Duration(hours: safeThreshold));
+  }
+
+  static bool shouldAttemptUserSms({
+    required int missedCheckIns,
+    required bool userSmsAccepted,
+    required DateTime now,
+    DateTime? lastAttemptAt,
+  }) {
+    if (missedCheckIns < userSmsReminderMiss || userSmsAccepted) return false;
+    return lastAttemptAt == null ||
+        now.difference(lastAttemptAt) >= userSmsRetryDelay;
+  }
+
+  static bool shouldEscalateToTrustedContact({
+    required int missedCheckIns,
+    required bool alreadyEscalated,
+    required bool alertAlreadyRecordedForCheckIn,
+  }) {
+    return missedCheckIns >= missedCheckInsBeforeEscalation &&
+        !alreadyEscalated &&
+        !alertAlreadyRecordedForCheckIn;
   }
 
   static int nextTestReminderCount(int currentCount) {
@@ -107,6 +163,8 @@ class InactivityService {
     return InactivityMonitorStatus(
       notificationCount: notificationCount,
       escalated: warning['escalated'] == true,
+      userSmsAccepted: warning['user_sms_accepted'] == true,
+      userSmsError: warning['user_sms_error']?.toString(),
     );
   }
 
@@ -119,6 +177,19 @@ class InactivityService {
       requiredMissedCheckIns: missedCheckInsBeforeEscalation,
       testMode: true,
     );
+
+    if (reminderCount == userSmsReminderMiss) {
+      final thresholdHours = await _currentThresholdHours();
+      final userSmsResult = await emergencyService.sendUserInactivityReminder(
+        lastCheckIn: clock(),
+        thresholdHours: thresholdHours,
+        testMode: true,
+      );
+      return InactivityReminderTestResult(
+        reminderCount: reminderCount,
+        userSmsResult: userSmsResult,
+      );
+    }
 
     if (reminderCount < missedCheckInsBeforeEscalation) {
       return InactivityReminderTestResult(reminderCount: reminderCount);
@@ -143,12 +214,12 @@ class InactivityService {
     final results = await Future.wait([
       checkinRepository.getLatestCheckin(user.id),
       userRepository.getProfile(user.id),
-      emergencyRepository.getLatestTriggeredAlert(user.id),
+      emergencyRepository.getLatestInactivityAlert(user.id),
     ]);
     final checkin = results[0];
     if (checkin == null) return;
     final profile = results[1];
-    final alert = results[2];
+    final inactivityAlert = results[2];
     final configuredThreshold =
         int.tryParse(profile?['inactivity_threshold']?.toString() ?? '') ?? 24;
     final threshold = configuredThreshold.clamp(1, 168).toInt();
@@ -168,15 +239,11 @@ class InactivityService {
       now: now,
       thresholdHours: threshold,
     );
-    final lastAlert = alert == null
+    final lastAlert = inactivityAlert == null
         ? null
-        : DateTime.tryParse(alert['triggered_time'].toString());
+        : DateTime.tryParse(inactivityAlert['triggered_time'].toString());
     final alertAlreadyRecordedForThisCheckIn =
         lastAlert != null && !lastAlert.isBefore(lastCheckin);
-    if (alertAlreadyRecordedForThisCheckIn) {
-      return;
-    }
-
     final warning = await cache.readMap(_warningCacheKey(user.id));
     final warningForCheckin =
         warning?['last_checkin_at'] == checkin['checkin_time'];
@@ -184,49 +251,127 @@ class InactivityService {
         ? int.tryParse(warning?['last_notified_miss']?.toString() ?? '') ?? 0
         : 0;
     final escalated = warningForCheckin && warning?['escalated'] == true;
+    var userSmsAccepted =
+        warningForCheckin && warning?['user_sms_accepted'] == true;
+    String? userSmsError;
+    DateTime? userSmsLastAttempt;
+    if (warningForCheckin) {
+      userSmsError = warning?['user_sms_error']?.toString();
+      userSmsLastAttempt = DateTime.tryParse(
+        warning?['user_sms_last_attempt_at']?.toString() ?? '',
+      );
+    }
+    var currentNotifiedMiss = lastNotifiedMiss;
+    final reminderMiss = missedCheckIns
+        .clamp(1, missedCheckInsBeforeEscalation)
+        .toInt();
 
-    if (missedCheckIns < missedCheckInsBeforeEscalation) {
-      if (missedCheckIns <= lastNotifiedMiss) return;
-
+    if (reminderMiss > currentNotifiedMiss) {
       await notificationService.showMissedCheckInReminder(
-        missedCheckIns: missedCheckIns,
+        missedCheckIns: reminderMiss,
         requiredMissedCheckIns: missedCheckInsBeforeEscalation,
       );
-      await cache.writeMap(_warningCacheKey(user.id), {
-        'last_checkin_at': checkin['checkin_time'],
-        'last_notified_miss': missedCheckIns,
-        'escalated': false,
-      });
+      currentNotifiedMiss = reminderMiss;
+    }
+
+    if (shouldAttemptUserSms(
+      missedCheckIns: missedCheckIns,
+      userSmsAccepted: userSmsAccepted,
+      now: now,
+      lastAttemptAt: userSmsLastAttempt,
+    )) {
+      userSmsLastAttempt = now;
+      await _saveWarning(
+        userId: user.id,
+        checkInValue: checkin['checkin_time'],
+        lastNotifiedMiss: currentNotifiedMiss,
+        escalated: escalated,
+        userSmsAccepted: false,
+        userSmsError: userSmsError,
+        userSmsLastAttemptAt: now,
+      );
+      final smsResult = await emergencyService.sendUserInactivityReminder(
+        lastCheckIn: lastCheckin,
+        thresholdHours: threshold,
+      );
+      userSmsAccepted = smsResult.accepted;
+      userSmsError = smsResult.error;
+    }
+
+    if (missedCheckIns < missedCheckInsBeforeEscalation) {
+      await _saveWarning(
+        userId: user.id,
+        checkInValue: checkin['checkin_time'],
+        lastNotifiedMiss: currentNotifiedMiss,
+        escalated: false,
+        userSmsAccepted: userSmsAccepted,
+        userSmsError: userSmsError,
+        userSmsLastAttemptAt: userSmsLastAttempt,
+      );
       return;
     }
 
-    if (escalated) return;
-
-    if (lastNotifiedMiss < missedCheckInsBeforeEscalation) {
-      await notificationService.showMissedCheckInReminder(
-        missedCheckIns: missedCheckInsBeforeEscalation,
-        requiredMissedCheckIns: missedCheckInsBeforeEscalation,
+    if (!shouldEscalateToTrustedContact(
+      missedCheckIns: missedCheckIns,
+      alreadyEscalated: escalated,
+      alertAlreadyRecordedForCheckIn: alertAlreadyRecordedForThisCheckIn,
+    )) {
+      await _saveWarning(
+        userId: user.id,
+        checkInValue: checkin['checkin_time'],
+        lastNotifiedMiss: currentNotifiedMiss,
+        escalated: true,
+        userSmsAccepted: userSmsAccepted,
+        userSmsError: userSmsError,
+        userSmsLastAttemptAt: userSmsLastAttempt,
       );
-      await cache.writeMap(_warningCacheKey(user.id), {
-        'last_checkin_at': checkin['checkin_time'],
-        'last_notified_miss': missedCheckInsBeforeEscalation,
-        'escalated': false,
-      });
+      return;
     }
 
     final result = await emergencyService.triggerEmergencyDetailed(
       allow999Dialer: false,
       sendAutomatedSms: true,
+      alertStatus: 'inactivity_triggered',
     );
-    if (result.alertRecorded) {
-      await cache.writeMap(_warningCacheKey(user.id), {
-        'last_checkin_at': checkin['checkin_time'],
-        'last_notified_miss': missedCheckIns,
-        'escalated': true,
-      });
-    }
+    await _saveWarning(
+      userId: user.id,
+      checkInValue: checkin['checkin_time'],
+      lastNotifiedMiss: currentNotifiedMiss,
+      escalated: result.alertRecorded,
+      userSmsAccepted: userSmsAccepted,
+      userSmsError: userSmsError,
+      userSmsLastAttemptAt: userSmsLastAttempt,
+    );
     if (result.official999Selected) {
       await notificationService.showOfficial999EscalationNotice();
     }
+  }
+
+  Future<int> _currentThresholdHours() async {
+    final user = authRepository.currentUser;
+    if (user == null) return 24;
+    final profile = await userRepository.getProfile(user.id);
+    final configured =
+        int.tryParse(profile?['inactivity_threshold']?.toString() ?? '') ?? 24;
+    return configured.clamp(1, 168).toInt();
+  }
+
+  Future<void> _saveWarning({
+    required String userId,
+    required Object? checkInValue,
+    required int lastNotifiedMiss,
+    required bool escalated,
+    required bool userSmsAccepted,
+    String? userSmsError,
+    DateTime? userSmsLastAttemptAt,
+  }) {
+    return cache.writeMap(_warningCacheKey(userId), {
+      'last_checkin_at': checkInValue,
+      'last_notified_miss': lastNotifiedMiss,
+      'escalated': escalated,
+      'user_sms_accepted': userSmsAccepted,
+      'user_sms_error': userSmsError,
+      'user_sms_last_attempt_at': userSmsLastAttemptAt?.toIso8601String(),
+    });
   }
 }

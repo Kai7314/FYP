@@ -50,6 +50,17 @@ class EmergencyRepository {
     return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
   }
 
+  Future<Map<String, dynamic>?> getLatestInactivityAlert(String userId) async {
+    final rows = await client
+        .from('emergency_alerts')
+        .select()
+        .eq('user_id', userId)
+        .eq('status', 'inactivity_triggered')
+        .order('triggered_time', ascending: false)
+        .limit(1);
+    return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
+  }
+
   Future<EmergencyAlertModel?> getLatestAlertModel(String userId) async {
     final row = await getLatestAlert(userId);
     return row == null ? null : EmergencyAlertModel.fromJson(row);
@@ -84,7 +95,7 @@ class EmergencyRepository {
             'contact_phone': contact['phone'],
             'status': 'pending',
             'attempt_count': 0,
-            if (messageBody != null) 'message_body': messageBody,
+            'message_body': messageBody,
           },
         )
         .toList();
@@ -98,6 +109,42 @@ class EmergencyRepository {
         return compatible;
       }).toList();
       await client.from('emergency_delivery_outbox').insert(compatibleRows);
+    }
+  }
+
+  Future<bool> queueInactivityUserSms({
+    required String userId,
+    required DateTime lastCheckIn,
+    required String recipientName,
+    required String recipientPhone,
+    required String messageBody,
+  }) async {
+    final heartbeatKey = lastCheckIn.toUtc().toIso8601String();
+    final row = {
+      'alert_id': 'inactivity-user-$userId-$heartbeatKey',
+      'user_id': userId,
+      'contact_name': recipientName,
+      'contact_phone': recipientPhone,
+      'message_body': messageBody,
+      'delivery_key': 'inactivity-user:$userId:$heartbeatKey',
+      'status': 'pending',
+      'attempt_count': 0,
+    };
+    try {
+      final inserted = await client
+          .from('emergency_delivery_outbox')
+          .upsert(row, onConflict: 'delivery_key', ignoreDuplicates: true)
+          .select('id');
+      return inserted.isNotEmpty;
+    } on PostgrestException catch (error) {
+      final message = error.message.toLowerCase();
+      if (!message.contains('delivery_key') ||
+          message.contains('message_body')) {
+        rethrow;
+      }
+      final compatible = {...row}..remove('delivery_key');
+      await client.from('emergency_delivery_outbox').insert(compatible);
+      return true;
     }
   }
 

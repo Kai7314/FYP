@@ -37,7 +37,7 @@ class CountryPhoneField extends StatelessWidget {
           child: _PhoneFieldShell(
             label: externalLabels ? codeLabel : null,
             child: DropdownButtonFormField<String>(
-              value: selectedCountry.dialCode,
+              initialValue: selectedCountry.dialCode,
               isExpanded: true,
               decoration: InputDecoration(
                 labelText: externalLabels ? null : codeLabel,

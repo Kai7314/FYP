@@ -31,11 +31,37 @@ class EmergencyTriggerResult {
   final String? autoSmsError;
 }
 
+class InactivityUserSmsResult {
+  const InactivityUserSmsResult({
+    required this.sent,
+    required this.queued,
+    this.error,
+  });
+
+  final bool sent;
+  final bool queued;
+  final String? error;
+
+  bool get accepted => sent || queued;
+}
+
 class EmergencyService {
   static const emergencySmsMessage =
       'Emergency alert from EthernaCare. The user may need help. Please contact them immediately.';
   static const testEmergencySmsMessage =
       'TEST - $emergencySmsMessage This is a test after three check-in reminders. No real emergency alert was sent and 999 was not contacted.';
+
+  static String inactivityUserSmsMessage({
+    required int thresholdHours,
+    bool testMode = false,
+  }) {
+    final prefix = testMode ? 'TEST - ' : '';
+    final unit = thresholdHours == 1 ? 'hour' : 'hours';
+    return '${prefix}EthernaCare check-in reminder: you have missed two '
+        '$thresholdHours-$unit check-in windows. Open EthernaCare and tap '
+        'Oren now. If inactivity continues, your configured emergency '
+        'escalation may notify your primary trusted contact.';
+  }
 
   EmergencyService({
     AuthRepository? authRepository,
@@ -113,16 +139,19 @@ class EmergencyService {
     bool allow999Dialer = false,
     String? escalationTarget,
     bool testMode = false,
+    String? alertStatus,
   }) async {
     final user = authRepository.currentUser;
     if (user == null) {
       throw StateError('You must be signed in to send an emergency alert.');
     }
 
-    final target = escalationTarget ??
+    final target =
+        escalationTarget ??
         EmergencyEscalationTarget.normalize(
-          (await userRepository.getProfile(user.id))?[
-              'emergency_escalation_target'],
+          (await userRepository.getProfile(
+            user.id,
+          ))?['emergency_escalation_target'],
         );
     final useOfficial999 = target == EmergencyEscalationTarget.official999;
 
@@ -148,7 +177,7 @@ class EmergencyService {
     final alert = await _retry(
       () => emergencyRepository.createAlert(
         user.id,
-        status: testMode ? 'test_triggered' : 'triggered',
+        status: alertStatus ?? (testMode ? 'test_triggered' : 'triggered'),
       ),
       attempts: 3,
     );
@@ -164,10 +193,7 @@ class EmergencyService {
 
     if (sendAutomatedSms && !useOfficial999 && contacts.isNotEmpty) {
       autoSmsAttempted = true;
-      final directDelivery = await _sendDirectSmsToContacts(
-        contacts,
-        message,
-      );
+      final directDelivery = await _sendDirectSmsToContacts(contacts, message);
       autoSmsSent += directDelivery.sent;
       autoSmsFailed += directDelivery.failed;
       autoSmsError = directDelivery.error;
@@ -246,6 +272,82 @@ class EmergencyService {
       autoSmsFailed: autoSmsFailed,
       autoSmsError: official999Error ?? autoSmsError,
     );
+  }
+
+  Future<InactivityUserSmsResult> sendUserInactivityReminder({
+    required DateTime lastCheckIn,
+    required int thresholdHours,
+    bool testMode = false,
+  }) async {
+    final user = authRepository.currentUser;
+    if (user == null) {
+      throw StateError('You must be signed in to send an inactivity reminder.');
+    }
+
+    final profile = await userRepository.getProfile(user.id);
+    final phone = profile?['phone']?.toString().trim() ?? '';
+    final phoneVerifiedAt = DateTime.tryParse(
+      profile?['phone_verified_at']?.toString() ?? '',
+    );
+    if (phone.isEmpty || phoneVerifiedAt == null) {
+      return const InactivityUserSmsResult(
+        sent: false,
+        queued: false,
+        error:
+            'Add and verify your phone number before SMS reminders can be sent.',
+      );
+    }
+
+    final message = inactivityUserSmsMessage(
+      thresholdHours: thresholdHours,
+      testMode: testMode,
+    );
+    final direct = await directSmsService.send(phone: phone, message: message);
+    if (direct.sent) {
+      return const InactivityUserSmsResult(sent: true, queued: false);
+    }
+
+    var queued = false;
+    try {
+      await emergencyRepository.queueInactivityUserSms(
+        userId: user.id,
+        lastCheckIn: lastCheckIn,
+        recipientName: profile?['name']?.toString() ?? 'EthernaCare user',
+        recipientPhone: phone,
+        messageBody: message,
+      );
+      queued = true;
+
+      final delivery = await emergencyRepository.processPendingSms();
+      final sent = _intFrom(delivery['sent']) > 0;
+      final failed = _intFrom(delivery['failed']);
+      final exhausted = _intFrom(delivery['exhausted']);
+      final error = delivery['error']?.toString();
+      if (!sent && (failed > 0 || exhausted > 0)) {
+        return InactivityUserSmsResult(
+          sent: false,
+          queued: false,
+          error: error == null || error.trim().isEmpty
+              ? 'The SMS provider could not deliver the reminder.'
+              : error,
+        );
+      }
+      return InactivityUserSmsResult(
+        sent: sent,
+        queued: !sent,
+        error: sent
+            ? null
+            : error == null || error.trim().isEmpty
+            ? direct.error
+            : error,
+      );
+    } catch (error) {
+      return InactivityUserSmsResult(
+        sent: false,
+        queued: queued,
+        error: _joinErrors(direct.error, error.toString()),
+      );
+    }
   }
 
   String _emergencyMessage(Position? position) {

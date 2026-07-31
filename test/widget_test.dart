@@ -79,11 +79,123 @@ void main() {
     expect(missesAfter(const Duration(hours: 72)), 3);
   });
 
-  test('inactivity reminder test sends SMS on every third trigger', () {
-    expect(InactivityService.nextTestReminderCount(0), 1);
-    expect(InactivityService.nextTestReminderCount(1), 2);
-    expect(InactivityService.nextTestReminderCount(2), 3);
-    expect(InactivityService.nextTestReminderCount(3), 1);
+  test('one-hour inactivity reaches the user SMS stage after two hours', () {
+    final lastCheckIn = DateTime.utc(2026, 8, 1, 8);
+
+    expect(
+      InactivityService.calculateMissedCheckIns(
+        lastCheckIn: lastCheckIn,
+        now: lastCheckIn.add(const Duration(minutes: 59)),
+        thresholdHours: 1,
+      ),
+      0,
+    );
+    expect(
+      InactivityService.calculateMissedCheckIns(
+        lastCheckIn: lastCheckIn,
+        now: lastCheckIn.add(const Duration(hours: 1)),
+        thresholdHours: 1,
+      ),
+      1,
+    );
+    expect(
+      InactivityService.calculateMissedCheckIns(
+        lastCheckIn: lastCheckIn,
+        now: lastCheckIn.add(const Duration(hours: 2)),
+        thresholdHours: 1,
+      ),
+      InactivityService.userSmsReminderMiss,
+    );
+  });
+
+  test('check-in current state follows the rolling threshold', () {
+    final lastCheckIn = DateTime.utc(2026, 8, 1, 8);
+
+    expect(
+      InactivityService.isCheckInCurrent(
+        lastCheckIn: lastCheckIn,
+        now: lastCheckIn.add(const Duration(hours: 23, minutes: 59)),
+        thresholdHours: 24,
+      ),
+      isTrue,
+    );
+    expect(
+      InactivityService.isCheckInCurrent(
+        lastCheckIn: lastCheckIn,
+        now: lastCheckIn.add(const Duration(hours: 24)),
+        thresholdHours: 24,
+      ),
+      isFalse,
+    );
+    expect(
+      InactivityService.nextCheckInDueAt(
+        lastCheckIn: lastCheckIn,
+        thresholdHours: 24,
+      ),
+      lastCheckIn.add(const Duration(hours: 24)),
+    );
+  });
+
+  test(
+    'test reminders use stage two for user SMS and stage three for contact',
+    () {
+      expect(InactivityService.nextTestReminderCount(0), 1);
+      expect(InactivityService.nextTestReminderCount(1), 2);
+      expect(InactivityService.nextTestReminderCount(2), 3);
+      expect(InactivityService.nextTestReminderCount(3), 1);
+      expect(InactivityService.userSmsReminderMiss, 2);
+      expect(InactivityService.missedCheckInsBeforeEscalation, 3);
+    },
+  );
+
+  test('inactivity user SMS explains the missed threshold windows', () {
+    final message = EmergencyService.inactivityUserSmsMessage(
+      thresholdHours: 1,
+    );
+
+    expect(message, contains('missed two 1-hour check-in windows'));
+    expect(message, contains('primary trusted contact'));
+  });
+
+  test('Oren loses one energy for every complete inactive hour', () {
+    final updatedAt = DateTime.utc(2026, 8, 1, 8);
+    final state = OrenCareState.initial().copyWith(
+      energy: 65,
+      updatedAt: updatedAt,
+    );
+
+    final beforeOneHour = OrenCareService.applyEnergyDecay(
+      state,
+      updatedAt.add(const Duration(minutes: 59)),
+    );
+    final afterThreeAndHalfHours = OrenCareService.applyEnergyDecay(
+      state,
+      updatedAt.add(const Duration(hours: 3, minutes: 30)),
+    );
+
+    expect(beforeOneHour.energy, 65);
+    expect(beforeOneHour.updatedAt, updatedAt);
+    expect(afterThreeAndHalfHours.energy, 62);
+    expect(
+      afterThreeAndHalfHours.updatedAt,
+      updatedAt.add(const Duration(hours: 3)),
+    );
+  });
+
+  test('Oren energy decay stops at zero', () {
+    final updatedAt = DateTime.utc(2026, 8, 1, 8);
+    final state = OrenCareState.initial().copyWith(
+      energy: 2,
+      updatedAt: updatedAt,
+    );
+
+    final decayed = OrenCareService.applyEnergyDecay(
+      state,
+      updatedAt.add(const Duration(hours: 10)),
+    );
+
+    expect(decayed.energy, 0);
+    expect(decayed.mood, 'Tired');
   });
 
   test('tutorial screen is available for first login guidance', () {

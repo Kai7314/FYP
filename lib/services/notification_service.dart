@@ -48,6 +48,12 @@ class NotificationService {
     );
   }
 
+  Future<void> cancelDailyCheckInReminder() async {
+    if (kIsWeb) return;
+    await initialize(requestPermission: false);
+    await plugin.cancel(id: 1001);
+  }
+
   Future<void> showMissedCheckInReminder({
     required int missedCheckIns,
     required int requiredMissedCheckIns,
@@ -63,10 +69,14 @@ class NotificationService {
       body: testMode
           ? missedCheckIns >= requiredMissedCheckIns
                 ? 'Third test reminder reached. EthernaCare is testing the primary-contact SMS now.'
-                : 'This is a safe notification test. No SMS is sent until test reminder 3 of 3.'
+                : missedCheckIns >= 2
+                ? 'Second test reminder reached. EthernaCare is testing an SMS to your verified phone.'
+                : 'This is a safe first-reminder test. No SMS is sent yet.'
           : missedCheckIns >= requiredMissedCheckIns
           ? 'Missed check-in $missedCheckIns of $requiredMissedCheckIns. EthernaCare is starting your configured emergency escalation now.'
-          : 'Missed check-in $missedCheckIns of $requiredMissedCheckIns. Open EthernaCare and tap Oren before reminder 3 starts your configured emergency escalation.',
+          : missedCheckIns >= 2
+          ? 'Missed check-in 2 of $requiredMissedCheckIns. EthernaCare is sending an SMS reminder to your verified phone.'
+          : 'Missed check-in 1 of $requiredMissedCheckIns. Open EthernaCare and tap Oren before the next threshold sends you an SMS reminder.',
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'missed_check_in',

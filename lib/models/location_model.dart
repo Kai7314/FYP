@@ -75,6 +75,9 @@ class WeatherSnapshot {
     if (lat >= 5.8 && lng < 100.8) return 'Kedah / Perlis';
     if (lat >= 5.1 && lng < 101.0) return 'Penang';
     if (lat >= 4.0 && lng < 101.8) return 'Perak';
+    if (lat >= 4.5 && lng >= 101.8 && lng < 102.8) return 'Kelantan';
+    if (lat >= 4.0 && lng >= 102.0 && lng < 103.8) return 'Terengganu';
+    if (lat >= 3.0 && lng >= 102.0 && lng < 104.5) return 'Pahang';
     if (lat >= 2.6 && lng >= 101.0 && lng < 102.0) {
       return 'Klang Valley';
     }
@@ -83,9 +86,6 @@ class WeatherSnapshot {
     if (lat >= 2.4 && lng >= 102.0 && lng < 103.8) {
       return 'Negeri Sembilan / Pahang';
     }
-    if (lat >= 3.0 && lng >= 102.0 && lng < 104.5) return 'Pahang';
-    if (lat >= 4.0 && lng >= 102.0 && lng < 103.8) return 'Terengganu';
-    if (lat >= 4.5 && lng >= 101.8 && lng < 102.8) return 'Kelantan';
     if (lng >= 109.0 && lng < 115.8) return 'Sarawak';
     if (lng >= 115.0 && lng <= 119.5) return 'Sabah / Labuan';
     return 'Malaysia';

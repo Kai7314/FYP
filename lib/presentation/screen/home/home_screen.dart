@@ -57,6 +57,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int testReminderCount = 0;
   int inactivityNotificationCount = 0;
   bool inactivityEscalated = false;
+  bool inactivityUserSmsAccepted = false;
+  String? inactivityUserSmsError;
+  int inactivityThresholdHours = 24;
+  Timer? thresholdRefreshTimer;
+  DateTime? lastInactivityRefreshAt;
   int dataRefreshTick = 0;
   int historyRefreshTick = 0;
 
@@ -66,15 +71,37 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadDashboard();
     _loadOrenCare();
     unawaited(_refreshInactivityMonitor());
+    thresholdRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!mounted) return;
+      setState(() {});
+      final now = DateTime.now();
+      if (now.difference(orenCare.updatedAt) >=
+          OrenCareService.energyDecayInterval) {
+        unawaited(_refreshOrenEnergy());
+      }
+      if (lastInactivityRefreshAt == null ||
+          now.difference(lastInactivityRefreshAt!) >=
+              const Duration(minutes: 5)) {
+        lastInactivityRefreshAt = now;
+        unawaited(_refreshInactivityMonitor());
+      }
+    });
   }
 
   Future<void> _refreshInactivityMonitor() async {
+    lastInactivityRefreshAt = DateTime.now();
     try {
       await inactivityService.checkInactivity();
       await _loadInactivityStatus(lastCheckin);
     } catch (_) {
       // Dashboard loading and manual check-in remain available offline.
     }
+  }
+
+  Future<void> _refreshOrenEnergy() async {
+    final state = await orenCareService.load();
+    if (!mounted) return;
+    setState(() => orenCare = state);
   }
 
   Future<void> _loadInactivityStatus(DateTime? latestCheckIn) async {
@@ -85,6 +112,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       inactivityNotificationCount = status.notificationCount;
       inactivityEscalated = status.escalated;
+      inactivityUserSmsAccepted = status.userSmsAccepted;
+      inactivityUserSmsError = status.userSmsError;
     });
   }
 
@@ -304,6 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
       streak = snapshot.streak;
       emergencyStatus = snapshot.emergencyStatus;
       latestEmergencyAlertTime = snapshot.latestEmergencyAlertTime;
+      inactivityThresholdHours = snapshot.inactivityThresholdHours;
     });
   }
 
@@ -394,9 +424,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (created) return 'Check-in recorded. Your safety signal was sent.';
     if (tokenAwarded) {
-      return 'Today\'s check-in already exists. +${OrenCareService.dailyCheckInTokenReward} Oren tokens added.';
+      return 'Your check-in is still current. +${OrenCareService.dailyCheckInTokenReward} daily Oren tokens added.';
     }
-    return 'You have already checked in today. Oren token bonus is once per day.';
+    return 'Your check-in is still current for the $inactivityThresholdHours-hour window. Oren token bonus is once per day.';
   }
 
   Future<void> _testPrimarySms() async {
@@ -422,11 +452,26 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       if (!mounted) return;
       setState(() => testReminderCount = result.reminderCount);
+      final userSmsResult = result.userSmsResult;
+      if (userSmsResult != null) {
+        if (userSmsResult.sent) {
+          _showMessage(
+            'Second test reminder triggered. TEST SMS sent to your verified phone.',
+          );
+        } else if (userSmsResult.queued) {
+          _showMessage(
+            'Second test reminder triggered. TEST SMS queued for your verified phone.',
+          );
+        } else {
+          _showMessage(
+            'Second test reminder triggered, but the user SMS failed: ${userSmsResult.error ?? 'Verify your profile phone and try again.'}',
+          );
+        }
+        return;
+      }
       final emergencyResult = result.emergencyResult;
       if (emergencyResult == null) {
-        _showMessage(
-          'Test reminder ${result.reminderCount} of ${InactivityService.missedCheckInsBeforeEscalation} triggered. No SMS sent yet.',
-        );
+        _showMessage('First test reminder triggered. No SMS sent yet.');
         return;
       }
       _showMessage(_testReminderResultMessage(emergencyResult));
@@ -511,6 +556,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     orenResetTimer?.cancel();
+    thresholdRefreshTimer?.cancel();
     unawaited(orenSoundService.dispose());
     super.dispose();
   }
@@ -522,6 +568,7 @@ class _HomeScreenState extends State<HomeScreen> {
         loading: loading,
         streak: streak,
         lastCheckin: lastCheckin,
+        inactivityThresholdHours: inactivityThresholdHours,
         userName: userName,
         loadError: loadError,
         emergencyStatus: emergencyStatus,
@@ -544,6 +591,8 @@ class _HomeScreenState extends State<HomeScreen> {
         testReminderCount: testReminderCount,
         inactivityNotificationCount: inactivityNotificationCount,
         inactivityEscalated: inactivityEscalated,
+        inactivityUserSmsAccepted: inactivityUserSmsAccepted,
+        inactivityUserSmsError: inactivityUserSmsError,
         onSignOut: _signOut,
         onRefresh: _loadDashboard,
       ),
@@ -613,6 +662,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.loading,
     required this.streak,
     required this.lastCheckin,
+    required this.inactivityThresholdHours,
     required this.userName,
     required this.loadError,
     required this.emergencyStatus,
@@ -635,6 +685,8 @@ class _HomeDashboard extends StatelessWidget {
     required this.testReminderCount,
     required this.inactivityNotificationCount,
     required this.inactivityEscalated,
+    required this.inactivityUserSmsAccepted,
+    required this.inactivityUserSmsError,
     required this.onSignOut,
     required this.onRefresh,
   });
@@ -642,6 +694,7 @@ class _HomeDashboard extends StatelessWidget {
   final bool loading;
   final int streak;
   final DateTime? lastCheckin;
+  final int inactivityThresholdHours;
   final String userName;
   final String? loadError;
   final String emergencyStatus;
@@ -664,6 +717,8 @@ class _HomeDashboard extends StatelessWidget {
   final int testReminderCount;
   final int inactivityNotificationCount;
   final bool inactivityEscalated;
+  final bool inactivityUserSmsAccepted;
+  final String? inactivityUserSmsError;
   final VoidCallback onSignOut;
   final Future<void> Function() onRefresh;
 
@@ -672,11 +727,19 @@ class _HomeDashboard extends StatelessWidget {
     final horizontalPadding = MediaQuery.sizeOf(context).width < 360
         ? 14.0
         : 20.0;
-    final checkedToday =
-        lastCheckin != null && DateUtils.isSameDay(lastCheckin, DateTime.now());
-    final greeting = DateTime.now().hour < 12
+    final now = DateTime.now();
+    final checkInCurrent = InactivityService.isCheckInCurrent(
+      lastCheckIn: lastCheckin,
+      now: now,
+      thresholdHours: inactivityThresholdHours,
+    );
+    final nextDueAt = InactivityService.nextCheckInDueAt(
+      lastCheckIn: lastCheckin,
+      thresholdHours: inactivityThresholdHours,
+    );
+    final greeting = now.hour < 12
         ? 'Good Morning'
-        : DateTime.now().hour < 18
+        : now.hour < 18
         ? 'Good Afternoon'
         : 'Good Evening';
     final nextReward = rewardSnapshot?.nextReward(streak);
@@ -764,7 +827,7 @@ class _HomeDashboard extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 720),
               child: VirtualPetWidget(
                 streak: streak,
-                hasCheckedInToday: checkedToday,
+                hasCheckedInToday: checkInCurrent,
                 weather: weather,
                 mood: orenCare.mood,
                 energy: orenCare.energy,
@@ -860,12 +923,12 @@ class _HomeDashboard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: checkedToday
+              color: checkInCurrent
                   ? AppColors.primarySoft
                   : AppColors.warningSoft,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: checkedToday
+                color: checkInCurrent
                     ? AppColors.primary.withValues(alpha: .35)
                     : AppColors.accent.withValues(alpha: .45),
               ),
@@ -873,12 +936,12 @@ class _HomeDashboard extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: checkedToday
+                  backgroundColor: checkInCurrent
                       ? AppColors.primary
                       : AppColors.accent,
                   foregroundColor: Colors.white,
                   child: Icon(
-                    checkedToday
+                    checkInCurrent
                         ? Icons.check_rounded
                         : Icons.warning_amber_rounded,
                   ),
@@ -889,17 +952,19 @@ class _HomeDashboard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        checkedToday
-                            ? 'Daily check-in complete!'
+                        checkInCurrent
+                            ? 'Check-in is current'
                             : 'Oren is waiting for you!',
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       Text(
-                        checkedToday
-                            ? 'Safety heartbeat sent ${DateFormat('h:mm a').format(lastCheckin!)}'
-                            : 'Tap Oren to check in today',
+                        checkInCurrent
+                            ? 'Current until ${DateFormat('MMM d, h:mm a').format(nextDueAt!.toLocal())}'
+                            : lastCheckin == null
+                            ? 'Tap Oren to start your safety heartbeat'
+                            : '${inactivityThresholdHours}h window ended. Tap Oren to renew it.',
                         style: TextStyle(
-                          color: checkedToday
+                          color: checkInCurrent
                               ? AppColors.primaryDark
                               : const Color(0xFFC66D00),
                           fontSize: 12,
@@ -917,6 +982,8 @@ class _HomeDashboard extends StatelessWidget {
           _InactivityReminderCard(
             count: inactivityNotificationCount,
             escalated: inactivityEscalated,
+            userSmsAccepted: inactivityUserSmsAccepted,
+            userSmsError: inactivityUserSmsError,
             testCount: testReminderCount,
             testBusy: testReminderBusy,
             onTriggerTest: onTestInactivityAlarm,
@@ -936,6 +1003,8 @@ class _InactivityReminderCard extends StatelessWidget {
   const _InactivityReminderCard({
     required this.count,
     required this.escalated,
+    required this.userSmsAccepted,
+    required this.userSmsError,
     required this.testCount,
     required this.testBusy,
     required this.onTriggerTest,
@@ -943,6 +1012,8 @@ class _InactivityReminderCard extends StatelessWidget {
 
   final int count;
   final bool escalated;
+  final bool userSmsAccepted;
+  final String? userSmsError;
   final int testCount;
   final bool testBusy;
   final VoidCallback onTriggerTest;
@@ -960,10 +1031,14 @@ class _InactivityReminderCard extends StatelessWidget {
     final detail = escalated
         ? 'Your configured emergency escalation started after reminder 3.'
         : reachedLimit
-        ? 'Reminder 3 reached. Primary contact mode now sends the same emergency SMS used by SOS.'
+        ? 'Reminder 3 reached. Your primary contact receives the same emergency SMS used by SOS.'
+        : safeCount >= InactivityService.userSmsReminderMiss && userSmsAccepted
+        ? 'Reminder 2 reached. An SMS reminder was sent or queued for your verified phone.'
+        : safeCount >= InactivityService.userSmsReminderMiss
+        ? 'Reminder 2 reached, but the SMS to your verified phone needs attention${userSmsError == null ? '.' : ': $userSmsError'}'
         : safeCount == 0
-        ? 'No missed reminders. On reminder 3, Primary contact mode sends the same emergency SMS used by SOS.'
-        : 'Reminder 3 starts your configured escalation. Primary contact mode uses the SOS emergency message.';
+        ? 'No missed reminders. Reminder 2 sends an SMS to you; reminder 3 starts primary-contact escalation.'
+        : 'Reminder 1 reached. The next missed threshold sends an SMS to your verified phone.';
 
     return Card(
       child: Padding(
@@ -1045,7 +1120,7 @@ class _InactivityReminderCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       const Text(
-                        'The third test sends a clearly labelled TEST version of the SOS message. It never calls 999.',
+                        'Test 2 sends a TEST SMS to you. Test 3 sends the TEST SOS message to your primary contact.',
                         style: TextStyle(
                           color: AppColors.muted,
                           fontSize: 11,
@@ -1087,7 +1162,8 @@ class _EmergencyStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalizedStatus = status.toLowerCase().trim();
-    final isRealAlert = normalizedStatus == 'triggered';
+    final isInactivityAlert = normalizedStatus == 'inactivity_triggered';
+    final isRealAlert = normalizedStatus == 'triggered' || isInactivityAlert;
     final isTestAlert = normalizedStatus.contains('test');
     final color = isRealAlert
         ? AppColors.danger
@@ -1102,7 +1178,11 @@ class _EmergencyStatusCard extends StatelessWidget {
     final timeText = latestAlertTime == null
         ? null
         : DateFormat('MMM d, h:mm a').format(latestAlertTime!.toLocal());
-    final title = isRealAlert ? 'Latest emergency alert' : 'Safety monitor';
+    final title = isInactivityAlert
+        ? 'Latest inactivity escalation'
+        : isRealAlert
+        ? 'Latest emergency alert'
+        : 'Safety monitor';
     final statusText = isRealAlert
         ? 'Emergency alert recorded'
         : isTestAlert
@@ -1278,7 +1358,6 @@ class _SafetyActionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.trailingText,
   });
 
   final IconData icon;
@@ -1286,7 +1365,6 @@ class _SafetyActionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
-  final String? trailingText;
 
   @override
   Widget build(BuildContext context) {
@@ -1353,30 +1431,10 @@ class _SafetyActionTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              if (trailingText != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: .14),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    trailingText!,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                )
-              else
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: enabled ? color : AppColors.muted,
-                ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: enabled ? color : AppColors.muted,
+              ),
             ],
           ),
         ),
@@ -1593,7 +1651,7 @@ class _OrenHelpSheet extends StatelessWidget {
             ),
             SizedBox(height: 4),
             Text(
-              'Oren is your daily check-in companion.',
+              'Oren is your threshold-based check-in companion.',
               style: TextStyle(color: AppColors.muted),
             ),
             SizedBox(height: 16),
@@ -1625,12 +1683,13 @@ class _OrenHelpSheet extends StatelessWidget {
             _OrenHelpItem(
               icon: Icons.wb_sunny_outlined,
               title: 'Daily visit: +5',
-              detail: 'Open EthernaCare once per day.',
+              detail: 'Open EthernaCare before your check-in window expires.',
             ),
             _OrenHelpItem(
               icon: Icons.check_circle_outline,
               title: 'Daily check-in: +3',
-              detail: 'Tap Oren and complete your check-in once per day.',
+              detail:
+                  'The token bonus is daily; safety check-ins follow your configured threshold.',
             ),
           ],
         ),

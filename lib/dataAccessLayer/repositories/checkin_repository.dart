@@ -46,17 +46,32 @@ class CheckinRepository {
     return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
   }
 
-  Future<bool> addDailyCheckin(String userId, DateTime now) async {
-    final today = DateTime(now.year, now.month, now.day);
-    final tomorrow = today.add(const Duration(days: 1));
-    final existing = await client
-        .from('checkins')
-        .select('checkin_time')
-        .eq('user_id', userId)
-        .gte('checkin_time', today.toUtc().toIso8601String())
-        .lt('checkin_time', tomorrow.toUtc().toIso8601String())
-        .limit(1);
-    if (existing.isNotEmpty) return false;
+  Future<bool> addThresholdCheckin({
+    required String userId,
+    required DateTime now,
+    required int thresholdHours,
+  }) async {
+    try {
+      final response = await client.rpc('record_threshold_checkin');
+      final row = response is List && response.isNotEmpty
+          ? response.first
+          : response;
+      if (row is Map && row.containsKey('created')) {
+        return row['created'] == true;
+      }
+    } on PostgrestException catch (error) {
+      if (!_isMissingThresholdCheckinRpc(error)) rethrow;
+    }
+
+    final threshold = thresholdHours.clamp(1, 168).toInt();
+    final latest = await getLatestCheckin(userId);
+    final latestTime = latest == null
+        ? null
+        : DateTime.tryParse(latest['checkin_time'].toString());
+    if (latestTime != null &&
+        now.difference(latestTime) < Duration(hours: threshold)) {
+      return false;
+    }
 
     await client.from('checkins').insert({
       'user_id': userId,
@@ -64,5 +79,13 @@ class CheckinRepository {
       'status': 'active',
     });
     return true;
+  }
+
+  bool _isMissingThresholdCheckinRpc(PostgrestException error) {
+    final message = error.message.toLowerCase();
+    return error.code == 'PGRST202' ||
+        error.code == '42883' ||
+        (message.contains('record_threshold_checkin') &&
+            (message.contains('function') || message.contains('schema cache')));
   }
 }

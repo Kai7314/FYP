@@ -207,7 +207,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.home_outlined,
           title: 'Home',
           description:
-              'Tap Oren for your daily check-in, view Oren\'s status and weather, use care actions, and review the Safety Monitor lower on the page.',
+              'Tap Oren to renew the check-in window configured in your profile, view Oren\'s status and weather, use care actions, and review the Safety Monitor lower on the page.',
         ),
         GuidanceItem(
           icon: Icons.history,
@@ -635,7 +635,7 @@ class _InfoSection extends StatelessWidget {
                 ),
               ),
             ),
-            if (action != null) action!,
+            ?action,
           ],
         ),
         const SizedBox(height: 8),
@@ -902,7 +902,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
               _ProfileFieldShell(
                 label: 'Blood type',
                 child: DropdownButtonFormField<String>(
-                  value: selectedBloodType,
+                  initialValue: selectedBloodType,
                   isExpanded: true,
                   style: const TextStyle(
                     color: AppColors.ink,
@@ -952,7 +952,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
               _ProfileFieldShell(
                 label: 'Inactivity escalation',
                 child: DropdownButtonFormField<String>(
-                  value: escalationTarget,
+                  initialValue: escalationTarget,
                   isExpanded: true,
                   style: const TextStyle(
                     color: AppColors.ink,

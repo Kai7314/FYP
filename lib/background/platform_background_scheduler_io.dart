@@ -16,10 +16,7 @@ class PlatformBackgroundScheduler {
     if (!Platform.isAndroid) return;
 
     if (!_initialized) {
-      await Workmanager().initialize(
-        ethernaCareWorkmanagerCallbackDispatcher,
-        isInDebugMode: kDebugMode,
-      );
+      await Workmanager().initialize(ethernaCareWorkmanagerCallbackDispatcher);
       _initialized = true;
     }
 

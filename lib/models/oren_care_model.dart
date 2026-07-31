@@ -71,7 +71,9 @@ class OrenCareState {
       lastCheckInTokenDate: json['last_checkin_token_date']?.toString() ?? '',
       lastAction: json['last_action']?.toString() ?? 'Oren is ready.',
       mood: json['mood']?.toString() ?? 'Calm',
-      energy: int.tryParse(json['energy']?.toString() ?? '') ?? 65,
+      energy: (int.tryParse(json['energy']?.toString() ?? '') ?? 65)
+          .clamp(0, 100)
+          .toInt(),
       updatedAt:
           DateTime.tryParse(json['updated_at']?.toString() ?? '') ??
           DateTime.now(),

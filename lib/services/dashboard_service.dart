@@ -12,6 +12,7 @@ class DashboardSnapshot {
     required this.emergencyStatus,
     required this.latestEmergencyAlertTime,
     required this.syncedAt,
+    this.inactivityThresholdHours = 24,
   });
 
   final String userName;
@@ -19,6 +20,7 @@ class DashboardSnapshot {
   final String emergencyStatus;
   final DateTime? latestEmergencyAlertTime;
   final DateTime syncedAt;
+  final int inactivityThresholdHours;
 
   int get totalCheckins => checkinTimes.length;
   int get streak => RewardService.calculateStreak(checkinTimes);
@@ -38,6 +40,9 @@ class DashboardSnapshot {
       syncedAt:
           DateTime.tryParse(json['synced_at']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
+      inactivityThresholdHours:
+          int.tryParse(json['inactivity_threshold_hours']?.toString() ?? '') ??
+          24,
     );
   }
 
@@ -49,6 +54,7 @@ class DashboardSnapshot {
     'emergency_status': emergencyStatus,
     'latest_emergency_alert_time': latestEmergencyAlertTime?.toIso8601String(),
     'synced_at': syncedAt.toIso8601String(),
+    'inactivity_threshold_hours': inactivityThresholdHours,
   };
 }
 
@@ -109,6 +115,9 @@ class DashboardService {
           : alertStatus,
       latestEmergencyAlertTime: latestAlertTime,
       syncedAt: DateTime.now(),
+      inactivityThresholdHours:
+          int.tryParse(profile?['inactivity_threshold']?.toString() ?? '') ??
+          24,
     );
     await cache.writeMap(_cacheKey(user.id), snapshot.toJson());
     return snapshot;

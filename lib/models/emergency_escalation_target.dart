@@ -23,9 +23,9 @@ class EmergencyEscalationTarget {
   static String description(String value) {
     return switch (normalize(value)) {
       official999 =>
-        'Manual SOS opens 999. After three missed check-in windows, inactivity records an alert and shows a critical local notice.',
+        'Manual SOS opens 999. The second missed window reminds you by SMS; after three missed windows, inactivity records an alert and shows a critical local notice.',
       _ =>
-        'After three missed check-in windows, inactivity sends an SMS alert to your primary emergency contact. Manual SOS alerts immediately.',
+        'The second missed window reminds you by SMS. After three missed windows, inactivity sends an SMS alert to your primary emergency contact. Manual SOS alerts immediately.',
     };
   }
 }
