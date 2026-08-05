@@ -133,40 +133,48 @@ void main() {
     expect(find.textContaining('cancelled'), findsOneWidget);
   });
 
-  testWidgets('an enabled account locks and authenticates again after resume', (
-    tester,
-  ) async {
-    final device = _FakeBiometricDevice();
-    final service = BiometricAuthService(
-      device: device,
-      platform: TargetPlatform.android,
-      isWeb: false,
-    );
-    await service.setEnabledForUser('user-a', true);
+  testWidgets(
+    'an enabled account locks whenever the app leaves the foreground',
+    (tester) async {
+      final device = _FakeBiometricDevice();
+      final service = BiometricAuthService(
+        device: device,
+        platform: TargetPlatform.android,
+        isWeb: false,
+      );
+      await service.setEnabledForUser('user-a', true);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: BiometricUnlockGate(
-          userId: 'user-a',
-          service: service,
-          onUsePassword: () async {},
-          unlockedBuilder: (_) =>
-              const Scaffold(body: Text('Protected account content')),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BiometricUnlockGate(
+            userId: 'user-a',
+            service: service,
+            onUsePassword: () async {},
+            unlockedBuilder: (_) =>
+                const Scaffold(body: Text('Protected account content')),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Protected account content'), findsOneWidget);
-    expect(device.authenticationCalls, 1);
+      expect(find.text('Protected account content'), findsOneWidget);
+      expect(device.authenticationCalls, 1);
 
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pumpAndSettle();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Protected account content'), findsOneWidget);
-    expect(device.authenticationCalls, 2);
-  });
+      expect(find.text('Protected account content'), findsOneWidget);
+      expect(device.authenticationCalls, 2);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Protected account content'), findsOneWidget);
+      expect(device.authenticationCalls, 3);
+    },
+  );
 }
 
 class _FakeBiometricDevice implements BiometricDevice {

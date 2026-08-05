@@ -145,6 +145,39 @@ class InactivityService {
     final user = authRepository.currentUser;
     if (user == null) return const InactivityMonitorStatus.clear();
 
+    try {
+      final serverStatus = await emergencyRepository
+          .getInactivityMonitorStatus(user.id);
+      if (serverStatus != null) {
+        final trackedCheckIn = DateTime.tryParse(
+          serverStatus['last_checkin_at']?.toString() ?? '',
+        );
+        if (latestCheckIn == null ||
+            (trackedCheckIn != null &&
+                !trackedCheckIn.isBefore(latestCheckIn))) {
+          final smsStatus =
+              serverStatus['user_sms_status']?.toString() ?? 'not_due';
+          return InactivityMonitorStatus(
+            notificationCount:
+                (int.tryParse(
+                          serverStatus['missed_windows']?.toString() ?? '',
+                        ) ??
+                        0)
+                    .clamp(0, missedCheckInsBeforeEscalation)
+                    .toInt(),
+            escalated: DateTime.tryParse(
+                  serverStatus['escalated_at']?.toString() ?? '',
+                ) !=
+                null,
+            userSmsAccepted: smsStatus == 'queued' || smsStatus == 'sent',
+            userSmsError: serverStatus['user_sms_error']?.toString(),
+          );
+        }
+      }
+    } catch (_) {
+      // Local state remains available while the server or network is offline.
+    }
+
     final warning = await cache.readMap(_warningCacheKey(user.id));
     if (warning == null) return const InactivityMonitorStatus.clear();
 
@@ -293,6 +326,7 @@ class InactivityService {
       final smsResult = await emergencyService.sendUserInactivityReminder(
         lastCheckIn: lastCheckin,
         thresholdHours: threshold,
+        allowDirectSms: false,
       );
       userSmsAccepted = smsResult.accepted;
       userSmsError = smsResult.error;

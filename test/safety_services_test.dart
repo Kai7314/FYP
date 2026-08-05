@@ -200,6 +200,7 @@ void main() {
         () => emergencyService.sendUserInactivityReminder(
           lastCheckIn: any(named: 'lastCheckIn'),
           thresholdHours: any(named: 'thresholdHours'),
+          allowDirectSms: false,
         ),
       );
       verifyNever(
@@ -224,6 +225,7 @@ void main() {
         () => emergencyService.sendUserInactivityReminder(
           lastCheckIn: lastCheckIn,
           thresholdHours: 1,
+          allowDirectSms: false,
         ),
       ).thenAnswer(
         (_) async => const InactivityUserSmsResult(sent: true, queued: false),
@@ -243,6 +245,7 @@ void main() {
         () => emergencyService.sendUserInactivityReminder(
           lastCheckIn: lastCheckIn,
           thresholdHours: 1,
+          allowDirectSms: false,
         ),
       ).called(1);
     });
@@ -404,6 +407,54 @@ void main() {
         verify(emergencies.processPendingSms).called(1);
       },
     );
+
+    test('automatic reminders always use the server SMS worker', () async {
+      final users = _MockUserRepository();
+      final emergencies = _MockEmergencyRepository();
+      final directSms = _MockDirectSmsService();
+      when(() => users.getProfile('user-1')).thenAnswer(
+        (_) async => {
+          'name': 'Kai',
+          'phone': '+60123456789',
+          'phone_verified_at': DateTime.utc(2026, 7, 1).toIso8601String(),
+        },
+      );
+      when(
+        () => emergencies.queueInactivityUserSms(
+          userId: 'user-1',
+          lastCheckIn: any(named: 'lastCheckIn'),
+          recipientName: 'Kai',
+          recipientPhone: '+60123456789',
+          messageBody: any(named: 'messageBody'),
+        ),
+      ).thenAnswer((_) async => true);
+      when(
+        emergencies.processPendingSms,
+      ).thenAnswer((_) async => {'sent': 1, 'failed': 0});
+
+      final result =
+          await EmergencyService(
+            authRepository: authRepository,
+            contactRepository: _MockContactRepository(),
+            emergencyRepository: emergencies,
+            userRepository: users,
+            locationService: _MockLocationService(),
+            directSmsService: directSms,
+          ).sendUserInactivityReminder(
+            lastCheckIn: DateTime.utc(2026, 8, 1, 8),
+            thresholdHours: 1,
+            allowDirectSms: false,
+          );
+
+      expect(result.sent, isTrue);
+      verifyNever(
+        () => directSms.send(
+          phone: any(named: 'phone'),
+          message: any(named: 'message'),
+        ),
+      );
+      verify(emergencies.processPendingSms).called(1);
+    });
 
     test('does not report success when the outbox insert fails', () async {
       final users = _MockUserRepository();

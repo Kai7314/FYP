@@ -278,6 +278,7 @@ class EmergencyService {
     required DateTime lastCheckIn,
     required int thresholdHours,
     bool testMode = false,
+    bool allowDirectSms = true,
   }) async {
     final user = authRepository.currentUser;
     if (user == null) {
@@ -302,7 +303,12 @@ class EmergencyService {
       thresholdHours: thresholdHours,
       testMode: testMode,
     );
-    final direct = await directSmsService.send(phone: phone, message: message);
+    final direct = allowDirectSms
+        ? await directSmsService.send(phone: phone, message: message)
+        : const DirectSmsResult(
+            sent: false,
+            error: 'Automatic reminders use the Supabase SMS worker.',
+          );
     if (direct.sent) {
       return const InactivityUserSmsResult(sent: true, queued: false);
     }

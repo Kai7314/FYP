@@ -58,7 +58,8 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if ((state == AppLifecycleState.paused ||
+    if ((state == AppLifecycleState.inactive ||
+            state == AppLifecycleState.paused ||
             state == AppLifecycleState.hidden ||
             state == AppLifecycleState.detached) &&
         enabled &&

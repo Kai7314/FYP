@@ -61,6 +61,27 @@ class EmergencyRepository {
     return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
   }
 
+  Future<Map<String, dynamic>?> getInactivityMonitorStatus(
+    String userId,
+  ) async {
+    try {
+      final rows = await client
+          .from('inactivity_monitor_status')
+          .select()
+          .eq('user_id', userId)
+          .limit(1);
+      return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
+    } on PostgrestException catch (error) {
+      final message = error.message.toLowerCase();
+      if (error.code == 'PGRST205' ||
+          error.code == '42P01' ||
+          message.contains('inactivity_monitor_status')) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
   Future<EmergencyAlertModel?> getLatestAlertModel(String userId) async {
     final row = await getLatestAlert(userId);
     return row == null ? null : EmergencyAlertModel.fromJson(row);
