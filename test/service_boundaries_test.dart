@@ -24,6 +24,7 @@ import 'package:fyp/services/ai_chat_history_service.dart';
 import 'package:fyp/services/background_service.dart';
 import 'package:fyp/services/contact_service.dart';
 import 'package:fyp/services/document_service.dart';
+import 'package:fyp/services/home_address_service.dart';
 import 'package:fyp/services/inactivity_service.dart';
 import 'package:fyp/services/local_cache_service.dart';
 import 'package:fyp/services/location_service.dart';
@@ -324,6 +325,31 @@ void main() {
 
       verify(() => users.getProfile('user-1')).called(1);
       verify(() => cache.writeMap(any(), any())).called(1);
+    });
+
+    test('profile update rejects an address without geocoding proof', () async {
+      final users = _MockUserRepository();
+      final cache = _MockCache();
+      final service = UserService(
+        authRepository: auth,
+        userRepository: users,
+        cache: cache,
+      );
+
+      expect(
+        () => service.updateCurrentProfile({
+          'address': '12 Jalan Sutera 1',
+          'address_state': 'Johor',
+          'address_region': 'Johor Bahru',
+        }),
+        throwsA(isA<HomeAddressValidationException>()),
+      );
+      verifyNever(
+        () => users.updateProfile(
+          userId: any(named: 'userId'),
+          values: any(named: 'values'),
+        ),
+      );
     });
 
     test('sign out clears user cache but preserves Oren state', () async {

@@ -2,16 +2,21 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'core/config/supabase_config.dart';
 import 'core/constants/strings.dart';
 import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/screen/admin/admin_auth_gate.dart';
 import 'presentation/screen/auth/auth_gate.dart';
+import 'services/app_settings_service.dart';
 import 'services/background_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
 
   runApp(const MyApp());
 }
@@ -39,16 +44,33 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppStrings.appName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      builder: (context, child) {
-        return SizedBox.expand(
-          child: child ?? const _StartupScreen(message: 'Starting EthernaCare'),
-        );
-      },
-      home: _AppBootstrap(adminMode: adminEntry),
+    return ValueListenableBuilder<AppSettings>(
+      valueListenable: AppSettingsService.instance.settings,
+      builder: (context, settings, child) => MaterialApp(
+        title: AppStrings.appName,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        builder: (context, child) {
+          final mediaQuery = MediaQuery.of(context);
+          final systemScale = mediaQuery.textScaler.scale(16) / 16;
+          final adjustedScale = (systemScale * settings.textScaleMultiplier)
+              .clamp(.8, 2.0)
+              .toDouble();
+          return MediaQuery(
+            data: mediaQuery.copyWith(
+              textScaler: TextScaler.linear(adjustedScale),
+              disableAnimations:
+                  mediaQuery.disableAnimations || settings.reduceMotion,
+            ),
+            child: SizedBox.expand(
+              child:
+                  child ??
+                  const _StartupScreen(message: 'Starting EthernaCare'),
+            ),
+          );
+        },
+        home: _AppBootstrap(adminMode: adminEntry),
+      ),
     );
   }
 }
@@ -66,6 +88,7 @@ class _AppBootstrapState extends State<_AppBootstrap> {
   late Future<void> startupFuture = _start();
 
   Future<void> _start() async {
+    await AppSettingsService.instance.load();
     await ensureSupabaseInitialized();
 
     unawaited(

@@ -51,41 +51,13 @@ class CheckinRepository {
     required DateTime now,
     required int thresholdHours,
   }) async {
-    try {
-      final response = await client.rpc('record_threshold_checkin');
-      final row = response is List && response.isNotEmpty
-          ? response.first
-          : response;
-      if (row is Map && row.containsKey('created')) {
-        return row['created'] == true;
-      }
-    } on PostgrestException catch (error) {
-      if (!_isMissingThresholdCheckinRpc(error)) rethrow;
+    final response = await client.rpc('record_threshold_checkin');
+    final row = response is List && response.isNotEmpty
+        ? response.first
+        : response;
+    if (row is Map && row.containsKey('created')) {
+      return row['created'] == true;
     }
-
-    final threshold = thresholdHours.clamp(1, 168).toInt();
-    final latest = await getLatestCheckin(userId);
-    final latestTime = latest == null
-        ? null
-        : DateTime.tryParse(latest['checkin_time'].toString());
-    if (latestTime != null &&
-        now.difference(latestTime) < Duration(hours: threshold)) {
-      return false;
-    }
-
-    await client.from('checkins').insert({
-      'user_id': userId,
-      'checkin_time': now.toIso8601String(),
-      'status': 'active',
-    });
-    return true;
-  }
-
-  bool _isMissingThresholdCheckinRpc(PostgrestException error) {
-    final message = error.message.toLowerCase();
-    return error.code == 'PGRST202' ||
-        error.code == '42883' ||
-        (message.contains('record_threshold_checkin') &&
-            (message.contains('function') || message.contains('schema cache')));
+    throw StateError('Supabase did not return the check-in result.');
   }
 }

@@ -195,28 +195,37 @@ async function sendTwilioSms(input: {
   to: string;
   body: string;
 }) {
-  const response = await fetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${input.accountSid}/Messages.json`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${btoa(`${input.accountSid}:${input.authToken}`)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+  try {
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${input.accountSid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${btoa(`${input.accountSid}:${input.authToken}`)}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          To: input.to,
+          From: input.from,
+          Body: input.body,
+        }),
+        signal: AbortSignal.timeout(12000),
       },
-      body: new URLSearchParams({
-        To: input.to,
-        From: input.from,
-        Body: input.body,
-      }),
-    },
-  );
-  const payload = await response.json().catch(() => ({}));
-  return {
-    ok: response.ok,
-    error: response.ok
-      ? null
-      : friendlyTwilioError(payload, response.status),
-  };
+    );
+    const payload = await response.json().catch(() => ({}));
+    return {
+      ok: response.ok,
+      error: response.ok
+        ? null
+        : friendlyTwilioError(payload, response.status),
+    };
+  } catch (_) {
+    return {
+      ok: false,
+      error:
+        "The SMS provider did not respond in time. Check your connection and try again.",
+    };
+  }
 }
 
 function friendlyTwilioError(payload: Record<string, unknown>, status: number) {

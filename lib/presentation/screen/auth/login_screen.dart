@@ -441,22 +441,30 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 22),
               if (registering) ...[
-                TextField(
+                TextFormField(
                   controller: nameController,
                   maxLength: AppValidators.maxDisplayNameLength,
+                  maxLengthEnforcement: MaxLengthEnforcement.none,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  validator: (value) =>
+                      AppValidators.displayName(value ?? ''),
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.name],
                   decoration: const InputDecoration(
                     labelText: 'Full name',
                     prefixIcon: Icon(Icons.person_outline),
                     helperText:
-                        '2-50 letters; spaces, apostrophes, and hyphens allowed',
+                        '2-100 letters; spaces, apostrophes, and hyphens allowed',
                   ),
                 ),
                 const SizedBox(height: 12),
               ],
-              TextField(
+              TextFormField(
                 controller: emailController,
+                maxLength: 254,
+                maxLengthEnforcement: MaxLengthEnforcement.none,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                validator: (value) => AppValidators.email(value ?? ''),
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 autofillHints: const [AutofillHints.email],
@@ -466,14 +474,28 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
+              TextFormField(
                 controller: passwordController,
+                maxLength: registering
+                    ? AppValidators.maxPasswordLength
+                    : null,
+                maxLengthEnforcement: MaxLengthEnforcement.none,
+                autovalidateMode: registering
+                    ? AutovalidateMode.onUserInteraction
+                    : AutovalidateMode.disabled,
+                validator: registering
+                    ? (value) => AppValidators.registrationPassword(
+                        value ?? '',
+                        email: emailController.text.trim(),
+                        name: nameController.text,
+                      )
+                    : null,
                 obscureText: !passwordVisible,
                 textInputAction: TextInputAction.done,
                 autofillHints: registering
                     ? const [AutofillHints.newPassword]
                     : const [AutofillHints.password],
-                onSubmitted: (_) {
+                onFieldSubmitted: (_) {
                   if (!loading) authenticate();
                 },
                 decoration: InputDecoration(

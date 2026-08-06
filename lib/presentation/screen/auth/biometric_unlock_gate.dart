@@ -25,14 +25,20 @@ class BiometricUnlockGate extends StatefulWidget {
 
 class _BiometricUnlockGateState extends State<BiometricUnlockGate>
     with WidgetsBindingObserver {
+  static const backgroundLockGracePeriod = Duration(seconds: 30);
+
   late final BiometricAuthService service =
       widget.service ?? BiometricAuthService();
 
+  Timer? backgroundLockTimer;
   BiometricAvailability? availability;
   bool loading = true;
   bool enabled = false;
   bool unlocked = false;
   bool authenticating = false;
+  bool authenticationChangedLifecycle = false;
+  int authenticationGeneration = 0;
+  int preferenceLoadGeneration = 0;
   String? errorMessage;
 
   @override
@@ -46,6 +52,10 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
   void didUpdateWidget(covariant BiometricUnlockGate oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.userId != widget.userId) {
+      backgroundLockTimer?.cancel();
+      backgroundLockTimer = null;
+      authenticationGeneration += 1;
+      authenticationChangedLifecycle = false;
       setState(() {
         loading = true;
         enabled = false;
@@ -58,17 +68,36 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if ((state == AppLifecycleState.inactive ||
-            state == AppLifecycleState.paused ||
-            state == AppLifecycleState.hidden ||
-            state == AppLifecycleState.detached) &&
-        enabled &&
-        !authenticating &&
-        mounted) {
-      setState(() {
-        unlocked = false;
-        errorMessage = null;
-      });
+    final backgrounded =
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden;
+    final leftForeground =
+        state == AppLifecycleState.inactive ||
+        backgrounded ||
+        state == AppLifecycleState.detached;
+    if (leftForeground && authenticating) {
+      authenticationChangedLifecycle = true;
+      return;
+    }
+
+    if (backgrounded) {
+      _scheduleBackgroundLock();
+      return;
+    }
+
+    if (state == AppLifecycleState.detached) {
+      backgroundLockTimer?.cancel();
+      backgroundLockTimer = null;
+      return;
+    }
+
+    if (state != AppLifecycleState.resumed) return;
+
+    backgroundLockTimer?.cancel();
+    backgroundLockTimer = null;
+
+    if (state == AppLifecycleState.resumed && authenticationChangedLifecycle) {
+      authenticationChangedLifecycle = false;
       return;
     }
 
@@ -77,10 +106,26 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
     }
   }
 
+  void _scheduleBackgroundLock() {
+    if (!mounted || !enabled || !unlocked || backgroundLockTimer != null) {
+      return;
+    }
+    backgroundLockTimer = Timer(backgroundLockGracePeriod, () {
+      backgroundLockTimer = null;
+      if (!mounted || authenticating || !enabled || !unlocked) return;
+      setState(() {
+        unlocked = false;
+        errorMessage = null;
+      });
+    });
+  }
+
   Future<void> _loadPreference({required bool initial}) async {
+    final generation = ++preferenceLoadGeneration;
+    final userId = widget.userId;
     try {
-      final nextEnabled = await service.isEnabledForUser(widget.userId);
-      if (!mounted) return;
+      final nextEnabled = await service.isEnabledForUser(userId);
+      if (!_isCurrentPreferenceLoad(generation, userId)) return;
       if (!nextEnabled) {
         setState(() {
           loading = false;
@@ -92,7 +137,7 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
       }
 
       final nextAvailability = await service.checkAvailability();
-      if (!mounted) return;
+      if (!_isCurrentPreferenceLoad(generation, userId)) return;
       setState(() {
         loading = false;
         enabled = true;
@@ -105,12 +150,13 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
         }
       });
       if (!unlocked && nextAvailability.available) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) unawaited(_unlock());
-        });
+        await WidgetsBinding.instance.endOfFrame;
+        if (_isCurrentPreferenceLoad(generation, userId)) {
+          await _unlock();
+        }
       }
     } catch (error) {
-      if (!mounted) return;
+      if (!_isCurrentPreferenceLoad(generation, userId)) return;
       setState(() {
         loading = false;
         enabled = true;
@@ -120,8 +166,16 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
     }
   }
 
+  bool _isCurrentPreferenceLoad(int generation, String userId) {
+    return mounted &&
+        generation == preferenceLoadGeneration &&
+        userId == widget.userId;
+  }
+
   Future<void> _unlock() async {
     if (authenticating || unlocked) return;
+    final generation = ++authenticationGeneration;
+    final userId = widget.userId;
     setState(() {
       authenticating = true;
       errorMessage = null;
@@ -130,7 +184,7 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
       final authenticated = await service.authenticate(
         reason: 'Unlock your signed-in EthernaCare account.',
       );
-      if (!mounted) return;
+      if (!_isCurrentAuthentication(generation, userId)) return;
       setState(() {
         unlocked = authenticated;
         if (!authenticated) {
@@ -138,15 +192,26 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
         }
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!_isCurrentAuthentication(generation, userId)) return;
       setState(() => errorMessage = error.toString());
     } finally {
-      if (mounted) setState(() => authenticating = false);
+      if (_isCurrentAuthentication(generation, userId)) {
+        setState(() => authenticating = false);
+      }
     }
+  }
+
+  bool _isCurrentAuthentication(int generation, String userId) {
+    return mounted &&
+        generation == authenticationGeneration &&
+        userId == widget.userId;
   }
 
   @override
   void dispose() {
+    backgroundLockTimer?.cancel();
+    authenticationGeneration += 1;
+    preferenceLoadGeneration += 1;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

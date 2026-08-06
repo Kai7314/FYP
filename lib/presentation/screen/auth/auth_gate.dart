@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/contact_service.dart';
+import '../../../services/onboarding_service.dart';
 import '../../../services/user_service.dart';
 import '../home/home_screen.dart';
 import 'biometric_unlock_gate.dart';
@@ -25,13 +26,17 @@ class _AuthGateState extends State<AuthGate> {
   final authService = AuthService();
   final userService = UserService();
   final contactService = ContactService();
+  final onboardingService = OnboardingService();
   String? initializedProfileUserId;
   String? activeProfileUserId;
   Future<Map<String, dynamic>>? activeProfileFuture;
   String? activePrimaryContactUserId;
   Future<bool>? activePrimaryContactFuture;
+  String? activeTutorialUserId;
+  Future<bool>? activeTutorialFuture;
   int setupRefresh = 0;
   int contactRefresh = 0;
+  int tutorialRefresh = 0;
   bool passwordRecoveryActive = false;
 
   Future<Map<String, dynamic>> _profileFutureFor(String userId) {
@@ -53,6 +58,14 @@ class _AuthGateState extends State<AuthGate> {
           .timeout(const Duration(seconds: 18));
     }
     return activePrimaryContactFuture!;
+  }
+
+  Future<bool> _tutorialFutureFor(String userId) {
+    if (activeTutorialUserId != userId || activeTutorialFuture == null) {
+      activeTutorialUserId = userId;
+      activeTutorialFuture = onboardingService.hasCompletedTutorial();
+    }
+    return activeTutorialFuture!;
   }
 
   Future<Map<String, dynamic>> _loadProfile(String userId) async {
@@ -200,7 +213,92 @@ class _AuthGateState extends State<AuthGate> {
                       );
                     }
 
-                    return const HomeScreen();
+                    return FutureBuilder<bool>(
+                      key: ValueKey(
+                        'tutorial-${session.user.id}-$tutorialRefresh',
+                      ),
+                      future: _tutorialFutureFor(session.user.id),
+                      builder: (context, tutorialSnapshot) {
+                        if (tutorialSnapshot.connectionState !=
+                            ConnectionState.done) {
+                          return const _GateStatusScreen(
+                            title: 'Preparing your guide',
+                            message:
+                                'Getting EthernaCare ready for your first visit.',
+                          );
+                        }
+
+                        if (tutorialSnapshot.hasError) {
+                          return Scaffold(
+                            body: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.error_outline, size: 40),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                      'Unable to prepare the feature guide.',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'You can retry now or open the guide later from Profile.',
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Wrap(
+                                      alignment: WrapAlignment.center,
+                                      spacing: 10,
+                                      runSpacing: 10,
+                                      children: [
+                                        OutlinedButton(
+                                          onPressed: () => setState(() {
+                                            activeTutorialFuture = null;
+                                            tutorialRefresh += 1;
+                                          }),
+                                          child: const Text('Retry'),
+                                        ),
+                                        FilledButton(
+                                          onPressed: () => setState(() {
+                                            activeTutorialFuture =
+                                                Future.value(true);
+                                            tutorialRefresh += 1;
+                                          }),
+                                          child: const Text('Continue'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (tutorialSnapshot.data != true) {
+                          return HomeScreen(
+                            key: ValueKey(
+                              'guided-home-${session.user.id}',
+                            ),
+                            startFeatureGuide: true,
+                            onFeatureGuideComplete: () async {
+                              await onboardingService.markTutorialComplete();
+                              if (!mounted) return;
+                              setState(() {
+                                activeTutorialFuture = Future.value(true);
+                                tutorialRefresh += 1;
+                              });
+                            },
+                          );
+                        }
+
+                        return const HomeScreen();
+                      },
+                    );
                   },
                 );
               },
@@ -213,6 +311,8 @@ class _AuthGateState extends State<AuthGate> {
         activeProfileFuture = null;
         activePrimaryContactUserId = null;
         activePrimaryContactFuture = null;
+        activeTutorialUserId = null;
+        activeTutorialFuture = null;
         return const LoginScreen();
       },
     );

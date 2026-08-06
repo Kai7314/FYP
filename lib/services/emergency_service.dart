@@ -19,6 +19,7 @@ class EmergencyTriggerResult {
     this.autoSmsSent = 0,
     this.autoSmsFailed = 0,
     this.autoSmsError,
+    this.locationIncluded = false,
   });
 
   final bool alertRecorded;
@@ -29,6 +30,7 @@ class EmergencyTriggerResult {
   final int autoSmsSent;
   final int autoSmsFailed;
   final String? autoSmsError;
+  final bool locationIncluded;
 }
 
 class InactivityUserSmsResult {
@@ -113,29 +115,28 @@ class EmergencyService {
       throw StateError('You must be signed in to test SMS.');
     }
 
-    final primaryContact = await contactRepository.getPrimaryContact(user.id);
-    if (primaryContact == null) return false;
-
-    final result = await directSmsService.send(
-      phone: primaryContact['phone']?.toString() ?? '',
-      message:
-          'TEST message from EthernaCare. This is only a test of the emergency SMS flow. No emergency alert has been triggered.',
-    );
-    final error = result.error;
-    if (!result.sent && error != null) {
-      throw StateError(error);
+    final queued = await emergencyRepository.queuePrimaryContactTestSms();
+    if (!queued) return false;
+    final delivery = await emergencyRepository.processPendingSms();
+    final sent = _intFrom(delivery['sent']) > 0;
+    if (!sent && _intFrom(delivery['failed']) > 0) {
+      throw StateError(
+        delivery['error']?.toString() ??
+            'The SMS provider could not deliver the test message.',
+      );
     }
-    return result.sent;
+    return sent || queued;
   }
 
   Future<bool> triggerEmergency() async {
-    final result = await triggerEmergencyDetailed();
+    final result = await triggerEmergencyDetailed(allowDirectSms: false);
     return result.alertRecorded;
   }
 
   Future<EmergencyTriggerResult> triggerEmergencyDetailed({
     bool openPrimarySmsComposer = false,
     bool sendAutomatedSms = true,
+    bool allowDirectSms = false,
     bool allow999Dialer = false,
     String? escalationTarget,
     bool testMode = false,
@@ -181,7 +182,9 @@ class EmergencyService {
       ),
       attempts: 3,
     );
-    final position = await locationService.getCurrentPosition();
+    final position = testMode
+        ? null
+        : await locationService.getCurrentPosition();
     final message = testMode
         ? _testEmergencyMessage()
         : _emergencyMessage(position);
@@ -191,7 +194,10 @@ class EmergencyService {
     var autoSmsFailed = 0;
     String? autoSmsError;
 
-    if (sendAutomatedSms && !useOfficial999 && contacts.isNotEmpty) {
+    if (sendAutomatedSms &&
+        allowDirectSms &&
+        !useOfficial999 &&
+        contacts.isNotEmpty) {
       autoSmsAttempted = true;
       final directDelivery = await _sendDirectSmsToContacts(contacts, message);
       autoSmsSent += directDelivery.sent;
@@ -200,6 +206,17 @@ class EmergencyService {
     }
 
     var smsOutboxCreated = false;
+    if (position != null && alertId != null) {
+      try {
+        await emergencyRepository.addLocation(
+          alertId: alertId,
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+      } catch (_) {
+        // The alert remains valid when GPS persistence is unavailable.
+      }
+    }
     if (alertId != null && !useOfficial999 && autoSmsSent == 0) {
       try {
         await _retry(
@@ -214,18 +231,6 @@ class EmergencyService {
         smsOutboxCreated = true;
       } catch (_) {
         // The alert remains recorded even if delivery queue creation fails.
-      }
-    }
-    if (position != null && alertId != null) {
-      try {
-        await emergencyRepository.addLocation(
-          alertId: alertId,
-          latitude: position.latitude,
-          longitude: position.longitude,
-        );
-      } catch (_) {
-        // The emergency alert remains valid even when location persistence
-        // is unavailable or the optional locations table is not configured.
       }
     }
     var dialerOpened = false;
@@ -271,6 +276,7 @@ class EmergencyService {
       autoSmsSent: autoSmsSent,
       autoSmsFailed: autoSmsFailed,
       autoSmsError: official999Error ?? autoSmsError,
+      locationIncluded: position != null,
     );
   }
 
@@ -278,7 +284,7 @@ class EmergencyService {
     required DateTime lastCheckIn,
     required int thresholdHours,
     bool testMode = false,
-    bool allowDirectSms = true,
+    bool allowDirectSms = false,
   }) async {
     final user = authRepository.currentUser;
     if (user == null) {
@@ -358,7 +364,7 @@ class EmergencyService {
 
   String _emergencyMessage(Position? position) {
     final locationText = position == null
-        ? ''
+        ? '\nLocation: unavailable. Please call the user immediately and contact emergency services when necessary.'
         : '\nLocation: https://maps.google.com/?q=${position.latitude},${position.longitude}';
     return '$emergencySmsMessage$locationText';
   }

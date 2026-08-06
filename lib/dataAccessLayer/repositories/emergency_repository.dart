@@ -12,16 +12,11 @@ class EmergencyRepository {
     String userId, {
     String status = 'triggered',
   }) async {
-    final row = await client
-        .from('emergency_alerts')
-        .insert({
-          'user_id': userId,
-          'triggered_time': DateTime.now().toIso8601String(),
-          'status': status,
-        })
-        .select()
-        .single();
-    return Map<String, dynamic>.from(row);
+    final response = await client.rpc(
+      'create_current_user_emergency_alert',
+      params: {'p_status': status},
+    );
+    return _singleRow(response, 'emergency alert');
   }
 
   Future<EmergencyAlertModel> createAlertModel(String userId) async {
@@ -92,12 +87,14 @@ class EmergencyRepository {
     required double latitude,
     required double longitude,
   }) {
-    return client.from('locations').insert({
-      'alert_id': alertId,
-      'latitude': latitude,
-      'longitude': longitude,
-      'timestamp': DateTime.now().toIso8601String(),
-    });
+    return client.rpc(
+      'attach_current_user_alert_location',
+      params: {
+        'p_alert_id': alertId,
+        'p_latitude': latitude,
+        'p_longitude': longitude,
+      },
+    );
   }
 
   Future<void> createDeliveryOutbox({
@@ -107,30 +104,10 @@ class EmergencyRepository {
     String? messageBody,
   }) async {
     if (contacts.isEmpty) return;
-    final rows = contacts
-        .map(
-          (contact) => {
-            'alert_id': alertId.toString(),
-            'user_id': userId,
-            'contact_name': contact['name'],
-            'contact_phone': contact['phone'],
-            'status': 'pending',
-            'attempt_count': 0,
-            'message_body': messageBody,
-          },
-        )
-        .toList();
-    try {
-      await client.from('emergency_delivery_outbox').insert(rows);
-    } on PostgrestException catch (error) {
-      if (!error.message.toLowerCase().contains('message_body')) rethrow;
-      final compatibleRows = rows.map((row) {
-        final compatible = {...row};
-        compatible.remove('message_body');
-        return compatible;
-      }).toList();
-      await client.from('emergency_delivery_outbox').insert(compatibleRows);
-    }
+    await client.rpc(
+      'queue_current_user_emergency_sms',
+      params: {'p_alert_id': alertId},
+    );
   }
 
   Future<bool> queueInactivityUserSms({
@@ -140,33 +117,19 @@ class EmergencyRepository {
     required String recipientPhone,
     required String messageBody,
   }) async {
-    final heartbeatKey = lastCheckIn.toUtc().toIso8601String();
-    final row = {
-      'alert_id': 'inactivity-user-$userId-$heartbeatKey',
-      'user_id': userId,
-      'contact_name': recipientName,
-      'contact_phone': recipientPhone,
-      'message_body': messageBody,
-      'delivery_key': 'inactivity-user:$userId:$heartbeatKey',
-      'status': 'pending',
-      'attempt_count': 0,
-    };
-    try {
-      final inserted = await client
-          .from('emergency_delivery_outbox')
-          .upsert(row, onConflict: 'delivery_key', ignoreDuplicates: true)
-          .select('id');
-      return inserted.isNotEmpty;
-    } on PostgrestException catch (error) {
-      final message = error.message.toLowerCase();
-      if (!message.contains('delivery_key') ||
-          message.contains('message_body')) {
-        rethrow;
-      }
-      final compatible = {...row}..remove('delivery_key');
-      await client.from('emergency_delivery_outbox').insert(compatible);
-      return true;
-    }
+    final response = await client.rpc(
+      'queue_current_user_inactivity_sms',
+      params: {
+        'p_last_checkin': lastCheckIn.toUtc().toIso8601String(),
+        'p_test_mode': messageBody.startsWith('TEST - '),
+      },
+    );
+    return response == true;
+  }
+
+  Future<bool> queuePrimaryContactTestSms() async {
+    final response = await client.rpc('queue_current_user_primary_test_sms');
+    return response == true;
   }
 
   Future<Map<String, dynamic>> processPendingSms() async {
@@ -176,5 +139,15 @@ class EmergencyRepository {
     final data = response.data;
     if (data is Map) return Map<String, dynamic>.from(data);
     return <String, dynamic>{};
+  }
+
+  Map<String, dynamic> _singleRow(Object? response, String label) {
+    final row = response is List
+        ? (response.isEmpty ? null : response.first)
+        : response;
+    if (row is! Map) {
+      throw StateError('Supabase did not return the $label.');
+    }
+    return Map<String, dynamic>.from(row);
   }
 }

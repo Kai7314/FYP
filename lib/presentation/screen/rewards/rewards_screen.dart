@@ -7,6 +7,7 @@ import '../../../models/reward_model.dart';
 import '../../../services/dashboard_service.dart';
 import '../../../services/reward_service.dart';
 import '../../widgets/premium_shell.dart';
+import 'reward_collection_screen.dart';
 import 'reward_detail_screen.dart';
 
 class RewardsScreen extends StatefulWidget {
@@ -126,7 +127,7 @@ class _RewardsScreenState extends State<RewardsScreen>
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${item.title} was added to My Badge List.'),
+          content: Text('${item.title} was added to Reward Collection.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -145,6 +146,14 @@ class _RewardsScreenState extends State<RewardsScreen>
         setState(() => claimingBadgeCodes.remove(item.code));
       }
     }
+  }
+
+  Future<void> _openCollection(RewardSnapshot snapshot) {
+    return Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RewardCollectionScreen(snapshot: snapshot),
+      ),
+    );
   }
 
   @override
@@ -167,9 +176,8 @@ class _RewardsScreenState extends State<RewardsScreen>
         );
     final streak = dashboard?.streak ?? 0;
     final totalCheckins = dashboard?.totalCheckins ?? 0;
-    final claimedBadges = snapshot.catalog
-        .where((item) => !item.isVoucher && snapshot.isBadgeClaimed(item.code))
-        .toList();
+    final collectionItems = snapshot.collectionItems;
+    final goalItems = snapshot.goalItems;
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -182,16 +190,11 @@ class _RewardsScreenState extends State<RewardsScreen>
             orenAsset:
                 'lib/assets/images/pixel/oren_pixel_token_transparent.png',
             orenSemanticLabel: 'Oren holding a virtual reward token',
-            action: refreshing
-                ? const SizedBox.square(
-                    dimension: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  )
-                : const PremiumStatusPill(
-                    icon: Icons.cloud_done_outlined,
-                    label: 'Synced',
-                    color: AppColors.primary,
-                  ),
+            action: _RewardCollectionButton(
+              count: collectionItems.length,
+              syncing: refreshing,
+              onPressed: () => _openCollection(snapshot),
+            ),
           ),
           const SizedBox(height: 18),
           if (error != null) ...[
@@ -240,7 +243,7 @@ class _RewardsScreenState extends State<RewardsScreen>
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Virtual rewards unlock with your check-in streak. Tap Collect Badge once to save an earned badge in My Badge List. Vouchers include a personal redeem code.',
+                    'Virtual rewards unlock with your check-in streak. Collect an earned badge to move it into Reward Collection. Earned vouchers are stored there with a personal redeem code.',
                     style: TextStyle(
                       color: AppColors.primaryDark,
                       fontSize: 13,
@@ -253,102 +256,92 @@ class _RewardsScreenState extends State<RewardsScreen>
             ),
           ),
           const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'My Badge List',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              Text(
-                '${claimedBadges.length} collected',
-                style: const TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (claimedBadges.isEmpty)
-            const Text(
-              'Complete a badge goal, then tap Collect Badge to store it here.',
-              style: TextStyle(color: AppColors.muted, height: 1.35),
-            )
-          else
-            SizedBox(
-              height: 122,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: claimedBadges.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 10),
-                itemBuilder: (context, index) {
-                  final badge = claimedBadges[index];
-                  return _CollectedBadgeTile(
-                    item: badge,
-                    onTap: () => _openReward(badge, snapshot),
-                  );
-                },
-              ),
-            ),
-          const SizedBox(height: 20),
           Text('Reward Goals', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 10),
-          ...snapshot.catalog.map(
-            (item) => _VirtualRewardCard(
-              item: item,
-              streak: streak,
-              unlocked: snapshot.earnedCodes.contains(item.code),
-              claimed: snapshot.isBadgeClaimed(item.code),
-              claiming: claimingBadgeCodes.contains(item.code),
-              onCheck: snapshot.earnedCodes.contains(item.code)
-                  ? () => _openReward(item, snapshot)
-                  : null,
+          if (goalItems.isEmpty)
+            const _AllRewardsCollected()
+          else
+            ...goalItems.map(
+              (item) => _VirtualRewardCard(
+                item: item,
+                streak: streak,
+                unlocked: snapshot.earnedCodes.contains(item.code),
+                claimed: snapshot.isBadgeClaimed(item.code),
+                claiming: claimingBadgeCodes.contains(item.code),
+                onCheck: snapshot.earnedCodes.contains(item.code)
+                    ? () => _openReward(item, snapshot)
+                    : null,
+              ),
             ),
-          ),
         ],
       ),
     );
   }
 }
 
-class _CollectedBadgeTile extends StatelessWidget {
-  const _CollectedBadgeTile({required this.item, required this.onTap});
+class _RewardCollectionButton extends StatelessWidget {
+  const _RewardCollectionButton({
+    required this.count,
+    required this.syncing,
+    required this.onPressed,
+  });
 
-  final RewardCatalogItem item;
-  final VoidCallback onTap;
+  final int count;
+  final bool syncing;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final style = _badgeStyle(item);
-    return SizedBox(
-      width: 136,
-      child: GlassPanel(
-        onTap: onTap,
-        padding: const EdgeInsets.all(12),
-        color: style.softColor,
-        borderColor: style.color.withValues(alpha: .38),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(style.icon, color: style.color, size: 34),
-            const SizedBox(height: 7),
-            Text(
-              item.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                height: 1.15,
+    return Badge(
+      isLabelVisible: count > 0,
+      label: Text(count > 99 ? '99+' : '$count'),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          IconButton.filledTonal(
+            tooltip: 'Reward Collection',
+            onPressed: onPressed,
+            icon: const Icon(Icons.inventory_2_outlined),
+          ),
+          if (syncing)
+            const Positioned(
+              left: -2,
+              bottom: -2,
+              child: SizedBox.square(
+                dimension: 12,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
-          ],
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AllRewardsCollected extends StatelessWidget {
+  const _AllRewardsCollected();
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      color: AppColors.primarySoft,
+      borderColor: AppColors.primary.withValues(alpha: .24),
+      child: const Row(
+        children: [
+          Icon(Icons.verified_outlined, color: AppColors.primary),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'All available rewards are in your Reward Collection.',
+              style: TextStyle(
+                color: AppColors.primaryDark,
+                fontWeight: FontWeight.w800,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

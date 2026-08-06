@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/colors.dart';
@@ -1036,10 +1037,15 @@ class _LegacyNoteDialogState extends State<_LegacyNoteDialog> {
               TextFormField(
                 controller: titleController,
                 maxLength: 80,
+                maxLengthEnforcement: MaxLengthEnforcement.none,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 decoration: const InputDecoration(labelText: 'Title'),
                 validator: (value) {
                   final text = value?.trim() ?? '';
                   if (text.length < 2) return 'Enter at least 2 characters.';
+                  if (text.length > 80) {
+                    return 'Title must not exceed 80 characters.';
+                  }
                   return null;
                 },
               ),
@@ -1047,11 +1053,16 @@ class _LegacyNoteDialogState extends State<_LegacyNoteDialog> {
               TextFormField(
                 controller: contentController,
                 maxLength: 1000,
+                maxLengthEnforcement: MaxLengthEnforcement.none,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 maxLines: 6,
                 decoration: const InputDecoration(labelText: 'Note'),
                 validator: (value) {
                   final text = value?.trim() ?? '';
                   if (text.length < 2) return 'Enter at least 2 characters.';
+                  if (text.length > 1000) {
+                    return 'Note must not exceed 1000 characters.';
+                  }
                   return DocumentService.legacyNoteSecurityWarning(
                     title: titleController.text.trim(),
                     content: text,
@@ -1243,10 +1254,15 @@ class _PreferencesDialogState extends State<_PreferencesDialog> {
                 TextFormField(
                   controller: venueController,
                   maxLength: 100,
+                  maxLengthEnforcement: MaxLengthEnforcement.none,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
                   textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(
                     labelText: 'Preferred venue',
                   ),
+                  validator: (value) => (value?.trim().length ?? 0) > 100
+                      ? 'Preferred venue must not exceed 100 characters.'
+                      : null,
                 ),
                 const SizedBox(height: 4),
                 DropdownButtonFormField<String>(
@@ -1298,9 +1314,14 @@ class _PreferencesDialogState extends State<_PreferencesDialog> {
                 TextFormField(
                   controller: notesController,
                   maxLength: 500,
+                  maxLengthEnforcement: MaxLengthEnforcement.none,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
                   maxLines: 4,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(labelText: 'Notes'),
+                  validator: (value) => (value?.trim().length ?? 0) > 500
+                      ? 'Notes must not exceed 500 characters.'
+                      : null,
                 ),
               ],
             ),

@@ -2,6 +2,7 @@ import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/user_repository.dart';
 import '../core/constants/app_terms.dart';
 import '../utils/validators.dart';
+import 'home_address_service.dart';
 import 'local_cache_service.dart';
 import 'oren_care_service.dart';
 
@@ -47,6 +48,7 @@ class UserService {
   Future<void> updateCurrentProfile(Map<String, dynamic> values) async {
     final user = authRepository.currentUser;
     if (user == null) throw StateError('You must be signed in.');
+    _requireVerifiedAddress(values);
     await userRepository.updateProfile(userId: user.id, values: values);
     await getCurrentProfile(forceRefresh: true);
   }
@@ -54,6 +56,7 @@ class UserService {
   Future<void> completeFirstLoginSetup(Map<String, dynamic> values) async {
     final user = authRepository.currentUser;
     if (user == null) throw StateError('You must be signed in.');
+    _requireVerifiedAddress(values);
     final now = DateTime.now().toUtc().toIso8601String();
     final existing = await userRepository.getProfile(user.id);
     final existingTermsAcceptedAt =
@@ -83,6 +86,15 @@ class UserService {
       await cache.removeUserData(
         userId,
         preservedKeys: {OrenCareService.cacheKeyForUser(userId)},
+      );
+    }
+  }
+
+  void _requireVerifiedAddress(Map<String, dynamic> values) {
+    if (!values.containsKey('address')) return;
+    if (HomeAddressService.fromProfile(values) == null) {
+      throw const HomeAddressValidationException(
+        'Validate your home address before saving it.',
       );
     }
   }

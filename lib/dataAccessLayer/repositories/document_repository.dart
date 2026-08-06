@@ -132,12 +132,16 @@ class DocumentRepository {
         );
 
     try {
-      await client.from('documents').insert({
-        'user_id': userId,
-        'name': fileName,
-        'storage_path': path,
-        'uploaded_at': DateTime.now().toIso8601String(),
-      });
+      final response = await client.functions
+          .invoke(
+            'finalize-legacy-document',
+            body: {'fileName': fileName, 'storagePath': path},
+          )
+          .timeout(const Duration(seconds: 30));
+      if (response.data is! Map ||
+          (response.data as Map)['document'] is! Map) {
+        throw StateError('The server did not finalize the document.');
+      }
     } catch (_) {
       try {
         await client.storage.from(_documentBucket).remove([path]);

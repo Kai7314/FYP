@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'app_settings_service.dart';
+
 class NotificationService {
   NotificationService._();
 
@@ -8,26 +10,33 @@ class NotificationService {
   static const missedCheckInNotificationId = 1002;
   final plugin = FlutterLocalNotificationsPlugin();
   bool initialized = false;
+  bool permissionRequested = false;
 
   Future<void> initialize({bool requestPermission = true}) async {
-    if (initialized || kIsWeb) return;
-    const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(),
-    );
-    await plugin.initialize(settings: settings);
-    if (requestPermission) {
+    if (kIsWeb) return;
+    if (!initialized) {
+      const settings = InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        iOS: DarwinInitializationSettings(),
+      );
+      await plugin.initialize(settings: settings);
+      initialized = true;
+    }
+    final remindersEnabled = await AppSettingsService.instance
+        .areLocalRemindersEnabled();
+    if (requestPermission && remindersEnabled && !permissionRequested) {
       await plugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >()
           ?.requestNotificationsPermission();
+      permissionRequested = true;
     }
-    initialized = true;
   }
 
   Future<void> scheduleDailyCheckInReminder() async {
     if (kIsWeb) return;
+    if (!await AppSettingsService.instance.areLocalRemindersEnabled()) return;
     await initialize(requestPermission: false);
     await plugin.periodicallyShow(
       id: 1001,
@@ -60,6 +69,7 @@ class NotificationService {
     bool testMode = false,
   }) async {
     if (kIsWeb) return;
+    if (!await AppSettingsService.instance.areLocalRemindersEnabled()) return;
     await initialize();
     await plugin.show(
       id: missedCheckInNotificationId,
@@ -98,6 +108,7 @@ class NotificationService {
 
   Future<void> showOfficial999EscalationNotice() async {
     if (kIsWeb) return;
+    if (!await AppSettingsService.instance.areLocalRemindersEnabled()) return;
     await initialize();
     await plugin.show(
       id: missedCheckInNotificationId + 1,
@@ -121,5 +132,13 @@ class NotificationService {
         ),
       ),
     );
+  }
+
+  Future<void> cancelSafetyNotifications() async {
+    if (kIsWeb) return;
+    await initialize(requestPermission: false);
+    await plugin.cancel(id: 1001);
+    await plugin.cancel(id: missedCheckInNotificationId);
+    await plugin.cancel(id: missedCheckInNotificationId + 1);
   }
 }

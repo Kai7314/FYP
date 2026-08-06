@@ -7,6 +7,24 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const approvedMessagePrefixes = [
+  "Emergency alert from EthernaCare.",
+  "TEST - Emergency alert from EthernaCare.",
+  "TEST message from EthernaCare.",
+  "EthernaCare check-in reminder:",
+  "TEST - EthernaCare check-in reminder:",
+];
+
+function normalizePhone(value: unknown) {
+  return String(value ?? "").replace(/[^0-9]/g, "");
+}
+
+function isApprovedMessage(value: unknown) {
+  const message = String(value ?? "").trim();
+  return message.length > 0 && message.length <= 640 &&
+    approvedMessagePrefixes.some((prefix) => message.startsWith(prefix));
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -65,9 +83,35 @@ Deno.serve(async (request) => {
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const staleBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const interruptedAttempt = {
+    status: "failed",
+    last_error: "The previous SMS attempt was interrupted and can be retried.",
+  };
+  let missingTimestampRecovery = supabase
+    .from("emergency_delivery_outbox")
+    .update(interruptedAttempt)
+    .eq("status", "processing")
+    .is("processed_at", null);
+  let staleRecovery = supabase
+    .from("emergency_delivery_outbox")
+    .update(interruptedAttempt)
+    .eq("status", "processing")
+    .lt("processed_at", staleBefore);
+  if (authenticatedUserId) {
+    missingTimestampRecovery = missingTimestampRecovery.eq(
+      "user_id",
+      authenticatedUserId,
+    );
+    staleRecovery = staleRecovery.eq("user_id", authenticatedUserId);
+  }
+  await Promise.all([missingTimestampRecovery, staleRecovery]);
+
   let query = supabase
     .from("emergency_delivery_outbox")
-    .select("id, contact_phone, message_body, attempt_count")
+    .select(
+      "id,user_id,contact_phone,message_body,delivery_key,attempt_count",
+    )
     .in("status", ["pending", "failed"])
     .lt("attempt_count", 3)
     .order("created_at", { ascending: true });
@@ -88,39 +132,102 @@ Deno.serve(async (request) => {
   let sent = 0;
   let failed = 0;
   for (const row of rows ?? []) {
+    const message = String(row.message_body ?? "").trim();
+    const recipientPhone = normalizePhone(row.contact_phone);
+    let recipientIsApproved = false;
+    if (
+      String(row.delivery_key ?? "").startsWith("inactivity-user:") ||
+      String(row.delivery_key ?? "").startsWith("test-user-sms:")
+    ) {
+      const { data: profile } = await supabase
+        .from("users")
+        .select("phone,phone_verified_at")
+        .eq("id", row.user_id)
+        .maybeSingle();
+      recipientIsApproved = Boolean(
+        profile?.phone_verified_at &&
+          recipientPhone === normalizePhone(profile.phone),
+      );
+    } else {
+      const { data: contacts } = await supabase
+        .from("contacts")
+        .select("phone,phone_verified_at")
+        .eq("user_id", row.user_id)
+        .not("phone_verified_at", "is", null);
+      recipientIsApproved = (contacts ?? []).some(
+        (contact) => recipientPhone === normalizePhone(contact.phone),
+      );
+    }
+
+    if (!recipientIsApproved || !isApprovedMessage(message)) {
+      failed += 1;
+      await supabase
+        .from("emergency_delivery_outbox")
+        .update({
+          status: "failed",
+          attempt_count: 3,
+          processed_at: new Date().toISOString(),
+          last_error:
+            "SMS blocked because its recipient or message was not approved.",
+        })
+        .eq("id", row.id);
+      continue;
+    }
+
     const attemptCount = Number(row.attempt_count ?? 0) + 1;
+    const attemptStartedAt = new Date().toISOString();
     const { data: claimed, error: claimError } = await supabase
       .from("emergency_delivery_outbox")
-      .update({ status: "processing", attempt_count: attemptCount })
+      .update({
+        status: "processing",
+        attempt_count: attemptCount,
+        processed_at: attemptStartedAt,
+        last_error: null,
+      })
       .eq("id", row.id)
       .in("status", ["pending", "failed"])
       .select("id")
       .maybeSingle();
     if (claimError || !claimed) continue;
 
-    const message =
-      row.message_body ??
-      "Emergency alert from EthernaCare. The user may need help. Please contact them immediately.";
-
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${btoa(
-            `${twilioAccountSid}:${twilioAuthToken}`,
-          )}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+    let response: Response;
+    let payload: Record<string, unknown> = {};
+    try {
+      response = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${btoa(
+              `${twilioAccountSid}:${twilioAuthToken}`,
+            )}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            To: row.contact_phone,
+            From: twilioFromNumber,
+            Body: message,
+          }),
+          signal: AbortSignal.timeout(12000),
         },
-        body: new URLSearchParams({
-          To: row.contact_phone,
-          From: twilioFromNumber,
-          Body: message,
-        }),
-      },
-    );
+      );
+      payload = await response.json().catch(() => ({}));
+    } catch (error) {
+      failed += 1;
+      await supabase
+        .from("emergency_delivery_outbox")
+        .update({
+          status: "failed",
+          provider: "twilio",
+          processed_at: new Date().toISOString(),
+          last_error: error instanceof Error
+            ? `SMS provider request failed: ${error.message}`
+            : "SMS provider request failed.",
+        })
+        .eq("id", row.id);
+      continue;
+    }
 
-    const payload = await response.json().catch(() => ({}));
     if (response.ok) {
       sent += 1;
       await supabase

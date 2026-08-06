@@ -179,8 +179,10 @@ class _AdminRewardEditorScreenState
                             FilteringTextInputFormatter.allow(
                               RegExp(r'[A-Za-z0-9_]'),
                             ),
-                            LengthLimitingTextInputFormatter(50),
                           ],
+                          maxLength: 50,
+                          maxLengthEnforcement: MaxLengthEnforcement.none,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: _validateCode,
                           decoration: const InputDecoration(
                             labelText: 'Reward code',
@@ -193,6 +195,8 @@ class _AdminRewardEditorScreenState
                           controller: titleController,
                           enabled: !saving,
                           maxLength: 80,
+                          maxLengthEnforcement: MaxLengthEnforcement.none,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: _validateTitle,
                           decoration: const InputDecoration(
                             labelText: 'Reward title',
@@ -226,6 +230,9 @@ class _AdminRewardEditorScreenState
                             controller: voucherValueController,
                             enabled: !saving,
                             maxLength: 80,
+                            maxLengthEnforcement: MaxLengthEnforcement.none,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
                             validator: _validateVoucherValue,
                             decoration: const InputDecoration(
                               labelText: 'Voucher value or offer',
@@ -243,6 +250,8 @@ class _AdminRewardEditorScreenState
                           minLines: 3,
                           maxLines: 5,
                           maxLength: 240,
+                          maxLengthEnforcement: MaxLengthEnforcement.none,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: _validateDescription,
                           decoration: const InputDecoration(
                             labelText: 'Description',
@@ -257,8 +266,10 @@ class _AdminRewardEditorScreenState
                           keyboardType: TextInputType.number,
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(3),
                           ],
+                          maxLength: 3,
+                          maxLengthEnforcement: MaxLengthEnforcement.none,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: _validateMilestone,
                           decoration: const InputDecoration(
                             labelText: 'Check-in streak milestone',

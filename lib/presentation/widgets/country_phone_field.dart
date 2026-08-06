@@ -84,6 +84,7 @@ class CountryPhoneField extends StatelessWidget {
               controller: controller,
               enabled: enabled,
               keyboardType: TextInputType.phone,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               validator: (value) => AppValidators.phoneForCountry(
                 value ?? '',
                 dialCode: selectedCountry.dialCode,

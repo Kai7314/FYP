@@ -51,6 +51,7 @@ class LocalAuthBiometricDevice implements BiometricDevice {
     : authentication = authentication ?? LocalAuthentication();
 
   final LocalAuthentication authentication;
+  static Future<bool>? _platformAuthentication;
 
   @override
   Future<bool> isDeviceSupported() => authentication.isDeviceSupported();
@@ -66,12 +67,25 @@ class LocalAuthBiometricDevice implements BiometricDevice {
   Future<bool> authenticate({
     required String reason,
     required bool biometricOnly,
-  }) {
-    return authentication.authenticate(
+  }) async {
+    final activeAuthentication = _platformAuthentication;
+    if (activeAuthentication != null) {
+      return await activeAuthentication;
+    }
+
+    final authenticationOperation = authentication.authenticate(
       localizedReason: reason,
       biometricOnly: biometricOnly,
       persistAcrossBackgrounding: true,
     );
+    _platformAuthentication = authenticationOperation;
+    try {
+      return await authenticationOperation;
+    } finally {
+      if (identical(_platformAuthentication, authenticationOperation)) {
+        _platformAuthentication = null;
+      }
+    }
   }
 }
 
@@ -90,6 +104,7 @@ class BiometricAuthService {
   final Future<SharedPreferences> Function() preferencesLoader;
   final TargetPlatform platform;
   final bool isWeb;
+  Future<bool>? _authenticationInProgress;
 
   String _preferenceKey(String userId) => 'biometric_unlock_enabled_v1_$userId';
 
@@ -173,6 +188,23 @@ class BiometricAuthService {
   Future<bool> authenticate({
     String reason = 'Unlock your EthernaCare account.',
   }) async {
+    final activeAuthentication = _authenticationInProgress;
+    if (activeAuthentication != null) {
+      return await activeAuthentication;
+    }
+
+    final authenticationOperation = _authenticate(reason: reason);
+    _authenticationInProgress = authenticationOperation;
+    try {
+      return await authenticationOperation;
+    } finally {
+      if (identical(_authenticationInProgress, authenticationOperation)) {
+        _authenticationInProgress = null;
+      }
+    }
+  }
+
+  Future<bool> _authenticate({required String reason}) async {
     final availability = await checkAvailability();
     if (!availability.available) {
       throw BiometricAuthException(

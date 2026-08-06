@@ -3,9 +3,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class SupabaseConfig {
   const SupabaseConfig._();
 
-  static const url = 'https://mekiduxpnrorkfphjgpc.supabase.co';
-  static const anonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1la2lkdXhwbnJvcmtmcGhqZ3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjExMzYsImV4cCI6MjA5MTgzNzEzNn0.5DEkGIghSMVXVQWj3WBCNQFXUSYCPbtSWyVHlrRDd4A';
+  static const url = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://mekiduxpnrorkfphjgpc.supabase.co',
+  );
+  static const anonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1la2lkdXhwbnJvcmtmcGhqZ3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjExMzYsImV4cCI6MjA5MTgzNzEzNn0.5DEkGIghSMVXVQWj3WBCNQFXUSYCPbtSWyVHlrRDd4A',
+  );
 }
 
 Future<void> ensureSupabaseInitialized({

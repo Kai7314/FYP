@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/malaysia_locations.dart';
 import '../../../models/emergency_escalation_target.dart';
+import '../../../services/home_address_service.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/country_phone_field.dart';
+import '../../widgets/address_verification_panel.dart';
 import '../../widgets/malaysia_address_fields.dart';
 import '../../widgets/phone_otp_verification_card.dart';
 import '../../../services/phone_verification_service.dart';
@@ -16,10 +19,12 @@ class FirstLoginSetupScreen extends StatefulWidget {
     super.key,
     required this.profile,
     required this.onComplete,
+    this.addressService,
   });
 
   final Map<String, dynamic> profile;
   final VoidCallback onComplete;
+  final HomeAddressService? addressService;
 
   @override
   State<FirstLoginSetupScreen> createState() => _FirstLoginSetupScreenState();
@@ -41,10 +46,15 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
   bool acceptedTerms = false;
   bool termsReviewed = false;
   bool saving = false;
+  late final HomeAddressService addressService;
+  HomeAddressValidationResult? verifiedAddress;
+  String? verifiedAddressSignature;
+  bool validatingAddress = false;
 
   @override
   void initState() {
     super.initState();
+    addressService = widget.addressService ?? HomeAddressService();
     nameController = TextEditingController(
       text: widget.profile['name']?.toString() ?? '',
     );
@@ -65,6 +75,10 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     );
     selectedState = _initialState();
     selectedRegion = _initialRegion(selectedState);
+    verifiedAddress = HomeAddressService.fromProfile(widget.profile);
+    if (verifiedAddress != null) {
+      verifiedAddressSignature = _currentAddressSignature();
+    }
     acceptedTerms =
         (widget.profile['terms_accepted_at']?.toString() ?? '').isNotEmpty;
     termsReviewed = acceptedTerms;
@@ -106,15 +120,17 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
       _showMessage('Please verify your phone number first.');
       return;
     }
+    if (!_isAddressVerified) {
+      _showMessage('Validate your home address before continuing.');
+      return;
+    }
 
     setState(() => saving = true);
     try {
       await userService.completeFirstLoginSetup({
         'name': AppValidators.normalizeSpaces(nameController.text),
         'phone': phone,
-        'address': AppValidators.normalizeSpaces(addressController.text),
-        'address_state': selectedState,
-        'address_region': selectedRegion,
+        ...verifiedAddress!.toProfileValues(),
         'blood_type': selectedBloodType,
         'inactivity_threshold': int.parse(thresholdController.text.trim()),
         'emergency_escalation_target': escalationTarget,
@@ -124,6 +140,58 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
       if (mounted) _showMessage(_setupErrorMessage(error));
     } finally {
       if (mounted) setState(() => saving = false);
+    }
+  }
+
+  bool get _isAddressVerified =>
+      verifiedAddress != null &&
+      verifiedAddressSignature == _currentAddressSignature();
+
+  String _currentAddressSignature() => HomeAddressService.signature(
+    address: addressController.text,
+    state: selectedState,
+    region: selectedRegion,
+  );
+
+  void _invalidateAddress() {
+    if (verifiedAddress == null && verifiedAddressSignature == null) return;
+    setState(() {
+      verifiedAddress = null;
+      verifiedAddressSignature = null;
+    });
+  }
+
+  Future<void> _validateAddress() async {
+    final addressError = AppValidators.address(
+      addressController.text,
+      required: true,
+    );
+    if (addressError != null) {
+      _showMessage(addressError);
+      return;
+    }
+    if (selectedState == null || selectedRegion == null) {
+      _showMessage('Select the state and region before validating.');
+      return;
+    }
+    final requestedSignature = _currentAddressSignature();
+    setState(() => validatingAddress = true);
+    try {
+      final result = await addressService.validate(
+        address: addressController.text,
+        state: selectedState,
+        region: selectedRegion,
+      );
+      if (!mounted || requestedSignature != _currentAddressSignature()) return;
+      setState(() {
+        verifiedAddress = result;
+        verifiedAddressSignature = requestedSignature;
+      });
+      _showMessage('Home address verified.');
+    } catch (error) {
+      if (mounted) _showMessage(error.toString());
+    } finally {
+      if (mounted) setState(() => validatingAddress = false);
     }
   }
 
@@ -200,6 +268,8 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                   TextFormField(
                     controller: nameController,
                     maxLength: AppValidators.maxDisplayNameLength,
+                    maxLengthEnforcement: MaxLengthEnforcement.none,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
                     textCapitalization: TextCapitalization.words,
                     validator: (value) =>
                         AppValidators.displayName(value ?? ''),
@@ -231,12 +301,24 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                     selectedState: selectedState,
                     selectedRegion: selectedRegion,
                     addressRequired: true,
+                    onAddressChanged: (_) => _invalidateAddress(),
                     onStateChanged: (value) => setState(() {
                       selectedState = value;
                       selectedRegion = null;
+                      verifiedAddress = null;
+                      verifiedAddressSignature = null;
                     }),
-                    onRegionChanged: (value) =>
-                        setState(() => selectedRegion = value),
+                    onRegionChanged: (value) => setState(() {
+                      selectedRegion = value;
+                      verifiedAddress = null;
+                      verifiedAddressSignature = null;
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  AddressVerificationPanel(
+                    isVerified: _isAddressVerified,
+                    isValidating: validatingAddress,
+                    onValidate: saving ? null : _validateAddress,
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
@@ -351,7 +433,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
-              onPressed: saving ? null : _save,
+              onPressed: saving || validatingAddress ? null : _save,
               icon: saving
                   ? const SizedBox(
                       width: 18,

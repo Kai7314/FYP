@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/malaysia_locations.dart';
 import '../../../models/emergency_escalation_target.dart';
-import '../../../services/biometric_auth_service.dart';
+import '../../../services/home_address_service.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/validators.dart';
+import '../../widgets/biometric_setting_tile.dart';
+import '../../widgets/address_verification_panel.dart';
 import '../../widgets/country_phone_field.dart';
 import '../../widgets/error_dialog.dart';
 import '../../widgets/guidance_sheet.dart';
@@ -17,9 +19,12 @@ import '../../../services/phone_verification_service.dart';
 import '../legal/terms_and_conditions_screen.dart';
 import '../planning/ai_guidance_screen.dart';
 import '../planning/legacy_planning_screen.dart';
+import '../settings/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.onOpenFeatureGuide});
+
+  final VoidCallback? onOpenFeatureGuide;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -27,133 +32,16 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final userService = UserService();
-  final biometricAuthService = BiometricAuthService();
   late Future<Map<String, dynamic>> profileFuture;
-  late Future<BiometricSetting> biometricSettingFuture;
-  bool biometricSettingBusy = false;
 
   @override
   void initState() {
     super.initState();
     profileFuture = _loadProfile();
-    biometricSettingFuture = _loadBiometricSetting();
   }
 
   Future<Map<String, dynamic>> _loadProfile() async {
     return userService.getCurrentProfile();
-  }
-
-  Future<BiometricSetting> _loadBiometricSetting() {
-    final userId = userService.currentUserId;
-    if (userId == null) {
-      return Future.value(
-        const BiometricSetting(
-          enabled: false,
-          availability: BiometricAvailability.unsupported(),
-        ),
-      );
-    }
-    return biometricAuthService.getSetting(userId);
-  }
-
-  Future<void> _setBiometricUnlock(bool enabled) async {
-    final userId = userService.currentUserId;
-    if (userId == null || biometricSettingBusy) return;
-    setState(() => biometricSettingBusy = true);
-    try {
-      if (enabled) {
-        final availability = await biometricAuthService.checkAvailability();
-        if (!availability.available) {
-          throw BiometricAuthException(
-            availability.platformSupported
-                ? 'Set up ${availability.methodLabel} in your device settings first.'
-                : 'Biometric unlock is not supported on this platform.',
-          );
-        }
-        final authenticated = await biometricAuthService.authenticate(
-          reason: 'Confirm ${availability.methodLabel} for EthernaCare.',
-        );
-        if (!authenticated) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Biometric unlock was not enabled.'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-          return;
-        }
-      }
-
-      await biometricAuthService.setEnabledForUser(userId, enabled);
-      if (!mounted) return;
-      setState(() => biometricSettingFuture = _loadBiometricSetting());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            enabled
-                ? 'Biometric unlock enabled on this device.'
-                : 'Biometric unlock disabled on this device.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      await AppErrorDialog.show(
-        context,
-        title: 'Could not update biometric unlock',
-        error: error,
-      );
-    } finally {
-      if (mounted) setState(() => biometricSettingBusy = false);
-    }
-  }
-
-  Widget _buildBiometricSetting() {
-    return FutureBuilder<BiometricSetting>(
-      future: biometricSettingFuture,
-      builder: (context, snapshot) {
-        final setting = snapshot.data;
-        final availability = setting?.availability;
-        final loading =
-            snapshot.connectionState != ConnectionState.done ||
-            biometricSettingBusy;
-        final enabled = setting?.enabled ?? false;
-        final available = availability?.available ?? false;
-        final method = availability?.methodLabel ?? 'Biometrics';
-        final subtitle = snapshot.hasError
-            ? 'Device authentication status is unavailable.'
-            : enabled
-            ? '$method is required when EthernaCare opens or returns from the background.'
-            : available
-            ? 'Use $method to unlock your signed-in account.'
-            : 'Set up fingerprint, face recognition, or device authentication first.';
-
-        return SwitchListTile.adaptive(
-          key: const Key('biometric-unlock-switch'),
-          value: enabled,
-          onChanged: loading || (!available && !enabled)
-              ? null
-              : _setBiometricUnlock,
-          secondary: CircleAvatar(
-            radius: 20,
-            backgroundColor: AppColors.primary.withValues(alpha: .1),
-            foregroundColor: AppColors.primary,
-            child: Icon(
-              method.contains('Face') ? Icons.face_outlined : Icons.fingerprint,
-              size: 22,
-            ),
-          ),
-          title: const Text(
-            'Biometric unlock',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-          subtitle: Text(subtitle),
-        );
-      },
-    );
   }
 
   Future<void> _editProfile(Map<String, dynamic> profile) async {
@@ -196,63 +84,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _showAppGuide() {
-    return GuidanceSheet.show(
-      context,
-      title: 'EthernaCare Guide',
-      description:
-          'A quick reference for the main tabs, safety tools, and Oren care features.',
-      items: const [
-        GuidanceItem(
-          icon: Icons.home_outlined,
-          title: 'Home',
-          description:
-              'Tap Oren to renew the check-in window configured in your profile, view Oren\'s status and weather, use care actions, and review the Safety Monitor lower on the page.',
-        ),
-        GuidanceItem(
-          icon: Icons.history,
-          title: 'History',
-          description:
-              'Review recorded check-ins and their dates. Pull down or reopen the page to refresh recent activity.',
-          color: AppColors.blue,
-        ),
-        GuidanceItem(
-          icon: Icons.contacts_outlined,
-          title: 'Contacts and SOS',
-          description:
-              'Add trusted contacts, verify their phone numbers, and select one primary contact for SOS and inactivity follow-up.',
-          color: AppColors.danger,
-        ),
-        GuidanceItem(
-          icon: Icons.redeem_outlined,
-          title: 'Rewards, tokens, and Oren',
-          description:
-              'Daily activity earns Oren tokens, while check-in streaks automatically unlock virtual badges and vouchers. Use tokens in Oren\'s shop, select an owned toy, then tap Play.',
-          color: AppColors.accent,
-        ),
-        GuidanceItem(
-          icon: Icons.person_outline,
-          title: 'Profile and planning',
-          description:
-              'Update personal and safety details, copy your Legacy UID, manage Legacy Planning, and open general AI Guidance.',
-          color: AppColors.purple,
-        ),
-        GuidanceItem(
-          icon: Icons.fingerprint,
-          title: 'Biometric unlock',
-          description:
-              'Enable fingerprint, face recognition, Touch ID, or Windows Hello under Account Security. It protects the saved sign-in session on this device.',
-          color: AppColors.primary,
-        ),
-        GuidanceItem(
-          icon: Icons.warning_amber_rounded,
-          title: 'Safety messages',
-          description:
-              'Green means the current status is normal, amber needs attention, and red indicates an emergency or failed safety action. Call 999 for immediate danger in Malaysia.',
-          color: AppColors.danger,
-        ),
-      ],
-    );
+  void _showAppGuide() {
+    widget.onOpenFeatureGuide?.call();
   }
 
   Future<void> _showLegacyUidGuide() {
@@ -333,6 +166,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final escalationTarget = EmergencyEscalationTarget.normalize(
           profile['emergency_escalation_target'],
         );
+        final hasVerifiedAddress =
+            HomeAddressService.fromProfile(profile) != null;
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
@@ -495,6 +330,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: 'State / region',
                   value: _formatAddressRegion(profile),
                 ),
+                _InfoTile(
+                  icon: hasVerifiedAddress
+                      ? Icons.verified_outlined
+                      : Icons.location_off_outlined,
+                  iconColor: hasVerifiedAddress
+                      ? AppColors.primary
+                      : AppColors.muted,
+                  label: 'Address verification',
+                  value: hasVerifiedAddress ? 'Verified' : 'Not verified',
+                ),
               ],
             ),
             const SizedBox(height: 17),
@@ -522,9 +367,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 18),
             _InfoSection(
               title: 'ACCOUNT SECURITY',
-              children: [_buildBiometricSetting()],
+              children: [
+                BiometricSettingTile(userId: userService.currentUserId),
+              ],
             ),
             const SizedBox(height: 18),
+            _ProfileAction(
+              icon: Icons.menu_book_outlined,
+              title: 'Feature Guide',
+              subtitle: 'Learn how EthernaCare works',
+              onTap: _showAppGuide,
+            ),
+            const SizedBox(height: 10),
+            _ProfileAction(
+              icon: Icons.settings_outlined,
+              title: 'Settings',
+              subtitle: 'Manage app preferences',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SettingsScreen(
+                    onOpenFeatureGuide: widget.onOpenFeatureGuide,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             _ProfileAction(
               icon: Icons.description_outlined,
               title: 'Legacy Planning',
@@ -597,9 +464,20 @@ class _ProfileAction extends StatelessWidget {
       color: AppColors.glassStrong,
       child: ListTile(
         onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        visualDensity: VisualDensity.compact,
         leading: Icon(icon, color: AppColors.primary),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(subtitle),
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text(
+          subtitle,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         trailing: const Icon(Icons.chevron_right),
       ),
     );
@@ -701,9 +579,14 @@ class _InfoTile extends StatelessWidget {
 }
 
 class EditProfileDialog extends StatefulWidget {
-  const EditProfileDialog({super.key, required this.profile});
+  const EditProfileDialog({
+    super.key,
+    required this.profile,
+    this.addressService,
+  });
 
   final Map<String, dynamic> profile;
+  final HomeAddressService? addressService;
 
   @override
   State<EditProfileDialog> createState() => _EditProfileDialogState();
@@ -722,10 +605,16 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   late String phoneDialCode;
   late String initialPhone;
   String? verifiedPhone;
+  late final HomeAddressService addressService;
+  HomeAddressValidationResult? verifiedAddress;
+  String? verifiedAddressSignature;
+  late final String initialAddressSignature;
+  bool validatingAddress = false;
 
   @override
   void initState() {
     super.initState();
+    addressService = widget.addressService ?? HomeAddressService();
     nameController = TextEditingController(
       text: widget.profile['name']?.toString() ?? '',
     );
@@ -747,6 +636,14 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     );
     selectedState = _initialState();
     selectedRegion = _initialRegion(selectedState);
+    initialAddressSignature = _currentAddressSignature();
+    _restoreAddressVerification();
+  }
+
+  void _restoreAddressVerification() {
+    verifiedAddress = HomeAddressService.fromProfile(widget.profile);
+    if (verifiedAddress == null) return;
+    verifiedAddressSignature = _currentAddressSignature();
   }
 
   String? _initialState() {
@@ -791,17 +688,74 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       _showMessage('Please verify your new phone number first.');
       return;
     }
+    if (!_isAddressVerified && _addressChanged) {
+      _showMessage('Validate your home address before saving.');
+      return;
+    }
 
     Navigator.pop(context, {
       'name': name,
       'phone': phone,
-      'address': AppValidators.normalizeSpaces(addressController.text),
-      'address_state': selectedState,
-      'address_region': selectedRegion,
+      if (_isAddressVerified) ...verifiedAddress!.toProfileValues(),
       'blood_type': selectedBloodType,
       'inactivity_threshold': threshold,
       'emergency_escalation_target': escalationTarget,
     });
+  }
+
+  bool get _isAddressVerified =>
+      verifiedAddress != null &&
+      verifiedAddressSignature == _currentAddressSignature();
+
+  bool get _addressChanged =>
+      initialAddressSignature != _currentAddressSignature();
+
+  String _currentAddressSignature() => HomeAddressService.signature(
+    address: addressController.text,
+    state: selectedState,
+    region: selectedRegion,
+  );
+
+  void _invalidateAddress() {
+    if (verifiedAddress == null && verifiedAddressSignature == null) return;
+    setState(() {
+      verifiedAddress = null;
+      verifiedAddressSignature = null;
+    });
+  }
+
+  Future<void> _validateAddress() async {
+    final addressError = AppValidators.address(
+      addressController.text,
+      required: true,
+    );
+    if (addressError != null) {
+      _showMessage(addressError);
+      return;
+    }
+    if (selectedState == null || selectedRegion == null) {
+      _showMessage('Select the state and region before validating.');
+      return;
+    }
+    final requestedSignature = _currentAddressSignature();
+    setState(() => validatingAddress = true);
+    try {
+      final result = await addressService.validate(
+        address: addressController.text,
+        state: selectedState,
+        region: selectedRegion,
+      );
+      if (!mounted || requestedSignature != _currentAddressSignature()) return;
+      setState(() {
+        verifiedAddress = result;
+        verifiedAddressSignature = requestedSignature;
+      });
+      _showMessage('Home address verified.');
+    } catch (error) {
+      if (mounted) _showMessage(error.toString());
+    } finally {
+      if (mounted) setState(() => validatingAddress = false);
+    }
   }
 
   String _normalizedPhone() {
@@ -846,6 +800,8 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                 child: TextFormField(
                   controller: nameController,
                   maxLength: AppValidators.maxDisplayNameLength,
+                  maxLengthEnforcement: MaxLengthEnforcement.none,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
                   validator: (value) => AppValidators.displayName(value ?? ''),
                   decoration: const InputDecoration(hintText: 'Full name'),
                   style: const TextStyle(
@@ -888,15 +844,28 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                 externalLabels: true,
                 addressLabel: 'House / unit, street',
                 addressHelperText: null,
+                addressRequired: true,
+                onAddressChanged: (_) => _invalidateAddress(),
                 stateLabel: 'State',
                 regionLabel: 'Region / district',
                 regionHelperText: null,
                 onStateChanged: (value) => setState(() {
                   selectedState = value;
                   selectedRegion = null;
+                  verifiedAddress = null;
+                  verifiedAddressSignature = null;
                 }),
-                onRegionChanged: (value) =>
-                    setState(() => selectedRegion = value),
+                onRegionChanged: (value) => setState(() {
+                  selectedRegion = value;
+                  verifiedAddress = null;
+                  verifiedAddressSignature = null;
+                }),
+              ),
+              const SizedBox(height: 8),
+              AddressVerificationPanel(
+                isVerified: _isAddressVerified,
+                isValidating: validatingAddress,
+                onValidate: _validateAddress,
               ),
               const SizedBox(height: 12),
               _ProfileFieldShell(
@@ -1019,7 +988,10 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: FilledButton(onPressed: _save, child: const Text('Save')),
+              child: FilledButton(
+                onPressed: validatingAddress ? null : _save,
+                child: const Text('Save'),
+              ),
             ),
           ],
         ),

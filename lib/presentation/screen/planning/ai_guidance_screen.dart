@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../businessLogicLayer/controllers/ai_controller.dart';
 import '../../../core/constants/colors.dart';
@@ -36,6 +37,10 @@ class _AiGuidanceScreenState extends State<AiGuidanceScreen> {
   Future<void> _send() async {
     final question = inputController.text.trim();
     if (question.isEmpty || loading) return;
+    if (question.length > 500) {
+      setState(() {});
+      return;
+    }
     final history = List<AiChatMessage>.from(messages);
     final userMessage = AiChatMessage.user(question);
     setState(() {
@@ -100,6 +105,7 @@ class _AiGuidanceScreenState extends State<AiGuidanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final inputTooLong = inputController.text.trim().length > 500;
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI Guidance'),
@@ -168,18 +174,22 @@ class _AiGuidanceScreenState extends State<AiGuidanceScreen> {
                     child: TextField(
                       controller: inputController,
                       maxLength: 500,
+                      maxLengthEnforcement: MaxLengthEnforcement.none,
                       maxLines: 3,
                       minLines: 1,
+                      onChanged: (_) => setState(() {}),
                       onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Ask a question',
-                        counterText: '',
+                        errorText: inputTooLong
+                            ? 'Question must not exceed 500 characters.'
+                            : null,
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filled(
-                    onPressed: loading ? null : _send,
+                    onPressed: loading || inputTooLong ? null : _send,
                     icon: loading
                         ? const SizedBox(
                             width: 20,

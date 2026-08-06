@@ -1,5 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 
+import 'app_settings_service.dart';
+
 class OrenSoundService {
   OrenSoundService({AudioPlayer? player}) : _player = player ?? AudioPlayer();
 
@@ -17,6 +19,8 @@ class OrenSoundService {
 
   Future<void> _play(String fileName) async {
     try {
+      await AppSettingsService.instance.load();
+      if (!AppSettingsService.instance.current.orenSoundsEnabled) return;
       await _player.stop();
       await _player.play(
         AssetSource('sounds/$fileName'),

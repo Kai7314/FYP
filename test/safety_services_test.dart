@@ -7,6 +7,7 @@ import 'package:fyp/dataAccessLayer/repositories/auth_repository.dart';
 import 'package:fyp/dataAccessLayer/repositories/checkin_repository.dart';
 import 'package:fyp/dataAccessLayer/repositories/contact_repository.dart';
 import 'package:fyp/dataAccessLayer/repositories/emergency_repository.dart';
+import 'package:fyp/dataAccessLayer/repositories/oren_care_repository.dart';
 import 'package:fyp/dataAccessLayer/repositories/user_repository.dart';
 import 'package:fyp/models/oren_care_model.dart';
 import 'package:fyp/services/checkin_service.dart';
@@ -24,6 +25,8 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 class _MockCheckinRepository extends Mock implements CheckinRepository {}
 
 class _MockEmergencyRepository extends Mock implements EmergencyRepository {}
+
+class _MockOrenCareRepository extends Mock implements OrenCareRepository {}
 
 class _MockContactRepository extends Mock implements ContactRepository {}
 
@@ -80,6 +83,27 @@ void main() {
   });
 
   group('CheckinService', () {
+    test('restores the newest cached check-in after the app reopens', () async {
+      final cache = _MemoryCacheService();
+      final older = DateTime.utc(2026, 8, 1, 8);
+      final newest = DateTime.utc(2026, 8, 1, 10);
+      cache.values[CheckinService.cacheKeyForUser('user-1')] = {
+        'rows': [
+          {'checkin_time': older.toIso8601String()},
+          {'checkin_time': newest.toIso8601String()},
+        ],
+      };
+
+      final restored = await CheckinService(
+        authRepository: authRepository,
+        checkinRepository: _MockCheckinRepository(),
+        userRepository: _MockUserRepository(),
+        cache: cache,
+      ).getLatestCachedCheckinTime();
+
+      expect(restored, newest);
+    });
+
     test(
       'uses the configured rolling threshold and refreshes the cache',
       () async {
@@ -207,12 +231,13 @@ void main() {
         () => emergencyService.triggerEmergencyDetailed(
           allow999Dialer: false,
           sendAutomatedSms: true,
+          allowDirectSms: false,
           alertStatus: 'inactivity_triggered',
         ),
       );
     });
 
-    test('second missed window sends the user SMS', () async {
+    test('second missed window leaves SMS delivery to the server', () async {
       when(() => cache.readMap(any())).thenAnswer(
         (_) async => {
           'last_checkin_at': lastCheckIn.toIso8601String(),
@@ -221,16 +246,6 @@ void main() {
           'user_sms_accepted': false,
         },
       );
-      when(
-        () => emergencyService.sendUserInactivityReminder(
-          lastCheckIn: lastCheckIn,
-          thresholdHours: 1,
-          allowDirectSms: false,
-        ),
-      ).thenAnswer(
-        (_) async => const InactivityUserSmsResult(sent: true, queued: false),
-      );
-
       await serviceAt(
         lastCheckIn.add(const Duration(hours: 2)),
       ).checkInactivity();
@@ -241,55 +256,46 @@ void main() {
           requiredMissedCheckIns: 3,
         ),
       ).called(1);
-      verify(
+      verifyNever(
         () => emergencyService.sendUserInactivityReminder(
-          lastCheckIn: lastCheckIn,
-          thresholdHours: 1,
+          lastCheckIn: any(named: 'lastCheckIn'),
+          thresholdHours: any(named: 'thresholdHours'),
           allowDirectSms: false,
         ),
-      ).called(1);
+      );
     });
 
-    test('third missed window escalates to the trusted contact once', () async {
-      when(() => cache.readMap(any())).thenAnswer(
-        (_) async => {
-          'last_checkin_at': lastCheckIn.toIso8601String(),
-          'last_notified_miss': 2,
-          'escalated': false,
-          'user_sms_accepted': true,
-        },
-      );
-      when(
-        () => emergencyService.triggerEmergencyDetailed(
-          allow999Dialer: false,
-          sendAutomatedSms: true,
-          alertStatus: 'inactivity_triggered',
-        ),
-      ).thenAnswer(
-        (_) async => const EmergencyTriggerResult(
-          alertRecorded: true,
-          primarySmsComposerOpened: false,
-        ),
-      );
+    test(
+      'third missed window leaves contact escalation to the server',
+      () async {
+        when(() => cache.readMap(any())).thenAnswer(
+          (_) async => {
+            'last_checkin_at': lastCheckIn.toIso8601String(),
+            'last_notified_miss': 2,
+            'escalated': false,
+            'user_sms_accepted': true,
+          },
+        );
+        await serviceAt(
+          lastCheckIn.add(const Duration(hours: 3)),
+        ).checkInactivity();
 
-      await serviceAt(
-        lastCheckIn.add(const Duration(hours: 3)),
-      ).checkInactivity();
-
-      verify(
-        () => emergencyService.triggerEmergencyDetailed(
-          allow999Dialer: false,
-          sendAutomatedSms: true,
-          alertStatus: 'inactivity_triggered',
-        ),
-      ).called(1);
-      verify(
-        () => notifications.showMissedCheckInReminder(
-          missedCheckIns: 3,
-          requiredMissedCheckIns: 3,
-        ),
-      ).called(1);
-    });
+        verifyNever(
+          () => emergencyService.triggerEmergencyDetailed(
+            allow999Dialer: false,
+            sendAutomatedSms: true,
+            allowDirectSms: false,
+            alertStatus: 'inactivity_triggered',
+          ),
+        );
+        verify(
+          () => notifications.showMissedCheckInReminder(
+            missedCheckIns: 3,
+            requiredMissedCheckIns: 3,
+          ),
+        ).called(1);
+      },
+    );
 
     test('a current check-in clears the old warning', () async {
       when(() => cache.remove(any())).thenAnswer((_) async {});
@@ -338,6 +344,7 @@ void main() {
           ).sendUserInactivityReminder(
             lastCheckIn: DateTime.utc(2026, 8, 1, 8),
             thresholdHours: 1,
+            allowDirectSms: true,
           );
 
       expect(result.sent, isTrue);
@@ -401,6 +408,7 @@ void main() {
             ).sendUserInactivityReminder(
               lastCheckIn: DateTime.utc(2026, 8, 1, 8),
               thresholdHours: 1,
+              allowDirectSms: true,
             );
 
         expect(result.sent, isTrue);
@@ -711,11 +719,15 @@ void main() {
           userRepository: _MockUserRepository(),
           locationService: locations,
           directSmsService: directSms,
-        ).triggerEmergencyDetailed(escalationTarget: 'primary_contact');
+        ).triggerEmergencyDetailed(
+          escalationTarget: 'primary_contact',
+          allowDirectSms: true,
+        );
 
         expect(result.alertRecorded, isTrue);
         expect(result.autoSmsAttempted, isTrue);
         expect(result.autoSmsSent, 1);
+        expect(result.locationIncluded, isTrue);
         final message =
             verify(
                   () => directSms.send(
@@ -741,6 +753,7 @@ void main() {
       final emergencies = _MockEmergencyRepository();
       final directSms = _MockDirectSmsService();
       final locations = _MockLocationService();
+      final position = _MockPosition();
       when(
         () => contacts.getPrimaryContact('user-1'),
       ).thenAnswer((_) async => {'id': 'contact-1', 'phone': '+60123456789'});
@@ -750,7 +763,9 @@ void main() {
       when(
         () => emergencies.createAlert('user-1', status: 'triggered'),
       ).thenAnswer((_) async => {'id': 'alert-1'});
-      when(locations.getCurrentPosition).thenAnswer((_) async => null);
+      when(locations.getCurrentPosition).thenAnswer((_) async => position);
+      when(() => position.latitude).thenReturn(3.139);
+      when(() => position.longitude).thenReturn(101.6869);
       when(
         () => directSms.send(
           phone: '+60123456789',
@@ -771,6 +786,13 @@ void main() {
       when(
         emergencies.processPendingSms,
       ).thenAnswer((_) async => {'sent': 1, 'failed': 0});
+      when(
+        () => emergencies.addLocation(
+          alertId: 'alert-1',
+          latitude: 3.139,
+          longitude: 101.6869,
+        ),
+      ).thenAnswer((_) async {});
 
       final result = await EmergencyService(
         authRepository: authRepository,
@@ -779,11 +801,77 @@ void main() {
         userRepository: _MockUserRepository(),
         locationService: locations,
         directSmsService: directSms,
-      ).triggerEmergencyDetailed(escalationTarget: 'primary_contact');
+      ).triggerEmergencyDetailed(
+        escalationTarget: 'primary_contact',
+        allowDirectSms: true,
+      );
 
       expect(result.alertRecorded, isTrue);
       expect(result.autoSmsSent, 1);
+      expect(result.locationIncluded, isTrue);
       expect(result.autoSmsFailed, 0);
+      verify(emergencies.processPendingSms).called(1);
+      final queuedMessage =
+          verify(
+                () => emergencies.createDeliveryOutbox(
+                  alertId: 'alert-1',
+                  userId: 'user-1',
+                  contacts: any(named: 'contacts'),
+                  messageBody: captureAny(named: 'messageBody'),
+                ),
+              ).captured.single
+              as String;
+      expect(queuedMessage, contains('maps.google.com/?q=3.139,101.6869'));
+    });
+
+    test('can force emergency delivery through the server outbox', () async {
+      final contacts = _MockContactRepository();
+      final emergencies = _MockEmergencyRepository();
+      final directSms = _MockDirectSmsService();
+      final locations = _MockLocationService();
+      when(
+        () => contacts.getPrimaryContact('user-1'),
+      ).thenAnswer((_) async => {'id': 'contact-1', 'phone': '+60123456789'});
+      when(
+        () => contacts.hasPrimaryContact('user-1'),
+      ).thenAnswer((_) async => true);
+      when(
+        () => emergencies.createAlert('user-1', status: 'inactivity_triggered'),
+      ).thenAnswer((_) async => {'id': 'alert-1'});
+      when(locations.getCurrentPosition).thenAnswer((_) async => null);
+      when(
+        () => emergencies.createDeliveryOutbox(
+          alertId: 'alert-1',
+          userId: 'user-1',
+          contacts: any(named: 'contacts'),
+          messageBody: any(named: 'messageBody'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        emergencies.processPendingSms,
+      ).thenAnswer((_) async => {'sent': 1, 'failed': 0});
+
+      final result = await EmergencyService(
+        authRepository: authRepository,
+        contactRepository: contacts,
+        emergencyRepository: emergencies,
+        userRepository: _MockUserRepository(),
+        locationService: locations,
+        directSmsService: directSms,
+      ).triggerEmergencyDetailed(
+        escalationTarget: 'primary_contact',
+        alertStatus: 'inactivity_triggered',
+        allowDirectSms: false,
+      );
+
+      expect(result.alertRecorded, isTrue);
+      expect(result.autoSmsSent, 1);
+      verifyNever(
+        () => directSms.send(
+          phone: any(named: 'phone'),
+          message: any(named: 'message'),
+        ),
+      );
       verify(emergencies.processPendingSms).called(1);
     });
 
@@ -882,6 +970,24 @@ void main() {
               as Map<String, dynamic>;
       expect(saved['energy'], 52);
       expect(saved['mood'], 'Eating');
+    });
+
+    test('concurrent Oren actions do not overwrite each other', () async {
+      final cache = _MemoryCacheService();
+      final key = OrenCareService.cacheKeyForUser('user-1');
+      cache.values[key] = OrenCareState.initial()
+          .copyWith(energy: 40, updatedAt: DateTime.now())
+          .toJson();
+      final service = OrenCareService(
+        authRepository: authRepository,
+        cache: cache,
+      );
+
+      await Future.wait([service.feedFish(), service.pet()]);
+      final state = await service.load();
+
+      expect(state.energy, 58);
+      expect(cache.values[key]?['energy'], 58);
     });
 
     test('buying a toy deducts tokens and adds it to inventory', () async {
@@ -990,6 +1096,67 @@ void main() {
       expect(state.energy, 15);
       expect(state.mood, 'Tired');
       expect(state.lastAction, contains('too tired'));
+    });
+
+    test('production Oren state is refreshed from the server', () async {
+      final cache = _MockLocalCacheService();
+      final repository = _MockOrenCareRepository();
+      final cached = OrenCareState.initial().copyWith(
+        tokens: 4,
+        updatedAt: DateTime.now(),
+      );
+      final remote = cached.copyWith(tokens: 11, mood: 'Happy');
+      when(
+        () => cache.readMap(OrenCareService.cacheKeyForUser('user-1')),
+      ).thenAnswer((_) async => cached.toJson());
+      when(
+        () => repository.loadState(
+          legacyState: any(named: 'legacyState'),
+        ),
+      ).thenAnswer((_) async => remote.toJson());
+      when(() => cache.writeMap(any(), any())).thenAnswer((_) async {});
+
+      final state = await OrenCareService(
+        authRepository: authRepository,
+        cache: cache,
+        repository: repository,
+      ).load();
+
+      expect(state.tokens, 11);
+      expect(state.mood, 'Happy');
+      verify(
+        () => repository.loadState(
+          legacyState: any(named: 'legacyState'),
+        ),
+      ).called(1);
+      verify(() => cache.writeMap(any(), remote.toJson())).called(1);
+    });
+
+    test('production Oren purchases are authorized by the server', () async {
+      final cache = _MockLocalCacheService();
+      final repository = _MockOrenCareRepository();
+      final toy = OrenCareService.toyCatalog.first;
+      final remote = OrenCareState.initial().copyWith(
+        tokens: 7,
+        ownedToyIds: {toy.id},
+        selectedToyId: toy.id,
+      );
+      when(
+        () => repository.performAction('buy_toy', toyId: toy.id),
+      ).thenAnswer((_) async => remote.toJson());
+      when(() => cache.writeMap(any(), any())).thenAnswer((_) async {});
+
+      final state = await OrenCareService(
+        authRepository: authRepository,
+        cache: cache,
+        repository: repository,
+      ).buyToy(toy);
+
+      expect(state.ownedToyIds, contains(toy.id));
+      verify(
+        () => repository.performAction('buy_toy', toyId: toy.id),
+      ).called(1);
+      verify(() => cache.writeMap(any(), remote.toJson())).called(1);
     });
   });
 }

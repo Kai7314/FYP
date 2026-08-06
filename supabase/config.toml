@@ -12,6 +12,9 @@ verify_jwt = true
 [functions.process-inactivity-thresholds]
 verify_jwt = true
 
+[functions.finalize-legacy-document]
+verify_jwt = true
+
 [functions.cancel-legacy-release]
 verify_jwt = false
 

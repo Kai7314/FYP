@@ -8,7 +8,7 @@ class OnboardingService {
   }) : authRepository = authRepository ?? AuthRepository(),
        cache = cache ?? LocalCacheService();
 
-  static const tutorialVersion = 1;
+  static const tutorialVersion = 2;
 
   final AuthRepository authRepository;
   final LocalCacheService cache;

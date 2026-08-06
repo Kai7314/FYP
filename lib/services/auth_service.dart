@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/user_repository.dart';
+import '../utils/validators.dart';
 
 class AuthService {
   AuthService({AuthRepository? authRepository, UserRepository? userRepository})
@@ -140,7 +141,7 @@ class AuthService {
     if (cleaned.length < 2 || !RegExp(r'^[A-Za-z]').hasMatch(cleaned)) {
       return null;
     }
-    if (cleaned.length <= 50) return cleaned;
-    return cleaned.substring(0, 50).trim();
+    if (cleaned.length <= AppValidators.maxDisplayNameLength) return cleaned;
+    return null;
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/constants/malaysia_locations.dart';
 import '../../utils/validators.dart';
@@ -19,6 +20,7 @@ class MalaysiaAddressFields extends StatelessWidget {
     this.regionHelperText,
     this.externalLabels = false,
     this.addressFieldKey,
+    this.onAddressChanged,
   });
 
   final TextEditingController addressController;
@@ -34,6 +36,7 @@ class MalaysiaAddressFields extends StatelessWidget {
   final String? regionHelperText;
   final bool externalLabels;
   final Key? addressFieldKey;
+  final ValueChanged<String>? onAddressChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -50,8 +53,11 @@ class MalaysiaAddressFields extends StatelessWidget {
             key: addressFieldKey,
             controller: addressController,
             maxLength: AppValidators.maxAddressLength,
+            maxLengthEnforcement: MaxLengthEnforcement.none,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             maxLines: 2,
             textCapitalization: TextCapitalization.sentences,
+            onChanged: onAddressChanged,
             validator: (value) =>
                 AppValidators.address(value ?? '', required: addressRequired),
             decoration: InputDecoration(

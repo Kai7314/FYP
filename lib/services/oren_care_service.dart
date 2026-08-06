@@ -1,14 +1,24 @@
+import 'dart:async';
+
 import '../dataAccessLayer/repositories/auth_repository.dart';
+import '../dataAccessLayer/repositories/oren_care_repository.dart';
 import '../models/oren_care_model.dart';
 import 'local_cache_service.dart';
 
 class OrenCareService {
-  OrenCareService({AuthRepository? authRepository, LocalCacheService? cache})
-    : authRepository = authRepository ?? AuthRepository(),
-      cache = cache ?? LocalCacheService();
+  OrenCareService({
+    AuthRepository? authRepository,
+    LocalCacheService? cache,
+    OrenCareRepository? repository,
+  }) : authRepository = authRepository ?? AuthRepository(),
+       cache = cache ?? LocalCacheService(),
+       repository = repository ??
+           (cache == null ? OrenCareRepository() : null);
 
   final AuthRepository authRepository;
   final LocalCacheService cache;
+  final OrenCareRepository? repository;
+  Future<void> _operationQueue = Future.value();
 
   static const dailyLoginTokenReward = 5;
   static const dailyCheckInTokenReward = 3;
@@ -47,7 +57,9 @@ class OrenCareService {
 
   static String cacheKeyForUser(String userId) => 'oren_care_v1_$userId';
 
-  Future<OrenCareState> load() async {
+  Future<OrenCareState> load() => _runExclusive(_loadState);
+
+  Future<OrenCareState> _loadState() async {
     final user = authRepository.currentUser;
     if (user == null) return OrenCareState.initial();
     final cached = await cache.readMap(cacheKeyForUser(user.id));
@@ -55,7 +67,21 @@ class OrenCareService {
         ? OrenCareState.initial()
         : OrenCareState.fromJson(cached);
     final decayed = applyEnergyDecay(restored, DateTime.now());
-    if (decayed.updatedAt != restored.updatedAt) {
+    final remote = repository;
+    if (remote != null) {
+      try {
+        final row = await remote.loadState(
+          legacyState: cached == null ? null : decayed.toJson(),
+        );
+        final state = OrenCareState.fromJson(row);
+        await cache.writeMap(cacheKeyForUser(user.id), state.toJson());
+        return state;
+      } catch (_) {
+        // Cached state keeps Oren visible offline. Mutations still fail closed
+        // through the server action methods, so tokens cannot diverge.
+      }
+    }
+    if (cached != null && decayed.updatedAt != restored.updatedAt) {
       await cache.writeMap(cacheKeyForUser(user.id), decayed.toJson());
     }
     return decayed;
@@ -83,8 +109,9 @@ class OrenCareService {
     );
   }
 
-  Future<OrenCareState> claimDailyLoginToken() async {
-    final state = await load();
+  Future<OrenCareState> claimDailyLoginToken() => _runExclusive(() async {
+    if (repository != null) return _performServerAction('daily_login');
+    final state = await _loadState();
     final today = _todayKey();
     if (state.lastDailyTokenDate == today) return state;
     final nextEnergy = (state.energy + 5).clamp(0, 100);
@@ -98,10 +125,11 @@ class OrenCareService {
             'Daily login bonus earned: $dailyLoginTokenReward Oren tokens.',
       ),
     );
-  }
+  });
 
-  Future<OrenCareState> awardDailyCheckInTokens() async {
-    final state = await load();
+  Future<OrenCareState> awardDailyCheckInTokens() => _runExclusive(() async {
+    if (repository != null) return _performServerAction('daily_checkin');
+    final state = await _loadState();
     final today = _todayKey();
     if (state.lastCheckInTokenDate == today) {
       return state.copyWith(
@@ -119,10 +147,11 @@ class OrenCareService {
             'Daily check-in bonus earned: $dailyCheckInTokenReward Oren tokens.',
       ),
     );
-  }
+  });
 
-  Future<OrenCareState> feedFish() async {
-    final state = await load();
+  Future<OrenCareState> feedFish() => _runExclusive(() async {
+    if (repository != null) return _performServerAction('feed_fish');
+    final state = await _loadState();
     return _save(
       state.copyWith(
         mood: 'Eating',
@@ -130,10 +159,11 @@ class OrenCareService {
         lastAction: 'Oren enjoyed a fish snack.',
       ),
     );
-  }
+  });
 
-  Future<OrenCareState> pet() async {
-    final state = await load();
+  Future<OrenCareState> pet() => _runExclusive(() async {
+    if (repository != null) return _performServerAction('pet');
+    final state = await _loadState();
     return _save(
       state.copyWith(
         mood: 'Loved',
@@ -141,10 +171,13 @@ class OrenCareService {
         lastAction: 'Oren liked the gentle pet.',
       ),
     );
-  }
+  });
 
-  Future<OrenCareState> buyToy(OrenToy toy) async {
-    final state = await load();
+  Future<OrenCareState> buyToy(OrenToy toy) => _runExclusive(() async {
+    if (repository != null) {
+      return _performServerAction('buy_toy', toyId: toy.id);
+    }
+    final state = await _loadState();
     if (state.ownedToyIds.contains(toy.id)) {
       return state.copyWith(lastAction: '${toy.name} is already owned.');
     }
@@ -164,10 +197,13 @@ class OrenCareService {
         lastAction: '${toy.name} added to Oren inventory.',
       ),
     );
-  }
+  });
 
-  Future<OrenCareState> selectToy(OrenToy toy) async {
-    final state = await load();
+  Future<OrenCareState> selectToy(OrenToy toy) => _runExclusive(() async {
+    if (repository != null) {
+      return _performServerAction('select_toy', toyId: toy.id);
+    }
+    final state = await _loadState();
     if (!state.ownedToyIds.contains(toy.id)) {
       return state.copyWith(lastAction: 'Buy ${toy.name} before selecting it.');
     }
@@ -178,10 +214,13 @@ class OrenCareService {
         lastAction: '${toy.name} is ready for playtime.',
       ),
     );
-  }
+  });
 
-  Future<OrenCareState> playWithToy(OrenToy toy) async {
-    final state = await load();
+  Future<OrenCareState> playWithToy(OrenToy toy) => _runExclusive(() async {
+    if (repository != null) {
+      return _performServerAction('play_toy', toyId: toy.id);
+    }
+    final state = await _loadState();
     if (!state.ownedToyIds.contains(toy.id)) {
       return state.copyWith(lastAction: 'Buy ${toy.name} before using it.');
     }
@@ -210,16 +249,29 @@ class OrenCareService {
     return _save(
       state.copyWith(mood: nextMood, energy: nextEnergy, lastAction: action),
     );
-  }
+  });
 
-  Future<OrenCareState> resetMood() async {
-    final state = await load();
+  Future<OrenCareState> resetMood() => _runExclusive(() async {
+    if (repository != null) return _performServerAction('reset_mood');
+    final state = await _loadState();
     return _save(
       state.copyWith(
         mood: _restingMoodForEnergy(state.energy),
         lastAction: _restingActionForEnergy(state.energy),
       ),
     );
+  });
+
+  Future<T> _runExclusive<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
+    _operationQueue = _operationQueue.then((_) async {
+      try {
+        completer.complete(await operation());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
   }
 
   Future<OrenCareState> _save(OrenCareState state) async {
@@ -228,6 +280,21 @@ class OrenCareService {
     final next = state.copyWith(updatedAt: DateTime.now());
     await cache.writeMap(cacheKeyForUser(user.id), next.toJson());
     return next;
+  }
+
+  Future<OrenCareState> _performServerAction(
+    String action, {
+    String? toyId,
+  }) async {
+    final remote = repository;
+    final user = authRepository.currentUser;
+    if (remote == null || user == null) {
+      throw StateError('Sign in and connect to EthernaCare to update Oren.');
+    }
+    final row = await remote.performAction(action, toyId: toyId);
+    final state = OrenCareState.fromJson(row);
+    await cache.writeMap(cacheKeyForUser(user.id), state.toJson());
+    return state;
   }
 
   String _todayKey() {

@@ -26,7 +26,10 @@ class CheckinService {
 
   static Stream<void> get updates => _updates.stream;
 
-  String _cacheKey(String userId) => 'checkins_snapshot_v1_$userId';
+  static String cacheKeyForUser(String userId) =>
+      'checkins_snapshot_v1_$userId';
+
+  String _cacheKey(String userId) => cacheKeyForUser(userId);
 
   Future<List<Map<String, dynamic>>> getCachedCheckins() async {
     final user = authRepository.currentUser;
@@ -35,6 +38,18 @@ class CheckinService {
     final rows = cached?['rows'] as List?;
     if (rows == null) return [];
     return rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
+
+  Future<DateTime?> getLatestCachedCheckinTime() async {
+    final rows = await getCachedCheckins();
+    DateTime? latest;
+    for (final row in rows) {
+      final parsed = DateTime.tryParse(row['checkin_time']?.toString() ?? '');
+      if (parsed != null && (latest == null || parsed.isAfter(latest))) {
+        latest = parsed;
+      }
+    }
+    return latest;
   }
 
   Future<List<Map<String, dynamic>>> getCheckins({

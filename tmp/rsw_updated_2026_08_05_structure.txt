@@ -1,0 +1,918 @@
+PARAGRAPHS=1062
+TABLES=8
+INLINE_SHAPES=23
+SECTIONS=16
+
+SECTION 1 PAGES=3-4 DIFFERENT_FIRST=0 HEADER= FIRST_HEADER=
+SECTION 2 PAGES=4-5 DIFFERENT_FIRST=-1 HEADER= FIRST_HEADER=Project Title	Declaration
+SECTION 3 PAGES=5-6 DIFFERENT_FIRST=-1 HEADER= FIRST_HEADER=Project Title	Abstract
+SECTION 4 PAGES=6-7 DIFFERENT_FIRST=-1 HEADER= FIRST_HEADER=Project Title	Acknowledgement
+SECTION 5 PAGES=14-15 DIFFERENT_FIRST=0 HEADER=Project Title	Table of Content FIRST_HEADER=Project Title	Table of Content
+SECTION 6 PAGES=23-23 DIFFERENT_FIRST=0 HEADER=Project Title	Chapter 1 FIRST_HEADER=Project Title	Chapter 1
+SECTION 7 PAGES=30-31 DIFFERENT_FIRST=0 HEADER=Project Title	Chapter 2 FIRST_HEADER=Project Title	Chapter 2
+SECTION 8 PAGES=38-39 DIFFERENT_FIRST=0 HEADER=Project Title	Chapter 3 FIRST_HEADER=Project Title	Chapter 3
+SECTION 9 PAGES=53-54 DIFFERENT_FIRST=0 HEADER=Project Title	Chapter 4 FIRST_HEADER=Project Title	Chapter 2
+SECTION 10 PAGES=71-72 DIFFERENT_FIRST=-1 HEADER=Project Title	Chapter 5 FIRST_HEADER=Project Title	Chapter 5
+SECTION 11 PAGES=72-72 DIFFERENT_FIRST=-1 HEADER= FIRST_HEADER=
+SECTION 12 PAGES=75-76 DIFFERENT_FIRST=-1 HEADER=Project Title	Chapter 6 FIRST_HEADER=Project Title	Chapter 6
+SECTION 13 PAGES=76-76 DIFFERENT_FIRST=-1 HEADER= FIRST_HEADER=
+SECTION 14 PAGES=78-79 DIFFERENT_FIRST=-1 HEADER=Project Title	Chapter 7 FIRST_HEADER=Project Title	Chapter 7
+SECTION 15 PAGES=82-83 DIFFERENT_FIRST=-1 HEADER=Project Title	References FIRST_HEADER=Project Title	References
+SECTION 16 PAGES=89-89 DIFFERENT_FIRST=-1 HEADER=Project Title	Appendices FIRST_HEADER=Project Title	Appendices
+
+P0005`t[Normal]`tEthernaCare
+P0009`t[Normal]`tBy
+P0014`t[Normal]`tOo Kai Heng
+P0019`t[Normal]`t/
+P0025`t[Normal]`tFACULTY OF COMPUTING AND
+P0026`t[Normal]`tINFORMATION TECHNOLOGY
+P0028`t[Normal]`tTUNKU ABDUL RAHMAN UNIVERSITY OF MANAGEMENT AND TECHNOLOGY
+P0029`t[Normal]`tKUALA LUMPUR
+P0032`t[Normal]`tACADEMIC YEAR
+P0033`t[Normal]`t2026/2027
+P0038`t[Normal]`t[EthernaCare]
+P0040`t[Normal]`tBy
+P0042`t[Normal]`t[Oo Kai Heng]
+P0045`t[Normal]`tSupervisor: Dr. See Kwee Teck
+P0049`t[Normal]`tA project report submitted to the
+P0050`t[Normal]`tFaculty of Computing and Information Technology
+P0051`t[Normal]`tin partial fulfillment of the requirement for the
+P0052`t[Normal]`tBachelor of Software Engineering (Honours)
+P0055`t[Normal]`tFaculty of Computing and Information Technology
+P0056`t[Normal]`tTunku Abdul Rahman University of Management and Technology
+P0057`t[Normal]`tKuala Lumpur
+P0064`t[Normal]`tCopyright by Tunku Abdul Rahman University of Management and Technology.
+P0065`t[Normal]`tAll rights reserved.  No part of this project documentation may be reproduced, stored in retrieval system, or transmitted in any form or by any means without prior permission of Tunku Abdul Rahman University of Management and Technology.
+P0070`t[Normal]`tDeclaration
+P0071`t[Normal]`tThe project submitted herewith is a result of my own efforts in totality and in every aspect of the project works.  All information that has been obtained from other sources had been fully acknowledged.  I understand that any plagiarism, cheating or collusion or any sorts constitutes a breach of TAR University  rules and regulations and would be subjected to disciplinary actions.
+P0084`t[Normal]`t__________________________
+P0085`t[Normal]`tStudent Name:
+P0086`t[Normal]`tOo Kai Heng
+P0087`t[Normal]`tID:
+P0088`t[Normal]`t2402185
+P0089`t[Normal]`tAbstract
+P0090`t[Normal]`tEthernaCare is a safety-support mobile application developed to address delayed emergency or death discovery among older adults and other individuals who live alone. This issue is becoming more important as Malaysia moves towards an ageing society and more individuals live separately from their family members. When a person living alone experiences an emergency and is unable to request assistance, the situation may remain unnoticed for a long period. EthernaCare aims to reduce this delay while also helping users prepare and securely communicate their post-death preferences.
+P0091`t[Normal]`tThe application uses a gamified virtual companion named Oren to encourage regular interaction. Instead of using a fixed daily check-in, each user configures a rolling inactivity threshold from one to 168 hours. The first missed threshold window makes the check-in overdue and creates a local reminder. At the second missed window, the server worker attempts an SMS to the user's verified phone. At the third missed window, it records one inactivity alert and attempts one escalation SMS to the verified primary trusted contact. The cloud worker runs every 15 minutes and stores idempotent delivery state, while Android WorkManager provides best-effort local reminders. Oren also includes energy decay, feeding, playing, virtual tokens, owned toys, a shop and weather-based backgrounds. Check-in streaks separately allow users to collect virtual badges and vouchers.
+P0092`t[Normal]`tEthernaCare also provides trusted-contact management, emergency location sharing, AI-assisted general guidance and protected Legacy Planning. The Legacy feature allows users to record funeral preferences, Legacy Notes and private documents. After 90 days without a successful check-in, the owner receives a warning and has 24 hours to check in or cancel the process. Otherwise, the verified primary contact may receive protected access for seven days.
+P0093`t[Normal]`tThe system was developed using Flutter and Supabase with Row Level Security, private Storage, Realtime, Edge Functions and scheduled server processing. Biometric session locking protects a locally restored signed-in session on supported devices. A skippable eight-step first-run guide and a replayable Settings area improve onboarding and accessibility. External SMS, email, weather and AI providers are accessed through controlled service boundaries, and 138 automated tests currently pass with 30.64 percent line coverage.
+P0094`t[Normal]`tAcknowledgement
+P0095`t[Normal]`tI would like to express my sincere appreciation to my project supervisor, Dr. See Kwee Teck, for his valuable guidance, constructive feedback and continuous support throughout the development of this project. His advice helped me improve the project requirements, system design, implementation and documentation.
+P0096`t[Normal]`tI would also like to thank the lecturers and staff members of the Faculty of Computing and Information Technology, Tunku Abdul Rahman University of Management and Technology, for providing the knowledge, facilities and academic support required to complete this project. I am grateful to my family and friends for their encouragement, understanding and support throughout the development process. Finally, I would like to thank everyone who provided feedback or participated in the testing of EthernaCare.
+P0098`t[Normal]`tTable of Contents
+P0099`t[]`t1	Introduction	2
+P0100`t[TOC 2]`t1.1	Project Objective(s)	2
+P0101`t[TOC 2]`t1.2	Background of the Project	4
+P0102`t[TOC 3]`t1.2.1	Malaysia is about to become an aging society	4
+P0103`t[TOC 3]`t1.2.2	Migration and Elderly Parents Living Alone	4
+P0104`t[TOC 3]`t1.2.3	Increase in the Number of Single Individuals	4
+P0105`t[TOC 2]`t1.3	Advantages & Contributions	7
+P0106`t[TOC 3]`t1.3.1	Easy to access and achieve	7
+P0107`t[TOC 3]`t1.3.2	Reducing the unfortunate cases & Notified families in time	7
+P0108`t[TOC 2]`t1.4	Project Plan	8
+P0109`t[TOC 2]`t1.5	Project Team & Organization	9
+P0110`t[TOC 2]`t1.6	Chapter Summary and Evaluation	9
+P0111`t[TOC 1]`t2	Literature Review	11
+P0112`t[TOC 2]`t2.1	Aging Population in Malaysia	11
+P0113`t[TOC 3]`t2.1.1	Demographic Shift Toward an Ageing Society	11
+P0114`t[TOC 3]`t2.1.2	Increase in Elderly Living Alone	11
+P0115`t[TOC 2]`t2.2	Technology concepts	12
+P0116`t[TOC 3]`t2.2.1	Smartphone-Based Passive Monitoring	12
+P0117`t[TOC 3]`t2.2.2	Daily Check-In Monitoring Systems	12
+P0118`t[TOC 3]`t2.2.3	Wearable or Sensor Monitoring	12
+P0119`t[TOC 3]`tWearable and sensor-based monitoring systems are commonly used in elderly care technologies to continuously track health conditions and daily activities. These systems typically involve wearable devices such as smartwatches or sensor bands that collect physiological and movement data, including heart rate, walking patterns, and sleep activity. The collected data can be analyzed to identify abnormal patterns such as falls, prolonged inactivity, or sudden changes in physical behaviour (Patel et al., 2012) .	12
+P0120`t[TOC 3]`t2.2.4	Duolingo and Behavioral Gamification	12
+P0121`t[TOC 2]`t2.3	Technology Acceptance Among the Elderly	13
+P0122`t[TOC 3]`t2.3.1	Smartphone Accessibility Among Elderly Users	13
+P0123`t[TOC 3]`t2.3.2	Perceived Usefulness and Ease of Use	13
+P0124`t[TOC 3]`t2.3.3	Importance of User-Friendly Design	13
+P0125`t[TOC 2]`t/	14
+P0126`t[TOC 2]`t2.4	Similar Existing Systems in the market	15
+P0127`t[TOC 3]`t2.4.1	Apple Emergency SOS	15
+P0128`t[TOC 3]`t2.4.2	CarePredict	15
+P0129`t[TOC 2]`t2.5	Limitation of the project	16
+P0130`t[TOC 3]`t2.5.1	No Direct Medical Monitoring	16
+P0131`t[TOC 3]`t2.5.2	No Automatic Emergency-Service Dispatch	16
+P0132`t[TOC 3]`t2.5.3	External Provider and Internet Dependency	16
+P0133`t[TOC 2]`t2.6	Chapter Summary and Evaluation	16
+P0134`t[TOC 1]`t3	Methodology and Requirements Analysis	18
+P0135`t[TOC 2]`t3.1	Methodology	18
+P0136`t[TOC 3]`t3.1.1	Methodology Used: Agile	18
+P0137`t[TOC 3]`t3.1.2	Methodology Phases	18
+P0138`t[TOC 3]`t3.1.3	Justification for Methodology	19
+P0139`t[TOC 2]`t3.2	Requirements Analysis	19
+P0140`t[TOC 3]`t3.2.1	Stakeholders	19
+P0141`t[TOC 3]`tPrimary User	19
+P0142`t[TOC 3]`tPrimary Trusted Contact	19
+P0143`t[TOC 3]`tReward Administrator	19
+P0144`t[TOC 3]`tSystem Administrator / Developer	19
+P0145`t[TOC 3]`t3.2.2	Functional Requirements	20
+P0146`t[TOC 3]`tModule 1: Authentication, Onboarding and Profile	20
+P0147`t[TOC 3]`tModule 2: Oren Check-In and Care	20
+P0148`t[TOC 3]`tModule 3: Inactivity and Emergency Response	20
+P0149`t[TOC 3]`tModule 4: Trusted Contacts and Location	20
+P0150`t[TOC 3]`tModule 5: Virtual Rewards and Oren Shop	20
+P0151`t[TOC 3]`tModule 6: Weather and AI Guidance	20
+P0152`t[TOC 3]`tModule 7: Legacy Planning and Checking	21
+P0153`t[TOC 3]`tModule 8: Biometric Session Lock	21
+P0154`t[TOC 3]`t3.2.3	Functions not included	21
+P0155`t[TOC 3]`t3.2.4	Non-Functional Requirements	22
+P0156`t[TOC 3]`tReliability	22
+P0157`t[TOC 3]`tSecurity and Privacy	22
+P0158`t[TOC 3]`tUsability and Accessibility	22
+P0159`t[TOC 3]`tPerformance and Efficiency	22
+P0160`t[TOC 3]`tMaintainability and Portability	22
+P0161`t[TOC 2]`t3.3	Use Case Diagram	23
+P0162`t[TOC 3]`t3.3.1	Use Case Actors	23
+P0163`t[TOC 3]`tUse Case Actors	23
+P0164`t[TOC 3]`tMain Use Cases	24
+P0165`t[TOC 2]`t3.4	Chapter Summary and Evaluation	24
+P0166`t[TOC 1]`t4	System Design	26
+P0167`t[TOC 2]`t4.1	Architecture Diagram	26
+P0168`t[TOC 3]`t4.1.1	Architecture Justification	27
+P0169`t[TOC 3]`t4.1.2	Architecture Advantages	27
+P0170`t[TOC 2]`t4.2	Activity Diagram	29
+P0171`t[TOC 3]`t4.2.1	Login Process	29
+P0172`t[TOC 3]`t/	29
+P0173`t[TOC 3]`t4.2.2	Virtual Petting Check-In	30
+P0174`t[TOC 3]`t/	30
+P0175`t[TOC 3]`t4.2.3	Emergency Alert	30
+P0176`t[TOC 2]`t4.3	ERD Relationship Diagram	31
+P0177`t[TOC 3]`t4.3.1	Entities attributes	32
+P0178`t[TOC 3]`tCore Entities and Attributes	32
+P0179`t[TOC 3]`tMain Relationships	33
+P0180`t[TOC 2]`t4.4	Security Handling	33
+P0181`t[TOC 3]`t4.4.1	Authentication and Access Control (Supabase Authentication)	33
+P0182`t[TOC 3]`t4.4.2	Data Protection (Supabase Database & Storage)	33
+P0183`t[TOC 3]`t4.4.3	Secure Communication (HTTPS Protocol)	33
+P0184`t[TOC 2]`t4.5	UI Prototype	34
+P0185`t[TOC 2]`t/	35
+P0186`t[TOC 2]`t/	36
+P0187`t[TOC 2]`t4.6	Chapter Summary and Evaluation	39
+P0188`t[TOC 1]`t5	Implementation and Testing	41
+P0189`t[TOC 2]`t5.1	System Implementation	41
+P0190`t[TOC 3]`t5.1.1	Development Tools and Technologies	41
+P0191`t[TOC 3]`t5.1.2	Modules and Code Snippets	43
+P0192`t[TOC 3]`t5.1.3	Sample Screens	43
+P0193`t[TOC 2]`t5.2	Testing Methods	45
+P0194`t[TOC 3]`t5.2.1	Functional Testing	45
+P0195`t[TOC 3]`t5.2.2	Non-Functional Testing	46
+P0196`t[TOC 2]`t5.3	Context-Based Test Plan and Test Cases	47
+P0197`t[TOC 3]`t5.3.1	Test Cases	47
+P0198`t[TOC 2]`t5.4	Chapter Summary and Evaluation	56
+P0199`t[TOC 1]`t6	System Deployment	59
+P0200`t[TOC 2]`tDeployment Architecture	59
+P0201`t[TOC 3]`tClient Deployment	59
+P0202`t[TOC 3]`tCloud Functions and External Providers	59
+P0203`t[TOC 2]`tDatabase and Storage Deployment	59
+P0204`t[TOC 2]`tScheduled Worker Deployment	59
+P0205`t[TOC 2]`tSystem Backup and Risk Management	60
+P0206`t[TOC 2]`tOn-site Setup	60
+P0207`t[TOC 2]`tTraining Procedure	60
+P0208`t[TOC 2]`tFollow-up and Operational Monitoring	60
+P0209`t[TOC 2]`tChapter Summary and Evaluation	60
+P0210`t[TOC 1]`t7	Discussions and Conclusion	63
+P0211`t[TOC 2]`tSummary	63
+P0212`t[TOC 2]`tAchievements	63
+P0213`t[TOC 2]`tContributions	63
+P0214`t[TOC 2]`tLimitations and Future Improvements	63
+P0215`t[TOC 2]`tIssues and Solutions	64
+P0216`t[TOC 2]`tConclusion	64
+P0217`t[TOC 1]`t8	References	65
+P0218`t[TOC 1]`tAppendix A: User Guide	74
+P0219`t[TOC 2]`tAccount and Setup	74
+P0220`t[TOC 2]`tDaily Operation	74
+P0221`t[TOC 2]`tEmergency and Legacy Functions	74
+P0222`t[TOC 1]`tAppendix B: Developer Guide	75
+P0223`t[TOC 2]`tRequired Software	75
+P0224`t[TOC 2]`tBackend Setup	75
+P0225`t[TOC 2]`tVerification	75
+P0236`t[Normal]`tChapter 1
+P0238`t[Normal]`tIntroduction
+P0240`t[Heading 1]`tIntroduction
+P0241`t[Normal]`tThis chapter presents the background and motivation of the EthernaCare project. It explains the social problem related to elderly individuals living alone and the risks linked to delayed discovery during emergencies. The chapter also outlines the project objectives, scope, and significance to provide a clear understanding of what the system aims to achieve.
+P0242`t[Heading 2]`tProject Objective(s)
+P0243`t[Normal]`tThe first objective of EthernaCare is to provide an engaging safety check-in mechanism for older adults and other individuals who live alone. Users interact with a virtual companion named Oren to record a successful check-in. Instead of requiring a fixed daily interaction, the system allows the user to configure a rolling inactivity threshold between one and 168 hours. This approach provides flexibility for different user routines while still allowing the system to identify prolonged inactivity.
+P0244`t[Normal]`tThe second objective is to provide a staged inactivity response process. When the first inactivity window is missed, the application provides a local reminder to the user. When the second window is missed, the system attempts to send an SMS to the user’s verified phone number. If the user remains inactive until the third window, the system escalates the SMS notification to the selected trusted contact. This process is intended to reduce unnecessary alerts while still providing an additional safety layer for users who may require assistance.
+P0245`t[Normal]`tThe third objective is to provide secure Legacy Planning functions. Users can record their funeral preferences, write protected Legacy Notes and upload private documents. The system also provides a server-controlled Legacy release process involving owner consent, a unique Legacy UID, a verified primary contact and protected access verification. If the user remains inactive for 90 days, the system warns the owner and provides 24 hours to check in or cancel the process before temporary access may be released to the verified primary contact.
+P0246`t[Normal]`tThe fourth objective is to improve regular user engagement through gamification. Oren has an energy level that changes according to inactivity and can be cared for through feeding and playing actions. Users can earn virtual tokens, purchase toys and select owned items for Oren. Check-in streaks separately allow users to unlock virtual badges and vouchers, providing motivation without requiring physical product delivery.
+P0247`t[Normal]`tThe fifth objective is to provide accessible general information through AI-assisted guidance. The AI feature helps users find basic information related to elderly care, emergency preparation and funeral arrangements. However, its responses are provided for general informational purposes only and are not medical, legal, emergency or professional advice.
+P0248`t[Normal]`tOverall, EthernaCare supports “SDG 3 – Good Health and Well-Being” by providing a practical smartphone-based safety-support application. The system does not diagnose medical conditions, confirm a user’s physical health, guarantee emergency rescue or guarantee successful SMS delivery. Its purpose is to reduce the possibility that prolonged inactivity remains unnoticed and to support communication between users and their trusted contacts.
+P0254`t[Heading 2]`tBackground of the Project
+P0255`t[Heading 3]`tMalaysia is about to become an aging society
+P0256`t[Normal]`tAccording to the prediction from “Portal Rasmi Kementerian Kewangan”, Malaysia will become an aged nation in 2048 (Azizan, 2025). The number of elderly people living alone will definitely increase as the elderly population increases. Moreover, many elderly people have poorer health compared to younger people and face a higher risk of death. These conditions increase the chance of dying alone without immediate discovery.
+P0257`t[Heading 3]`tMigration and Elderly Parents Living Alone
+P0258`t[Normal]`tIn recent years, many young adults have moved from home to other areas for work or education. Internal migration remained dominant at 63.5% in 2024 (up from 62.3% in 2022), Urban to urban migration dominated at 84.6% in 2024 (up from 79.3% in 2022)(Migration Survey Report, Malaysia, 2024, 2025). This often happens when the children are grown up and want to start their own lives. As a result, parents are left living alone in their house. The contact and interaction between parents and children becomes less frequent, children are busy in their own business and usually only back to home on certain holidays. When elderly parents live alone, they are facing the higher risks of dying alone because help may not be available immediately. This situation increases social isolation.
+P0259`t[Heading 3]`tIncrease in the Number of Single Individuals
+P0260`t[Normal]`tThe number of marriages decreased 12.5 per cent from 215,022 (2022) to 188,100 (2023).  (Migration Survey Report, Malaysia, 2024, 2025).  In 2020, there were 14.5 male and 14.3 female births per thousand population, a decrease from 15.1 male and 14.9 female births per thousand population in 2019 (International Journal Of Academic Research In Business & Social Sciences, 2024).  It was the lowest rate recorded in the country. Combined with these factors, the number of single individuals without children will increase in the future. Against the backdrop of soaring consumption levels, many people are facing delayed marriage, financial issues, work pressure or personal choices. Others remain single due to divorce or the loss of a spouse. As a result, more adults live alone for longer periods of time. This change affects daily support systems, especially as people grow older. Decades later, the number of living alone elderly people will inevitably increase.
+P0261`t[Normal]`t/
+P0262`t[Normal]`tFigure 1.2.1: The prediction of the population age group in the future
+P0263`t[Normal]`t(Malaysia Population Research Hub, n.d.)
+P0264`t[Normal]`t/
+P0265`t[Normal]`tFigure 1.2.2: Children in total population in Malaysia from 2015 to 2024
+P0266`t[Normal]`t(Statista, 2025)
+P0267`t[Normal]`t/
+P0268`t[Normal]`tFigure 1.2.2: Aging population Malaysia 2015-2024
+P0269`t[Normal]`t(Statista, 2025)
+P0272`t[Heading 2]`tAdvantages & Contributions
+P0273`t[Heading 3]`tEasy to access and achieve
+P0274`t[Normal]`tThe project provides a solution that does not require extra devices or complicated devices. It relies on the smartphones that are owned by the users. The system uses a gamified pet-care interaction that encourages regular use. By transforming the check-in into the act of 'caring' for a virtual cat, the system reduces the 'surveillance' feel of the app and replaces it with a sense of companionship and purpose.
+P0275`t[Heading 3]`tReducing the unfortunate cases & Notified families in time
+P0276`t[Normal]`tEthernaCare contributes by providing a structured process for identifying prolonged user inactivity and attempting to notify the appropriate person. When a configured inactivity window is missed, the application first reminds the user locally. Continued inactivity causes the system to attempt an SMS to the user’s verified phone number before escalating to the selected trusted contact. When location permission is granted and a valid device location is available, a Google Maps link may also be included in the emergency message. This process may help family members or trusted contacts respond earlier to a possible emergency or delayed death discovery. However, successful notification depends on internet connectivity, external service availability, mobile carrier delivery and correct contact information.
+P0278`t[Heading 2]`tProject Plan
+P0279`t[Normal]`tThe project follows an Agile mobile application development approach. Development is divided into several phases that include planning, system design, implementation, testing, and deployment. Core features such as activity detection and emergency alert notification are developed early in the project. Features related to funeral preferences, will management, and AI-assisted guidance are developed in later stages. Testing is carried out throughout the development process to ensure that each function works correctly and meets user needs.
+P0280`t[Normal]`t/
+P0281`t[Normal]`tFigure 1.4: The project schedule for each phases
+P0285`t[Heading 2]`tProject Team & Organization
+P0286`t[Normal]`tThis project is developed as an individual final year project under the guidance of a project supervisor. The student is responsible for system design, development, testing, and documentation. The supervisor provides academic guidance, technical advice, and feedback to ensure that the project meets academic requirements and follows proper development practices.
+P0288`t[Heading 2]`tChapter Summary and Evaluation
+P0289`t[Normal]`tThis chapter introduced EthernaCare and explained the social problem associated with older adults and other individuals living alone. The system uses Oren, a virtual companion, to make safety check-ins more engaging and less clinical. Users can configure a rolling inactivity threshold from one to 168 hours, while staged reminders and SMS escalation help identify prolonged inactivity. In addition to check-in monitoring, EthernaCare provides Oren energy management, tokens, toys, virtual rewards, trusted contacts, emergency location support, AI-assisted guidance and protected Legacy Planning. The project is designed as a safety-support tool and does not replace medical monitoring, emergency services or direct family communication.
+P0302`t[Normal]`tChapter 2
+P0304`t[Normal]`tLiterature Review
+P0306`t[Heading 1]`tLiterature Review
+P0307`t[Normal]`tThis chapter examines previous research and existing systems related to elderly individuals who live alone and the growing concern of lonely deaths. It looks at demographic changes such as population ageing and the rise in independent living among older adults. It also reviews current technology solutions, including wearable emergency devices, smart home monitoring systems, and mobile safety applications. Through this review, the chapter highlights the strengths and weaknesses of existing approaches and clarifies how the proposed project addresses identified gaps and limitations.
+P0308`t[Heading 2]`tAging Population in Malaysia
+P0309`t[Heading 3]`tDemographic Shift Toward an Ageing Society
+P0310`t[Normal]`tMalaysia is moving toward an ageing nation as the percentage of citizens aged 60 and above continues to increase. The Department of Statistics Malaysia (Current Population Estimates, Malaysia, 2023, 2023) projects that older adults will make up around 15% of the population by 2030. This change is mainly influenced by longer life expectancy and lower birth rates. The transition creates new challenges in healthcare planning, elderly care services, and community support systems.
+P0311`t[Heading 3]`tIncrease in Elderly Living Alone
+P0312`t[Normal]`tThe increase in elderly individuals living alone is closely linked to broader demographic and social transitions. According to the World Report on Ageing and Health by the World Health Organization (2015), although more generations within a family may now be alive at the same time due to increased life expectancy, these generations are increasingly living separately. In many countries, the proportion of older people living alone is rising dramatically. For example, in several European countries, more than 40% of women aged 65 and above live alone. Even in societies with strong traditions of multigenerational living, such as Japan and India, extended family households are becoming less common. Declining fertility rates mean there are fewer younger family members available to provide care, while changing gender roles have reduced the traditional caregiving capacity within families. Smaller household sizes may limit reciprocal care arrangements and increase the risk of poverty. Furthermore, older adults living alone may face higher risks of social isolation and suicide. Although many older people prefer to remain in their own homes and communities for as long as possible, these structural changes suggest that traditional family-based care models are becoming less sustainable in the modern era (World Health Organization, 2015).
+P0313`t[Heading 2]`tTechnology concepts
+P0314`t[Heading 3]`tSmartphone-Based Passive Monitoring
+P0315`t[Normal]`tSmartphone-based monitoring systems use built-in sensors and activity logs to observe user behavior without requiring constant manual input (Wang, 2014). This passive approach allows the system to detect unusual patterns such as prolonged inactivity, which may indicate potential emergencies. Because the monitoring process runs automatically in the background, it reduces the need for continuous interaction and can operate without disturbing users.
+P0316`t[Heading 3]`tDaily Check-In Monitoring Systems
+P0317`t[Normal]`tDaily check-in monitoring systems are used in safety and well-being applications to verify that users are active through simple interactions with a mobile device. Instead of continuously collecting sensor data, gamified check-in systems utilize virtual pets or interactive elements to maintain user engagement. By requiring a tactile interaction like 'petting' an on-screen character, the system ensures the user is physically capable and responsive, serving as a more interactive form of passive monitoring (Rashidi & Mihailidis, 2013).
+P0318`t[Heading 3]`tWearable or Sensor Monitoring
+P0319`t[Heading 3]`tWearable and sensor-based monitoring systems are commonly used in elderly care technologies to continuously track health conditions and daily activities. These systems typically involve wearable devices such as smartwatches or sensor bands that collect physiological and movement data, including heart rate, walking patterns, and sleep activity. The collected data can be analyzed to identify abnormal patterns such as falls, prolonged inactivity, or sudden changes in physical behaviour (Patel et al., 2012) .
+P0320`t[Heading 3]`tDuolingo and Behavioral Gamification
+P0321`t[Normal]`tModern gamification success stories, most notably Duolingo, demonstrate that habit formation is driven by emotional engagement and loss aversion. According to research on Duolingo’s growth strategy, the use of a persistent mascot (Duo the Owl) and a daily "streak" mechanic transforms a high-effort task into a "sticky" daily routine (Hasan, 2026). By quantifying consistency, users feel a sense of ownership over their progress—a psychological phenomenon known as the Endowment Effect.
+P0322`t[Normal]`tEthernaCare adapts these proven tactics by replacing standard check-in prompts with a virtual cat companion. By leveraging the emotional bond between the user and the digital pet, the system ensures high retention rates, as users are motivated to "check-in" to maintain their pet's well-being and their own reward progress.
+P0323`t[Heading 2]`tTechnology Acceptance Among the Elderly
+P0324`t[Heading 3]`tSmartphone Accessibility Among Elderly Users
+P0325`t[Normal]`tIn recent years, smartphone ownership among older adults has increased significantly. According to the Pew Research Center (2021), smartphone adoption among individuals aged 65 and above has grown substantially compared to previous decades. The increased accessibility of smartphones provides opportunities to develop mobile-based solutions for elderly safety and monitoring. Since many elderly individuals already own smartphones, mobile applications can serve as cost-effective tools without requiring additional hardware (Pew Research Center, 2025).
+P0326`t[Heading 3]`tPerceived Usefulness and Ease of Use
+P0327`t[Normal]`tRecent studies show that perceived usefulness and ease of use remain strong predictors of technology adoption among older adults. Research on digital health and mobile monitoring systems indicates that elderly users are more likely to adopt applications when they believe the system improves their safety and supports independent living (Anderson et al., 2020). Confidence in smartphone usage and prior experience with digital tools also influence acceptance. When applications are perceived as complicated or unnecessary, adoption rates decrease.
+P0328`t[Heading 3]`tImportance of User-Friendly Design
+P0329`t[Normal]`tUsability plays a critical role in elderly technology adoption. Studies on mobile health applications emphasize that simple navigation, readable fonts, clear instructions, and minimal interaction steps significantly improve user satisfaction and long-term engagement (Dusseljee-Peute et al., 2018). Complex menus and small interface elements may discourage elderly users. Therefore, systems designed for older adults should prioritize clarity, accessibility, and reduced cognitive effort.
+P0330`t[Heading 2]`t/
+P0331`t[Normal]`tFigure 2.1: Percentages of U.S. adults who are smartphone dependent, by age
+P0332`t[Normal]`t(Pew Research Center, 2025)
+P0335`t[Heading 2]`tSimilar Existing Systems in the market
+P0336`t[Heading 3]`tApple Emergency SOS
+P0337`t[Normal]`tApple Emergency SOS is a built-in smartphone feature that allows users to quickly contact emergency services and notify selected emergency contacts. The system can be activated using hardware button combinations, and it automatically shares the user’s location with emergency responders and trusted contacts (Apple Inc., n.d.). The main feature is immediate emergency calling with real-time location transmission. It is integrated into iOS devices and depends on manual activation by the user.
+P0338`t[Normal]`tThis system is related to EthernaCare because both involve emergency alerts and contact notification. EthernaCare differs by using a configurable rolling check-in threshold and staged user/contact SMS escalation rather than direct emergency-service dispatch. It also includes protected Legacy Planning, which is outside Apple Emergency SOS.
+P0340`t[Heading 3]`tCarePredict
+P0341`t[Normal]`tCarePredict is a wearable-based monitoring system designed for elderly individuals, particularly those in assisted living facilities. The system uses a wearable device equipped with sensors to monitor daily activities such as eating, sleeping, walking, and bathroom visits. It applies artificial intelligence and behavior pattern analysis to detect anomalies that may indicate health or safety risks (CarePredict, n.d.).
+P0342`t[Normal]`tThe main feature is continuous activity tracking through wearable sensors combined with AI-based behavioral analytics. The strength of the system lies in its detailed monitoring capabilities. However, it requires users to wear a dedicated device and is often implemented in institutional care settings.
+P0343`t[Normal]`tEthernaCare shares the objective of reducing delayed awareness but does not perform passive medical or behavioural sensing. It relies on an explicit Oren check-in, scheduled threshold evaluation and trusted-contact escalation, without requiring a wearable device.
+P0345`t[Heading 2]`tLimitation of the project
+P0346`t[Heading 3]`tNo Direct Medical Monitoring
+P0347`t[Normal]`tEthernaCare does not measure heart rate, blood pressure, oxygen level, body temperature or other medical information. It does not include automatic fall detection and cannot diagnose illnesses or determine the cause of a user’s inactivity. A successful Oren interaction only confirms that a check-in was recorded by the application. Therefore, EthernaCare must not be treated as a medical monitoring or diagnostic device.
+P0348`t[Heading 3]`tNo Automatic Emergency-Service Dispatch
+P0349`t[Normal]`tThe application does not automatically contact hospitals, ambulances, police or other Malaysian emergency services. Its automated escalation process attempts to send messages to the verified user and the selected trusted contact. The user may manually contact emergency services when necessary, while the trusted contact remains responsible for deciding what further action should be taken.
+P0350`t[Heading 3]`tExternal Provider and Internet Dependency
+P0351`t[Normal]`tSeveral functions depend on internet connectivity and third-party providers. SMS delivery depends on the SMS provider and the receiving mobile carrier, while email delivery depends on the email provider and recipient server. AI guidance, server-side processing and cloud database functions also require internet access. Therefore, successful request processing does not always prove that a message was received by its intended recipient.
+P0353`t[Heading 2]`tChapter Summary and Evaluation
+P0354`t[Normal]`tThis chapter analysed the challenges of social isolation and delayed awareness of emergencies among people who live alone. The reviewed systems support the value of accessible safety signals and trusted-contact communication. EthernaCare therefore uses a deliberate Oren interaction as a non-medical check-in, combines it with configurable threshold monitoring, and clearly limits its role to support and notification rather than diagnosis, fall detection or guaranteed emergency response.
+P0364`t[Normal]`tChapter 3
+P0366`t[Normal]`tMethodology and Requirements Analysis
+P0367`t[Heading 1]`tMethodology and Requirements Analysis
+P0368`t[Normal]`tThis chapter describes the methodology and requirements analysis for the proposed system. It explains the development approach used in the project and identifies the stakeholders involved in the system. The chapter also presents the functional and non-functional requirements needed to support the system features. In addition, system models such as the use case diagram are introduced to illustrate how users interact with the system and how the main system functions are organized.
+P0369`t[Heading 2]`tMethodology
+P0370`t[Heading 3]`tMethodology Used: Agile
+P0371`t[Normal]`tThe project adopts the Agile methodology, which supports iterative development, continuous evaluation and incremental improvement. Instead of developing the whole application in a single stage, EthernaCare was divided into smaller functional areas, including authentication, Oren care, rolling check-ins, emergency escalation, trusted contacts, virtual rewards, Legacy Planning, AI guidance and weather integration. Each area could be designed, implemented and tested separately before being integrated with the rest of the application.
+P0372`t[Heading 3]`tMethodology Phases
+P0373`t[Normal]`tRequirement Gathering – The first phase identified the functional and non-functional requirements of EthernaCare, including configurable inactivity thresholds, Oren interaction, staged SMS escalation, verified contacts, virtual rewards, protected Legacy access, authentication, biometric session unlock and AI guidance.
+P0374`t[Normal]`tSystem Design – The application architecture, database model, user interface, activity flows and security controls were designed. The design also identified the responsibilities of Flutter, Supabase, Android WorkManager, Edge Functions, scheduled processing and external providers.
+P0375`t[Normal]`tDevelopment – The application was implemented module by module using Flutter and Dart. Supabase was used for authentication, PostgreSQL data storage, Row Level Security, private file storage, Realtime updates, Edge Functions and scheduled server processing.
+P0376`t[Normal]`tTesting – Automated unit, service, repository and widget tests were conducted to verify deterministic business rules and user-interface behaviour. Static analysis and platform builds were also performed. Functions involving real SMS receipt, GPS accuracy, biometric hardware and exact Android scheduling require separate physical acceptance testing.
+P0377`t[Normal]`tEvaluation and Improvement – Test results and application behaviour were reviewed to identify problems. Requirements, validation rules, interfaces and server functions were refined through repeated Agile iterations until the main application features operated consistently.
+P0379`t[Heading 3]`tJustification for Methodology
+P0380`t[Normal]`tThe Agile methodology is suitable for this project because the system consists of multiple independent modules, including activity monitoring, emergency alerts, AI chatbot guidance, and document storage. These modules can be developed and tested separately in iterative cycles. Additionally, system requirements may evolve after usability testing with potential users, especially elderly individuals, making a flexible development approach necessary. Iterative development helps reduce project risks by identifying issues early and allowing continuous improvements. It also enables critical features, such as emergency alert functions, to be tested and refined at an early stage of development.
+P0382`t[Heading 2]`tRequirements Analysis
+P0383`t[Heading 3]`tStakeholders
+P0384`t[Heading 3]`tPrimary User
+P0385`t[Normal]`tThe primary user is an older adult or independent individual who lives alone. The user registers or signs in, completes profile and consent setup, verifies a phone number, configures an inactivity threshold, checks in through Oren, manages trusted contacts, uses rewards and AI guidance, and records Legacy Planning information.
+P0386`t[Heading 3]`tPrimary Trusted Contact
+P0387`t[Normal]`tA trusted contact is an emergency and Legacy recipient, not a second authenticated app role. One verified contact is selected as primary. That person may receive escalation messages and, after separate SMS verification, may view funeral preferences at any time and protected Legacy Notes or documents only during an authorised release window.
+P0388`t[Heading 3]`tReward Administrator
+P0389`t[Normal]`tAn authorised administrator uses a separate admin route to create, edit, refresh and delete eligible virtual reward catalogue entries. The administrator does not gain access to personal user, contact or Legacy information.
+P0390`t[Heading 3]`tSystem Administrator / Developer
+P0391`t[Normal]`tThe system administrator maintains Flutter releases, Supabase migrations and policies, Storage, Edge Functions, Cron jobs, provider secrets, logs and backups. Production credentials are stored as server secrets and are not embedded in the mobile application or report.
+P0392`t[Heading 3]`tFunctional Requirements
+P0393`t[Heading 3]`tModule 1: Authentication, Onboarding and Profile
+P0394`t[Normal]`tUsers register with email and password or a configured Google OAuth provider. Email sign-up and password recovery use Supabase confirmation flows. New users accept the Terms and Conditions, complete mandatory profile fields, verify the user phone by a six-digit SMS OTP and add a verified primary contact. After setup, a skippable eight-step guide introduces the main modules; it appears once per account and can be replayed from Profile or Settings. OAuth profile bootstrap ensures that the public user row uses the same authenticated UUID.
+P0395`t[Heading 3]`tModule 2: Oren Check-In and Care
+P0396`t[Normal]`tOren provides the explicit heartbeat action. A successful check-in is allowed when the configured rolling threshold has elapsed, resets the current inactivity cycle and updates history and rewards. Oren energy decays by one point for every complete hour, feeding restores energy, playing consumes energy, and owned toys and token state persist per user on the same device. Care and shop mutations are serialized so rapid or simultaneous taps cannot overwrite energy, token, ownership or selected-item changes.
+P0397`t[Heading 3]`tModule 3: Inactivity and Emergency Response
+P0398`t[Normal]`tThe inactivity threshold can be set from one to 168 hours. At one missed window the status becomes overdue and a local reminder is created. At two missed windows the cloud worker attempts an SMS to the verified user phone. At three missed windows it creates one inactivity alert and attempts one SMS to the verified primary contact. The server worker runs every 15 minutes and uses persisted state and idempotency to prevent duplicate escalation. SMS provider requests have a 12-second timeout, interrupted processing can be recovered after five minutes, and the emergency SMS endpoint accepts only verified recipients and approved EthernaCare message categories. Manual SOS can record location and send a contact alert; calling 999 always requires explicit user action.
+P0399`t[Heading 3]`tModule 4: Trusted Contacts and Location
+P0400`t[Normal]`tUsers can manage up to five owned contacts and choose exactly one primary contact. Phone numbers must be verified by SMS OTP before they can be saved. Emergency records can include a Maps link when location permission and a valid position are available.
+P0401`t[Heading 3]`tModule 5: Virtual Rewards and Oren Shop
+P0402`t[Normal]`tCheck-in milestones unlock virtual badges and vouchers. A badge is stored in My Badge List when first collected, while a voucher displays a stable user-specific redemption code. An authorised admin maintains the catalogue through a separate route. Oren tokens are a separate local currency used to buy toys and care items.
+P0403`t[Heading 3]`tModule 6: Weather and AI Guidance
+P0404`t[Normal]`tWeather first follows the Malaysian state and region saved in the profile through the data.gov.my weather service, with device coordinates and Open-Meteo as fallback. AI Guidance uses a secured Edge Function and provider fallback for general information only; it does not diagnose conditions or replace professional medical, legal or emergency advice.
+P0405`t[Heading 3]`tModule 7: Legacy Planning and Checking
+P0406`t[Normal]`tThe owner records funeral preferences, protected Legacy Notes and private PDF/JPEG/PNG documents up to 10 MB. Notes reject common password, PIN, OTP and recovery-secret patterns. Funeral preferences are available to the verified primary contact after a valid Legacy SMS OTP. Notes and documents require 90 days without check-in, a 24-hour owner warning/cancellation period and an active seven-day release window. Secure documents use short-lived signed links.
+P0407`t[Heading 3]`tModule 8: Biometric Session Lock
+P0408`t[Normal]`tA signed-in user can enable biometric protection on a supported device. The app requests local authentication when restoring or resuming that user session. Asynchronous prompt coalescing prevents overlapping biometric requests, and a cancelled or failed prompt keeps the application locked.
+P0409`t[Heading 3]`tFunctions not included
+P0410`t[Normal]`tFuneral Service Booking and Payment System
+P0411`t[Normal]`tWhile the application does not include a marketplace or transaction system. Users cannot browse specific funeral packages, service providers, or make payments for funeral services directly through the app.
+P0413`t[Normal]`tDirect Communication with Service Providers
+P0414`t[Normal]`tThe application does not include a real-time chat or messaging system to connect users with funeral directors, lawyers, or religious organizations. The AI chatbot provides general information only and does not facilitate external business communication.
+P0416`t[Normal]`tMedical and Biological Health Monitoring
+P0417`t[Normal]`tThe system relies solely on phone activity (screen interaction and app usage). It does not integrate with wearable devices (like smartwatches) to monitor heart rate, falls, or other biological vital signs. It is not a medical diagnostic tool.
+P0419`t[Normal]`tLegal Will Drafting and Notarization
+P0420`t[Normal]`tThe application does not provide the legal tools to create, draft, or notarize a will. Users must obtain a legally binding will through traditional legal channels before uploading a copy to the app.
+P0422`t[Normal]`tDirect Integration with Emergency Dispatch (999/911)
+P0423`t[Normal]`tThe system is designed to alert trusted contacts and family members first. It does not automatically dial or trigger a direct dispatch from government emergency services (Police or Ambulance) to prevent false alarms that could lead to legal liabilities or resource wastage. Except the user triggers the emergency call manually else the emergency services won’t trigger.
+P0424`t[Heading 3]`tNon-Functional Requirements
+P0425`t[Heading 3]`tReliability
+P0426`t[Normal]`tServer-side inactivity evaluation shall run every 15 minutes and persist each reminder stage. SMS work shall be queued with idempotency and retry state so repeated worker runs do not create duplicate escalation. Android local monitoring remains best-effort and shall not be described as exact-time or continuously running.
+P0427`t[Heading 3]`tSecurity and Privacy
+P0428`t[Normal]`tSupabase Auth shall identify users; Row Level Security shall restrict owner data; private Storage shall protect documents; Edge Functions shall keep provider secrets off the client; phone and Legacy access shall use expiring OTPs with attempt limits; and biometric authentication shall protect only the local restored session rather than replace server authentication.
+P0429`t[Heading 3]`tUsability and Accessibility
+P0430`t[Normal]`tThe interface shall provide readable text, clear status/action differentiation, scrollable forms, guidance controls, safe error messages and responsive layouts. Device settings include text-size choices and reduced-motion support, while important controls expose useful semantic labels. Threshold, escalation, contact verification and Legacy release states shall be explained in plain language. These choices follow Flutter guidance that release checks should cover screen readers, tappable targets, contrast and usability at large text/display scale factors (Flutter, 2026).
+P0431`t[Heading 3]`tPerformance and Efficiency
+P0432`t[Normal]`tWeather, reward, chat and dashboard data shall use bounded caching where appropriate. Realtime subscriptions and manual refresh shall update shared catalogues without forcing unnecessary full-page reloads. Background work shall minimise battery usage and network calls.
+P0433`t[Heading 3]`tMaintainability and Portability
+P0434`t[Normal]`tThe Flutter client shall separate presentation, services, repositories and models. SQL migrations and Edge Functions shall be versioned and idempotent. Core deterministic rules shall be covered by automated tests, while Android hardware and carrier behaviours shall have documented physical acceptance cases.
+P0435`t[Heading 2]`tUse Case Diagram
+P0436`t[Normal]`t/
+P0437`t[Normal]`tFigure 3.1: Use Case Diagram for each of stakeholders
+P0439`t[Heading 3]`tUse Case Actors
+P0440`t[Heading 3]`tUse Case Actors
+P0441`t[Normal]`tPrimary User - authenticates, completes onboarding, manages the profile and contacts, performs Oren check-ins and care, views weather and rewards, asks AI Guidance, manages Legacy Planning, and triggers manual SOS.
+P0442`t[Normal]`tPrimary Trusted Contact - receives eligible SMS/email notifications and uses the public Legacy Check flow with the correct Legacy UID, verified primary phone and separate OTP. This actor does not log in to the owner account.
+P0443`t[Normal]`tReward Administrator - signs in through the separate admin route and maintains virtual reward catalogue entries within admin database policies.
+P0444`t[Normal]`tExternal Services - Supabase provides authentication, data, private storage and scheduled functions; Twilio handles SMS; Brevo/SMTP handles transactional email; data.gov.my and Open-Meteo provide weather; an AI provider supplies general guidance; and device APIs provide location, local notifications and biometrics.
+P0445`t[Heading 3]`tMain Use Cases
+P0446`t[Normal]`tThreshold Check-In - determine whether the rolling threshold has elapsed, insert one check-in atomically when due, reset inactivity state, and refresh rewards and Oren state.
+P0447`t[Normal]`tInactivity Escalation - evaluate elapsed windows every 15 minutes, update the current reminder stage, notify the user at stage two, notify the primary contact once at stage three, and suppress duplicates.
+P0448`t[Normal]`tManual Emergency Alert - ask for confirmation, capture location when available, store the event and attempt the selected contact action. Opening the 999 dialler remains manual.
+P0449`t[Normal]`tLegacy Release - send the owner a 90-day warning, allow 24 hours to cancel or check in, open a seven-day protected-content window if not cancelled, and revoke access on expiry or a new check-in.
+P0450`t[Normal]`tVirtual Reward Administration - create, edit, refresh or delete an eligible catalogue reward without exposing the administration route in the normal user navigation.
+P0451`t[Heading 2]`tChapter Summary and Evaluation
+P0452`t[Normal]`tThis chapter described the Agile methodology, current stakeholders, implemented modules and system constraints. The requirements now distinguish the rolling threshold from a fixed daily timer, the cloud worker from best-effort Android execution, and notification support from guaranteed emergency response. They also define the current biometric session lock, virtual reward administration and staged Legacy release. These requirements provide a traceable basis for the design and context-based testing in later chapters.
+P0462`t[Normal]`tChapter 4
+P0464`t[Normal]`tSystem Design
+P0465`t[Heading 1]`tSystem Design
+P0466`t[Normal]`tThis chapter presents the system design of the EthernaCare application. It illustrates how the system is structured and how its components interact to fulfill the required functionalities. The chapter includes the architecture design, class diagram, entity relationship diagram (ERD), and activity diagrams to provide a clear representation of the system’s structure and behavior. These design models serve as a blueprint for the system implementation and ensure that the application is well-organized, scalable, and aligned with the defined requirements.
+P0467`t[Heading 2]`tArchitecture Diagram
+P0468`t[Normal]`t/
+P0469`t[Normal]`tFigure 4.1: 3 Layer + 2 Tier Architecture diagram
+P0470`t[Heading 3]`tArchitecture Justification
+P0471`t[Normal]`tEthernaCare uses a layered Flutter client connected to a managed Supabase backend. The Presentation layer contains responsive screens and reusable widgets. Controllers and services coordinate validation, threshold check-ins, inactivity state, rewards, weather, AI, biometric gating, notifications, SMS and local caching. Repositories isolate Supabase Auth, PostgreSQL, Storage, RPC and Edge Function access. Scheduled Edge Functions provide cloud execution independently of whether the phone is open.
+P0472`t[Normal]`tPresentation Layer
+P0473`t[Normal]`tThe Presentation layer is responsible for handling all user interactions through interfaces such as the Home Page UI, Check-In History UI, Contacts UI, Rewards UI, Profile UI, and AI Assistance UI. This layer is designed to provide a simple, clear, and user-friendly experience, which is especially important for elderly users who may not be familiar with complex applications. By separating the user interface from the system logic, changes to the UI can be made without affecting the core functionality of the system. This improves usability, maintainability, and allows for easier future enhancements such as redesigning the interface or adding new features.
+P0474`t[Normal]`tBusiness Logic Layer
+P0475`t[Normal]`tThe Business Logic layer applies reusable rules such as rolling check-in eligibility, three-stage inactivity escalation, one-primary-contact enforcement, OTP verification, reward claiming, Oren energy decay, weather fallback, biometric prompt coordination and Legacy release timing. Controllers delegate these rules to services so that they can be tested without the visual interface.
+P0476`t[Normal]`tData Access Layer
+P0477`t[Normal]`tThe Data Access layer contains repositories for authentication, profiles, check-ins, contacts, emergencies, rewards, Legacy data and private documents. Supabase Row Level Security and storage policies enforce ownership. Edge Functions use server credentials only for narrow privileged operations such as SMS, AI requests and scheduled inactivity processing.
+P0479`t[Heading 3]`tArchitecture Advantages
+P0480`t[Normal]`tScalability: Individual layers in the architecture can be scaled independently to meet performance needs.
+P0481`t[Normal]`tFlexibility: Different technologies can be used within each layer without affecting others.
+P0482`t[Normal]`tMaintainability: Changes in one layer do not necessarily impact other layers, thus simplifying the maintenance. (Geeksforgeeks, 2025)
+P0485`t[Heading 2]`tActivity Diagram
+P0486`t[Heading 3]`tLogin Process
+P0487`t[Heading 3]`t/
+P0488`t[Normal]`tFigure 4.2.1: Activity Diagram show the login process of the EthernaCare
+P0489`t[Normal]`tThe login flow validates email/password credentials or starts Google OAuth. Supabase creates the authenticated session and the app ensures that the matching public profile exists. First-time accounts continue through Terms acceptance, profile setup, phone verification and primary-contact setup. Returning sessions can be protected by a per-user biometric lock on supported devices before the main interface is shown.
+P0491`t[Heading 3]`tVirtual Petting Check-In
+P0492`t[Heading 3]`t/
+P0493`t[Normal]`tFigure 4.2.2: Activity Diagram show the process of Virtual Petting
+P0494`t[Normal]`tThe user taps Oren to request a check-in. The repository calculates eligibility from the latest check-in and the configured threshold, then creates one record atomically only when due. Success resets inactivity state, refreshes history and virtual rewards, and applies Oren energy, token, mood, sound and animation changes. Feeding and playing remain care actions and do not create false heartbeat records.
+P0495`t[Heading 3]`tEmergency Alert
+P0496`t[Normal]`t/
+P0497`t[Normal]`tFigure 4.2.3: Activity Diagram show the process of Emergency Alert
+P0498`t[Normal]`tThe emergency design contains two paths. Manual SOS requires an explicit user action and may attach a location or Maps link when permission and positioning are available. Automatic inactivity processing is evaluated by the server every 15 minutes: the first missed window marks the user overdue and creates a local reminder, the second attempts a user SMS, and the third records one alert and attempts one trusted-contact SMS. Repeated runs are idempotent, and EthernaCare never automatically calls 999.
+P0499`t[Heading 2]`tERD Relationship Diagram
+P0500`t[Normal]`t/
+P0501`t[Normal]`tFigure 4.3: ERD diagram that describes the relationship between the entities
+P0502`t[Heading 3]`tEntities attributes
+P0503`t[Heading 3]`tCore Entities and Attributes
+P0504`t[Normal]`tUser/Profile - authenticated UUID, name, contact and address data, blood type, inactivity threshold, escalation preference, phone verification, Terms acceptance, Legacy UID and Legacy consent/testing controls.
+P0505`t[Normal]`tCheck-In - owner UUID, timestamp and status used to calculate the rolling threshold, history and streaks.
+P0506`t[Normal]`tInactivity Monitor Status - per-user threshold snapshot, latest check-in, missed-window count, last notification stage, SMS attempt state and reset timestamps.
+P0507`t[Normal]`tContact - owner UUID, name, relationship, phone, address, primary flag and phone verification timestamp. Database logic preserves at most one primary contact.
+P0508`t[Normal]`tEmergency Alert and Location - owner UUID, trigger source, status, timestamp and optional coordinates or Maps link.
+P0509`t[Normal]`tReward Catalogue and Earned Reward - virtual badge/voucher definition, milestone, active state, owner claim, claim timestamp and stable voucher code. Admin policies protect catalogue mutation.
+P0510`t[Normal]`tLegacy Preference, Note and Document - owner-scoped funeral selections, protected notes, private object paths and upload timestamps.
+P0511`t[Normal]`tLegacy Release and Access - owner warning, 24-hour grace deadline, cancellation token state, seven-day contact window, OTP verification and access audit events.
+P0512`t[Normal]`tOTP and Delivery Outbox - hashed expiring verification codes, attempt counters, consumption timestamps, idempotency keys, provider responses, retries and final delivery state.
+P0513`t[Heading 3]`tMain Relationships
+P0514`t[Normal]`tA user owns many check-ins, contacts, emergency alerts, rewards, notes and documents. Each contact, check-in and protected item belongs to one user. One user has one current inactivity-monitor row and can designate one primary contact. Legacy releases and delivery records reference the owner and preserve auditable state transitions.
+P0515`t[Heading 2]`tSecurity Handling
+P0516`t[Heading 3]`tAuthentication and Access Control (Supabase Authentication)
+P0517`t[Normal]`tThe system uses Supabase Authentication to manage user login and identity verification. Users are required to log in using their registered credentials, and authentication is handled using secure token-based sessions (JWT). This ensures that only authenticated users can access system features such as check-ins, emergency alerts, and personal documents. Unauthorized users are restricted from accessing protected resources.
+P0518`t[Heading 3]`tData Protection (Supabase Database & Storage)
+P0519`t[Normal]`tAll user data, including personal details, contacts, check-in records, and documents, are stored securely in the Supabase database and storage services. Data access is controlled using Supabase policies, ensuring that users can only access their own data. Sensitive files such as digital wills are stored securely using controlled storage access, preventing unauthorized viewing or modification.
+P0520`t[Heading 3]`tSecure Communication (HTTPS Protocol)
+P0521`t[Normal]`tThe Flutter mobile application communicates with Supabase and external APIs using HTTPS protocols. This ensures that all data transmitted, including login credentials and location data, is encrypted during transmission. As a result, the system protects against data interception and man-in-the-middle attacks.
+P0523`t[Heading 2]`tUI Prototype
+P0524`t[Normal]`t/
+P0525`t[Normal]`tFigure 4.4.1: Home Page
+P0526`t[Normal]`tThe Home page places Oren and the weather-responsive pixel scene near the top. Borderless status text clearly separates Oren's mood from actions. Feed and Play appear in one row, owned items can be selected, and the token bar and Shop control show purchasing capacity. The safety check-in control is visually distinct from care actions so users do not mistake feeding or playing for a heartbeat. The Safety Monitor appears lower on the page with threshold and reminder-stage information.
+P0527`t[Heading 2]`t/
+P0528`t[Normal]`tFigure 4.4.2: Check-In History Page
+P0529`t[Normal]`tThe Check-In History page lists successful heartbeat timestamps and shows whether the current rolling threshold is still valid. It avoids an ambiguous percentage rate and instead explains the latest check-in and due state using the user's selected threshold.
+P0530`t[Heading 2]`t/
+P0531`t[Normal]`tFigure 4.4.3: Emergency Contacts Page
+P0532`t[Normal]`tThe Emergency Contacts page presents up to five owner-managed contacts with a clear primary-contact indicator, call action and verified phone details. Oren's phone-call pose and concise guidance explain that the selected primary contact receives eligible SOS and inactivity alerts. Add, edit, delete and primary-selection actions remain visually separate.
+P0533`t[Normal]`t/
+P0534`t[Normal]`tFigure 4.4.4: Rewards Page
+P0535`t[Normal]`tThe Rewards page contains virtual badges and vouchers rather than physical delivery items. Eligible badges can be collected into My Badge List, while Check Reward opens details for badges or vouchers and displays a stable user-specific redemption code when applicable. A separate authorised admin route maintains catalogue entries with Realtime updates and manual refresh fallback.
+P0536`t[Normal]`t/
+P0537`t[Normal]`tFigure 4.4.5: Profile Page
+P0538`t[Normal]`tThe Profile page displays and edits the user's contact, address, blood type, rolling inactivity threshold and escalation preference. It shows phone verification state, provides a copyable Legacy UID, allows biometric session protection on supported devices, and links to the Terms and Conditions and Legacy Planning. The page also reopens the feature guide and provides Settings for local reminders, Oren sounds, text size, reduced motion, biometric controls and restore-defaults. Age and a public profile photograph are not required by the current data model.
+P0540`t[Heading 2]`tChapter Summary and Evaluation
+P0541`t[Normal]`tThis chapter presented the current layered client/cloud architecture, activity flows, data entities, security controls and user-interface design. The design separates local usability state from cloud authority, uses scheduled workers for safety and Legacy timing, and protects owner data through authenticated repositories, Row Level Security, private Storage and short-lived access. The preserved diagrams should be read together with the updated textual rules where the implementation evolved during Agile development.
+P0551`t[Normal]`tChapter 5
+P0553`t[Normal]`tImplementation and Testing
+P0554`t[Heading 1]`tImplementation and Testing
+P0555`t[Normal]`tThis chapter explains how EthernaCare was translated from the requirements and system design into a working safety, well-being and legacy-planning application. It covers the system architecture, implemented modules, representative screens, test strategy, context-based test cases and current evaluation evidence.
+P0556`t[Normal]`tDevelopment was iterative and evidence-driven. Business rules were isolated in services and repositories for deterministic testing, while high-risk workflows use persisted server state, database controls and auditable provider boundaries. Interface changes were checked across compact mobile and wider desktop layouts.
+P0557`t[Heading 2]`tSystem Implementation
+P0558`t[Normal]`tEthernaCare uses a layered Flutter-and-Supabase architecture. Flutter widgets form the presentation layer, controllers and services apply reusable business rules, and repositories isolate Supabase Auth, PostgreSQL, Storage, RPC and Edge Function calls. Android WorkManager provides best-effort local reminder evaluation. Independently, Supabase Cron invokes the inactivity-threshold worker every 15 minutes and the Legacy worker daily at 12:00 a.m. Malaysia time, so authoritative server processing does not depend on the application remaining open.
+P0559`t[Normal]`tThe application separates local continuity from cloud authority. SharedPreferences stores user-scoped Oren care, weather, dashboard, reward, chat, reminder and first-run-guide state for responsive reopening on the same device; device preferences store reminder, sound, text-size and reduced-motion choices. Supabase remains the authority for authentication, profiles, contacts, check-ins, emergency alerts, reward catalogues, earned rewards, Legacy Planning records, private document metadata, OTPs, delivery outboxes and seven-day Legacy access windows.
+P0561`t[Heading 3]`tDevelopment Tools and Technologies
+P0563`t[]`tTechnology
+P0564`t[]`tUse in EthernaCare
+P0565`t[]`tReason for selection
+P0567`t[]`tFlutter 3.38.5 / Dart 3.10.4
+P0568`t[]`tResponsive Android, Windows, and web client
+P0569`t[]`tOne typed codebase with reusable Material widgets and mature test support
+P0571`t[]`tSupabase Auth
+P0572`t[]`tEmail/password, 8-digit email confirmation, password recovery, and configured OAuth
+P0573`t[]`tManaged sessions integrated with PostgreSQL user identities
+P0575`t[]`tSupabase PostgreSQL
+P0576`t[]`tProfiles, contacts, check-ins, rewards, emergency records, OTPs, and Legacy access state
+P0577`t[]`tRelational integrity, constraints, triggers, RPCs, and auditable SQL migrations
+P0579`t[]`tRow Level Security
+P0580`t[]`tRestricts authenticated rows to their owner and protects admin-only reward operations
+P0581`t[]`tDatabase-enforced authorization even when a client request is modified
+P0583`t[]`tSupabase Storage
+P0584`t[]`tPrivate PDF/JPEG/PNG Legacy documents up to 10 MB
+P0585`t[]`tPrivate buckets, owner folders, and short-lived signed URLs
+P0587`t[]`tDeno / TypeScript Edge Functions
+P0588`t[]`tSMS OTP, emergency SMS, AI guidance, threshold processing, Legacy access/cancellation and daily Legacy processing
+P0589`t[]`tServer-side secrets and narrow privileged operations outside the Flutter client
+P0591`t[]`tSupabase Cron / pg_cron
+P0592`t[]`tRuns the threshold worker every 15 minutes and the Legacy worker daily at midnight MYT
+P0593`t[]`tCloud execution continues when the phone is closed or offline
+P0595`t[]`tPython FastAPI reference worker (non-production)
+P0596`t[]`tReadable reference implementation in server/python_legacy_server
+P0597`t[]`tDocuments the 90-day domain workflow; Supabase Edge Functions are the deployed production workers
+P0599`t[]`tTwilio and Brevo
+P0600`t[]`tSMS delivery and transactional email
+P0601`t[]`tProvider APIs with server-side credentials and delivery logs
+P0603`t[]`tWorkManager and local notifications
+P0604`t[]`tBest-effort Android local reminders and notification presentation
+P0605`t[]`tImproves local responsiveness without acting as the authoritative SMS scheduler
+P0607`t[]`tdata.gov.my and Open-Meteo
+P0608`t[]`tMalaysia regional weather with coordinate fallback
+P0609`t[]`tOfficial source first, then a resilient public fallback
+P0611`t[]`tFlutter Test / lints / coverage
+P0612`t[]`tLogic, service-boundary, widget, responsive, and regression verification
+P0613`t[]`tRepeatable evidence before release builds
+P0616`t[Heading 3]`tModules and Code Snippets
+P0617`t[Heading 3]`tSample Screens
+P0618`t[Normal]`tThe supplied guide asks for a sample screen for each module or sub-module. Figure 5.1 is a verified mobile-web capture generated from the current build. Table 5.2 defines the remaining current captures that should be inserted when assembling the final full report. Older prototype screenshots should not be reused as current evidence because the Home, Contacts, Rewards, Profile, and Legacy layouts changed during implementation.
+P0619`t[Normal]`t/
+P0620`t[Normal]`tFigure 5.1.1: Current EthernaCare authentication screen at 390 x 844 pixels
+P0622`t[]`tFigure
+P0623`t[]`tCurrent screen to capture
+P0624`t[]`tEvidence to show
+P0626`t[]`t5.2
+P0627`t[]`tHome - Oren and weather
+P0628`t[]`tOren status above the scene, token/shop controls, Feed and Play row, selected toy, and Safety Monitor lower on the page
+P0630`t[]`t5.3
+P0631`t[]`tCheck-in History
+P0632`t[]`tThreshold-aware current status and timestamp list without the removed check-in-rate percentage
+P0634`t[]`t5.4
+P0635`t[]`tTrusted Contacts
+P0636`t[]`tPrimary-contact indicator, call action, verified phone, and Oren phone-call pose
+P0638`t[]`t5.5
+P0639`t[]`tVirtual Rewards
+P0640`t[]`tBadge and voucher catalogue, Check Reward action, My Badge List, and voucher redeem code
+P0642`t[]`t5.6
+P0643`t[]`tProfile
+P0644`t[]`tEditable threshold, escalation target, phone verification state, copyable Legacy UID, biometrics, feature-guide replay, Settings, and Terms link
+P0646`t[]`t5.7
+P0647`t[]`tLegacy Planning
+P0648`t[]`tFuneral preference selections, authorized existing contact, safe notes warning, secure documents, and owner enable switch
+P0650`t[]`t5.8
+P0651`t[]`tLegacy Check
+P0652`t[]`tUID and primary phone verification, SMS code, preferences access, protected-content status, days remaining or seven-day expiry
+P0654`t[]`t5.9
+P0655`t[]`tReward Admin catalogue
+P0656`t[]`tSeparate admin authentication, create/edit controls, Realtime/manual refresh, and eligible delete action
+P0658`t[Normal]`tTable 5.1.2: Required current sample-screen set
+P0659`t[Heading 2]`tTesting Methods
+P0660`t[Heading 3]`tFunctional Testing
+P0661`t[Normal]`tUnit and logic testing validates threshold boundaries, escalation rules, Oren energy decay, reward calculations, validation, serialization, Legacy content filtering, and provider fallback decisions.
+P0662`t[Normal]`tService-boundary testing uses mocked repositories and Supabase responses to verify orchestration without changing production records.
+P0663`t[Normal]`tWidget testing renders authentication, Oren, contacts, rewards, Legacy, dialogs, and guidance states at controlled viewports to detect unreachable controls and overflow.
+P0664`t[Normal]`tIntegration checks verify deployed Edge Function health, migration parity, private-storage expectations, release builds, and platform manifests.
+P0665`t[Normal]`tContext-based testing describes the real situation of a user, owner, primary contact, or reward administrator instead of testing an isolated button without purpose.
+P0666`t[Heading 3]`tNon-Functional Testing
+P0667`t[Normal]`tReliability testing checks duplicate suppression, one-time escalation, retry visibility, stale-processing recovery, provider timeouts, cache restoration, app-resume refresh, overlapping dashboard requests, serialized Oren actions and fallback behavior. Security testing checks RLS ownership, recent phone verification, private Storage paths, signed URLs, OTP expiry and attempts, Legacy audit events, admin authorization, verified SMS recipients, approved message categories and server-secret boundaries. Usability checks cover scrolling, safe areas, readable status text, semantic labels, guidance, Settings, large text, reduced motion, full-page forms and mobile viewport behavior. Maintainability is supported by repositories, services, typed models, idempotent migrations and separate Edge Functions.
+P0668`t[Normal]`tThe current automated suite contains 138 passing tests. Line coverage is 2,515 of 8,208 lines, or 30.64 percent. The suite covers important domain and widget behaviour, including biometric prompt coordination, rolling inactivity logic, first-run guide persistence, device settings and concurrent Oren care actions. Line coverage remains modest for the full presentation and provider-integration surface, so it is reported as a limitation rather than complete assurance. Real carrier delivery, Android Doze/background execution, biometric hardware and GPS accuracy still require physical-device acceptance testing.
+P0670`t[Heading 2]`tContext-Based Test Plan and Test Cases
+P0671`t[Normal]`tThe cases below are arranged by module and written around realistic user contexts. Each case identifies who is acting, the state of the system, the action performed, and the result that gives the function meaning. This format is more suitable for EthernaCare than a button-by-button checklist because safety behavior depends on time, ownership, verification, provider state, and the difference between local and server execution.
+P0672`t[Heading 3]`tTest Cases
+P0673`t[Normal]`tTable 5.3: Authentication and onboarding context cases
+P0674`t[]`tID
+P0675`t[]`tContext and precondition
+P0676`t[]`tAction / data
+P0677`t[]`tExpected outcome
+P0678`t[]`tEvidence / status
+P0680`t[]`tAUTH-01
+P0681`t[]`tA first-time user has an unused email address and accepts the current Terms.
+P0682`t[]`tCreate an account with a valid name, email, and strong password; enter the 8-digit email code.
+P0683`t[]`tOne auth identity and one public profile are created; setup continues only after confirmation.
+P0684`t[]`tAutomated boundaries PASS; live email depends on configured SMTP.
+P0686`t[]`tAUTH-02
+P0687`t[]`tAn account already exists for the same normalized email.
+P0688`t[]`tAttempt a second registration.
+P0689`t[]`tThe system does not create a second account and shows a safe existing-account message.
+P0690`t[]`tRepository/auth handling PASS.
+P0692`t[]`tAUTH-03
+P0693`t[]`tA registered user forgot the password.
+P0694`t[]`tRequest recovery, use the 8-digit recovery code or link, and set a compliant new password.
+P0695`t[]`tThe recovery session is verified and the new password can be used to sign in.
+P0696`t[]`tAutomated flow PASS; live email depends on SMTP.
+P0698`t[]`tAUTH-04
+P0699`t[]`tA user signed in through a configured OAuth provider for the first time.
+P0700`t[]`tComplete the provider redirect.
+P0701`t[]`tThe auth UUID receives a public.users row and Supabase-backed modules load for the same user.
+P0702`t[]`tBootstrap logic and diagnostics PASS.
+P0704`t[]`tAUTH-05
+P0705`t[]`tA signed-in user enabled biometric session unlock on a supported device.
+P0706`t[]`tClose and reopen the app; authenticate or cancel at the biometric prompt.
+P0707`t[]`tSuccessful local authentication unlocks the restored session; cancellation keeps the app locked.
+P0708`t[]`tService tests PASS; physical sensor PENDING PHYSICAL.
+P0710`t[]`tAUTH-06
+P0711`t[]`tA first-time user has completed the required profile and primary-contact setup.
+P0712`t[]`tStep through or skip the guide, reopen it from Profile/Settings, then change reminder, sound, text-size, or reduced-motion settings.
+P0713`t[]`tThe guide is offered once per account, remains replayable, and device settings persist and apply after navigation or restart.
+P0714`t[]`tGuide/settings widget and persistence tests PASS.
+P0718`t[Normal]`tTable 5.4: Check-in, inactivity, and emergency context cases
+P0719`t[]`tID
+P0720`t[]`tContext and precondition
+P0721`t[]`tAction / data
+P0722`t[]`tExpected outcome
+P0723`t[]`tEvidence / status
+P0725`t[]`tSAFE-01
+P0726`t[]`tThe user checked in less than one configured threshold ago.
+P0727`t[]`tTap Oren again.
+P0728`t[]`tNo duplicate heartbeat is created; status remains current and UI data refreshes.
+P0729`t[]`tRPC/fallback logic PASS.
+P0731`t[]`tSAFE-02
+P0732`t[]`tThe threshold has elapsed since the latest heartbeat.
+P0733`t[]`tTap Oren.
+P0734`t[]`tOne new active check-in is inserted atomically and the rolling inactivity period restarts.
+P0735`t[]`tAutomated threshold tests PASS.
+P0737`t[]`tSAFE-03
+P0738`t[]`tOne full threshold window has been missed.
+P0739`t[]`tAllow the 15-minute server worker and the Android local monitor to evaluate inactivity.
+P0740`t[]`tThe persisted status becomes not current; a local reminder is shown and no contact escalation occurs.
+P0741`t[]`tLogic and worker tests PASS; exact local timing PENDING PHYSICAL.
+P0743`t[]`tSAFE-04
+P0744`t[]`tTwo full threshold windows have been missed and the user phone is verified.
+P0745`t[]`tAllow the next server worker evaluation.
+P0746`t[]`tOne user-reminder SMS is queued/attempted, delivery state is recorded and no check-in is created.
+P0747`t[]`tWorker/orchestration PASS; carrier receipt PENDING PHYSICAL.
+P0749`t[]`tSAFE-05
+P0750`t[]`tThree full threshold windows have been missed and a verified primary contact exists.
+P0751`t[]`tAllow the third-stage server evaluation more than once.
+P0752`t[]`tOne inactivity alert and one primary-contact SMS are queued/attempted; idempotency suppresses duplicate escalation.
+P0753`t[]`tWorker/idempotency PASS; carrier receipt PENDING PHYSICAL.
+P0755`t[]`tSAFE-06
+P0756`t[]`tThe user presses manual SOS and grants location.
+P0757`t[]`tConfirm the SOS action.
+P0758`t[]`tThe alert may include a Maps URL and may open the 999 dialer only through explicit user action.
+P0759`t[]`tService/build PASS; GPS and SMS PENDING PHYSICAL.
+P0763`t[Normal]`tTable 5.5: Trusted-contact and phone-verification context cases
+P0764`t[]`tID
+P0765`t[]`tContext and precondition
+P0766`t[]`tAction / data
+P0767`t[]`tExpected outcome
+P0768`t[]`tEvidence / status
+P0770`t[]`tCONTACT-01
+P0771`t[]`tA user has fewer than five contacts and enters a new international number.
+P0772`t[]`tRequest and enter the 6-digit contact OTP, then save.
+P0773`t[]`tA recent contact_phone verification allows the owner-scoped insert.
+P0774`t[]`tValidation/service tests PASS; SMS PENDING PHYSICAL.
+P0776`t[]`tCONTACT-02
+P0777`t[]`tThe number duplicates an existing contact or the user already has five contacts.
+P0778`t[]`tAttempt to save another contact.
+P0779`t[]`tThe operation is rejected with a meaningful validation message.
+P0780`t[]`tAutomated validation PASS.
+P0782`t[]`tCONTACT-03
+P0783`t[]`tA non-primary or unverified phone is entered on Legacy Check.
+P0784`t[]`tSubmit the Legacy UID and phone.
+P0785`t[]`tNo protected access is issued and the screen states that the phone is not the verified primary contact.
+P0786`t[]`tLegacy response/widget tests PASS.
+P0788`t[]`tCONTACT-04
+P0789`t[]`tTwo contacts exist and ownership of the primary role changes.
+P0790`t[]`tSet the second contact as primary.
+P0791`t[]`tThe atomic database operation leaves exactly one primary contact.
+P0792`t[]`tRPC/schema logic PASS.
+P0795`t[Normal]`tTable 5.6: Oren, rewards, and admin context cases
+P0796`t[]`tID
+P0797`t[]`tContext and precondition
+P0798`t[]`tAction / data
+P0799`t[]`tExpected outcome
+P0800`t[]`tEvidence / status
+P0802`t[]`tOREN-01
+P0803`t[]`tOren has 65 energy and no action occurs for three complete hours.
+P0804`t[]`tReload Oren state after 3.5 hours.
+P0805`t[]`tEnergy becomes 62, mood is recalculated, and partial hours are preserved for later decay.
+P0806`t[]`tAutomated energy tests PASS.
+P0808`t[]`tOREN-02
+P0809`t[]`tOren has 15 or less energy and the user owns a toy.
+P0810`t[]`tPress Play.
+P0811`t[]`tOren refuses play, remains tired, and does not consume more energy.
+P0812`t[]`tAutomated service tests PASS.
+P0814`t[]`tOREN-03
+P0815`t[]`tThe user has enough tokens for an unowned toy.
+P0816`t[]`tBuy, select, sign out, sign in, and play with the toy.
+P0817`t[]`tTokens decrease once; ownership and selection persist for that user on the device; the correct reaction is shown.
+P0818`t[]`tService/cache tests PASS.
+P0820`t[]`tREWARD-01
+P0821`t[]`tA user meets a badge goal but has not opened the badge before.
+P0822`t[]`tOpen the badge and select Collect Badge.
+P0823`t[]`tThe badge is recorded in My Badge List once.
+P0824`t[]`tService/migration tests PASS.
+P0826`t[]`tREWARD-02
+P0827`t[]`tA user meets a voucher goal.
+P0828`t[]`tOpen Check Reward.
+P0829`t[]`tReward details display a user-specific redeem code that remains stable for the earned voucher.
+P0830`t[]`tService-boundary tests PASS.
+P0832`t[]`tADMIN-01
+P0833`t[]`tAn authorized reward admin is signed into the separate admin route.
+P0834`t[]`tCreate or edit a reward, then observe another catalogue session.
+P0835`t[]`tRealtime updates the catalogue; manual refresh retrieves it if the subscription is delayed.
+P0836`t[]`tAdmin tests PASS; live Realtime should be observed during acceptance.
+P0838`t[]`tADMIN-02
+P0839`t[]`tA catalogue reward has no earned-user records, then another reward is already earned.
+P0840`t[]`tDelete each reward.
+P0841`t[]`tThe unearned reward can be deleted; the earned reward is preserved or deactivated to protect history.
+P0842`t[]`tAdmin deletion rules PASS.
+P0844`t[]`tOREN-04
+P0845`t[]`tTwo Oren care or shop actions are initiated almost simultaneously.
+P0846`t[]`tStart overlapping Feed/Play or purchase/select operations.
+P0847`t[]`tActions execute serially and both valid energy, token, ownership, and selection changes remain without a lost update.
+P0848`t[]`tAutomated concurrency regression tests PASS.
+P0852`t[Normal]`tTable 5.7: Legacy Planning and Legacy Checking context cases
+P0853`t[]`tID
+P0854`t[]`tContext and precondition
+P0855`t[]`tAction / data
+P0856`t[]`tExpected outcome
+P0857`t[]`tEvidence / status
+P0859`t[]`tLEGACY-01
+P0860`t[]`tThe owner enabled Legacy Checking and the verified primary contact knows the UID and phone.
+P0861`t[]`tVerify with the 6-digit SMS code before day 90.
+P0862`t[]`tFuneral preferences are available; Legacy Notes and documents remain locked with clear remaining-day information.
+P0863`t[]`tPayload/widget tests PASS; SMS PENDING PHYSICAL.
+P0865`t[]`tLEGACY-02
+P0866`t[]`tThe latest check-in reaches 90 days and no release is already active.
+P0867`t[]`tAllow the midnight cloud worker to run.
+P0868`t[]`tThe owner receives a warning email and a 24-hour grace period; the primary contact does not yet receive protected access.
+P0869`t[]`tWorker/domain tests PASS; live email acceptance required.
+P0871`t[]`tLEGACY-03
+P0872`t[]`tThe owner is inside the 24-hour grace period.
+P0873`t[]`tCheck in or use the one-time Cancel Legacy Release link.
+P0874`t[]`tThe pending release is revoked and protected content stays locked.
+P0875`t[]`tCancellation function/tests PASS.
+P0877`t[]`tLEGACY-04
+P0878`t[]`tThe owner does not cancel within 24 hours and all primary-contact eligibility rules still hold.
+P0879`t[]`tRun the next daily worker cycle.
+P0880`t[]`tThe primary contact receives an email and the seven-day Notes/document window opens.
+P0881`t[]`tWorker logic PASS; live email acceptance required.
+P0883`t[]`tLEGACY-05
+P0884`t[]`tA seven-day window is open and the primary contact completes SMS verification.
+P0885`t[]`tView preferences, notes, and a secure document.
+P0886`t[]`tOnly allowed owner data is returned; the document link is signed and short-lived.
+P0887`t[]`tAccess filtering/signing tests PASS; end-to-end SMS PENDING PHYSICAL.
+P0889`t[]`tLEGACY-06
+P0890`t[]`tThe seven-day window expires or the owner checks in.
+P0891`t[]`tAttempt another verification or document open.
+P0892`t[]`tProtected access is denied and stale release state is revoked.
+P0893`t[]`tDomain/access tests PASS.
+P0895`t[]`tLEGACY-07
+P0896`t[]`tThe owner uploads a supported or unsupported file.
+P0897`t[]`tTry valid PDF/JPEG/PNG, oversized data, and mismatched extension/signature.
+P0898`t[]`tOnly matching supported files at or below 10 MB are stored privately.
+P0899`t[]`tDocument validation tests PASS.
+P0903`t[Normal]`tTable 5.8: Non-functional context cases
+P0904`t[]`tID
+P0905`t[]`tContext and precondition
+P0906`t[]`tAction / data
+P0907`t[]`tExpected outcome
+P0908`t[]`tEvidence / status
+P0910`t[]`tNFR-01
+P0911`t[]`tA mobile web user opens the release build at 390 x 844.
+P0912`t[]`tLoad and scroll authentication and responsive content.
+P0913`t[]`tViewport metadata is correct, content remains reachable, and no horizontal overflow occurs.
+P0914`t[]`tRelease/mobile viewport PASS.
+P0916`t[]`tNFR-02
+P0917`t[]`tA different authenticated user modifies a client request with another user_id.
+P0918`t[]`tAttempt to read contacts, check-ins, rewards, notes, or documents.
+P0919`t[]`tRLS denies cross-user access.
+P0920`t[]`tPolicy review and repository boundaries PASS; penetration testing remains future work.
+P0922`t[]`tNFR-03
+P0923`t[]`tWeather or AI provider is unavailable.
+P0924`t[]`tOpen Home or AI Guidance.
+P0925`t[]`tCached/fallback state is shown without blocking safety functions.
+P0926`t[]`tAutomated fallback tests PASS.
+P0928`t[]`tNFR-04
+P0929`t[]`tAn SMS provider stalls or a worker stops while a delivery is marked as processing.
+P0930`t[]`tAllow the provider call to exceed its limit or rerun the worker after the stale interval.
+P0931`t[]`tThe request fails within 12 seconds, records a retryable state, can be reclaimed after five minutes, and rejects unverified recipients or unapproved messages.
+P0932`t[]`tFunction logic/deployment PASS; live provider failure injection remains an acceptance test.
+P0935`t[Heading 2]`tChapter Summary and Evaluation
+P0936`t[Normal]`tThis chapter documented the current EthernaCare implementation. The application combines a layered Flutter client with Supabase Auth, PostgreSQL, Row Level Security, private Storage, Realtime and Edge Functions. A 15-minute cloud worker applies the rolling inactivity stages, while a daily cloud worker manages the 90-day Legacy sequence. The key rules are explicit: check-in eligibility follows the selected threshold; server-side SMS attempts occur at missed windows two and three; Oren energy decays hourly and care mutations are serialized; badges and vouchers have distinct redemption behaviour; biometric prompts are asynchronously coordinated; dashboard loads ignore stale overlapping responses; and protected Legacy content follows a 90-day, 24-hour owner-protection and seven-day contact-access sequence. The first-run guide and Settings module provide persistent onboarding and accessibility choices.
+P0937`t[Normal]`tThe 138-test suite and 30.64 percent line coverage provide useful regression evidence for deterministic logic and key interfaces. The deployed workers and versioned migrations provide an auditable backend implementation. However, automated tests and desktop builds cannot prove SMS receipt, external email delivery, Android operating-system scheduling, physical biometric sensors or GPS accuracy. EthernaCare is suitable for a final-year project and controlled demonstration, while production use requires the physical acceptance tests, provider monitoring and operational controls identified in this chapter.
+P0950`t[Normal]`tChapter 6
+P0952`t[Normal]`tSystem Deployment
+P0953`t[Heading 1]`tSystem Deployment
+P0954`t[Normal]`tThis chapter explains the controlled deployment of EthernaCare as a Flutter client with a managed Supabase backend. The project is not an industrial changeover from an earlier production system; deployment therefore focuses on repeatable cloud configuration, client builds, protected secrets, scheduled workers, rollback planning and user acceptance.
+P0955`t[Heading 2]`tDeployment Architecture
+P0956`t[Normal]`tThe deployed production backend is Supabase. Authentication, PostgreSQL, Row Level Security, private Storage, Realtime, database functions and Edge Functions run in the configured Supabase project. The Python FastAPI worker stored in the repository is a readable reference implementation only and is not the production scheduler.
+P0957`t[Heading 3]`tClient Deployment
+P0958`t[Normal]`tThe Flutter project can produce Android APK/app-bundle, Windows and web builds from the same Dart source. The public Supabase URL and anonymous key can be supplied at build time through SUPABASE_URL and SUPABASE_ANON_KEY definitions. Secret provider credentials are never compiled into the client. Release builds hide safety-test controls unless ENABLE_SAFETY_TESTS is explicitly enabled. Android deployment also requires notification, location and biometric permissions and the registered WorkManager entry point.
+P0959`t[Heading 3]`tCloud Functions and External Providers
+P0960`t[Normal]`tEdge Functions implement phone OTP, emergency SMS, AI guidance, threshold processing, Legacy access, cancellation and Legacy inactivity processing. Supabase encrypted function secrets store the Twilio, transactional-email, AI and OTP-signing credentials. SMS calls use bounded provider timeouts and persisted retry state; interrupted processing can be reclaimed after a short stale-job window, and the emergency endpoint verifies both recipient eligibility and approved message categories. Twilio handles SMS delivery and Brevo/SMTP handles email; each provider must be configured, funded or verified according to its own account rules before real delivery can be accepted.
+P0961`t[Heading 2]`tDatabase and Storage Deployment
+P0962`t[Normal]`tVersioned SQL migrations create or alter tables, constraints, indexes, RPCs, RLS policies, Realtime publication settings, delivery outboxes and scheduled-job configuration. Migrations are applied in filename order and verified before the matching client release. The legacy-documents bucket is private, restricts file type and size, uses owner folders and returns short-lived signed URLs only through authorised flows.
+P0963`t[Heading 2]`tScheduled Worker Deployment
+P0964`t[Normal]`tSupabase Cron invokes process-inactivity-thresholds every 15 minutes. The function recalculates missed windows for all eligible users, persists the latest stage, queues idempotent SMS work and retries eligible failures. A separate Cron job invokes process-legacy-inactivity at 12:00 a.m. Malaysia time each day to evaluate 90-day eligibility, owner warnings, cancellation grace, primary-contact release and seven-day expiry. Cron logs and Edge Function logs are checked after deployment.
+P0965`t[Heading 2]`tSystem Backup and Risk Management
+P0966`t[Normal]`tSource code and migrations are version-controlled. Database backups and provider exports should be retained according to the Supabase plan, while private files require a documented storage backup policy. Before a schema change, the developer reviews affected policies, functions and clients and prepares a backward-compatible or rollback migration. Secrets are stored only in encrypted project settings and must be rotated after accidental disclosure.
+P0967`t[Normal]`tMajor risks include provider outage, invalid SMS/email credentials, carrier filtering, delayed Android background work, revoked location permission, migration mismatch, stale processing jobs and duplicate alerts. The implementation reduces these risks with server scheduling, persisted outboxes, idempotency keys, bounded provider timeouts, failed-state retries, five-minute stale-job recovery, verified-recipient and message-category checks, friendly status messages, local fallbacks and audit logs. It cannot guarantee that an external message is delivered or read.
+P0968`t[Heading 2]`tOn-site Setup
+P0969`t[Normal]`tA demonstration setup applies all migrations, deploys every Edge Function, configures required secrets, verifies both Cron jobs, enables authentication providers and redirect URLs, creates the private Storage bucket and builds the target Flutter package. Test accounts then complete email confirmation, phone verification, a primary contact, threshold configuration, biometric opt-in and Legacy consent. Production and testing phone numbers must be valid international numbers.
+P0970`t[Heading 2]`tTraining Procedure
+P0971`t[Normal]`tTraining begins with account creation and consent, followed by the skippable eight-step feature guide. It then demonstrates Oren check-in versus Feed/Play, the rolling threshold, reminder stages, contact verification, manual SOS, virtual rewards, profile controls and AI limitations. Users are shown how to replay the guide and use Settings for reminders, sounds, text size, reduced motion, biometrics and default restoration. A separate Legacy exercise covers the Legacy UID, funeral preferences, owner protection, the public contact flow and the fact that Notes/documents remain time-restricted. Administrators receive separate training for reward catalogue maintenance and provider/log monitoring.
+P0972`t[Heading 2]`tFollow-up and Operational Monitoring
+P0973`t[Normal]`tAfter release, the developer reviews Cron execution, Edge Function errors, SMS/email provider logs, failed outbox records, authentication delivery, Storage access and user-reported issues. Regression tests and static analysis are run before each release. Physical-device checks are repeated for notification permission, app resume, Doze/background behaviour, biometric cancellation/retry, GPS capture and carrier delivery.
+P0974`t[Heading 2]`tChapter Summary and Evaluation
+P0975`t[Normal]`tEthernaCare deployment separates a portable Flutter client from cloud-authoritative safety and Legacy workers. Versioned migrations, protected secrets, RLS, private Storage, scheduled functions and logs make the deployment repeatable and auditable. The approach resolves the main phone-background limitation, but continued reliability still depends on provider configuration, operational monitoring and physical acceptance testing.
+P0978`t[Normal]`tChapter 7
+P0979`t[Normal]`tDiscussions and Conclusion
+P0980`t[Heading 1]`tDiscussions and Conclusion
+P0981`t[Heading 2]`tSummary
+P0982`t[Normal]`tEthernaCare was developed to reduce delayed awareness when an older adult or independent individual living alone stops providing an expected safety signal. The solution combines a configurable Oren check-in, staged inactivity reminders, verified trusted contacts, manual SOS support, location-assisted alerts, virtual rewards, weather-responsive interaction, AI guidance and consent-controlled Legacy Planning. Flutter supports a consistent multi-platform client, while Supabase provides managed identity, relational data, security policies, private files and scheduled server execution.
+P0983`t[Heading 2]`tAchievements
+P0984`t[Normal]`tThe project achieved its principal functional objectives. Check-ins now follow a one-to-168-hour rolling threshold instead of a fixed daily flag. A cloud worker evaluates every 15 minutes and persists the first, second and third missed-window stages. Contact phone verification, duplicate suppression, bounded SMS requests, stale-job recovery and server delivery state support safer escalation. Oren has hourly energy decay, user-scoped care state and serialized mutations that prevent lost rapid-tap updates. Dashboard refreshes reject stale overlapping responses and refresh on app resume. Rewards are fully virtual, with badge collection, voucher codes and a separate catalogue-admin route. Legacy Planning implements owner consent, funeral preferences, secret-aware notes, private documents, a 90-day trigger, a 24-hour owner-protection step and seven-day protected access. Supported sessions can be locked by asynchronously coordinated device biometrics, while the first-run guide and Settings module improve onboarding and accessibility.
+P0985`t[Normal]`tQuality evidence includes 138 passing automated tests and 30.64 percent line coverage. The tests exercise important service, repository and widget paths, including threshold calculations, Oren decay and concurrency, OTP rules, Legacy timing, virtual rewards, guide/settings persistence and biometric prompt behaviour. This gives repeatable regression evidence, although it does not replace physical and provider acceptance testing.
+P0986`t[Heading 2]`tContributions
+P0987`t[Normal]`tThe main contribution is the integration of a low-friction virtual companion with an explicit, configurable safety heartbeat and a server-controlled escalation model. Separating care actions from the heartbeat reduces ambiguity, while virtual rewards support engagement without physical delivery administration. The Legacy design also contributes a consent-based staged release: the owner receives a final protection opportunity before time-limited access is offered to a verified primary contact.
+P0988`t[Heading 2]`tLimitations and Future Improvements
+P0989`t[Normal]`tEthernaCare is not a medical device and cannot detect falls, unconsciousness, vital signs, death or the cause of inactivity. It does not automatically dispatch Malaysian emergency services. SMS and email delivery depend on provider accounts, carrier filtering and valid contact data. Android local scheduling is best-effort, GPS depends on permission and signal, and biometric authentication protects a restored local session rather than proving the identity of a trusted contact.
+P0990`t[Normal]`tFuture work should raise automated coverage, add provider sandbox and delivery-status integration tests, complete a structured physical-device matrix, add accessibility testing with older adults, introduce operational dashboards and alerting, support secure cross-device synchronization for Oren state, and perform professional privacy, legal and security reviews. Before production release, sensitive offline profile or medical caches should be removed when unnecessary or moved from unencrypted preferences to protected platform storage (OWASP Foundation, n.d.). The Android application identifier should also be changed from the development identifier, and direct SEND_SMS permission should be retained only after confirming Google Play eligibility and declaration requirements; otherwise, server-side SMS should remain the primary path (Google Play, n.d.). A production release should also define data retention, incident response, account recovery and support procedures.
+P0991`t[Heading 2]`tIssues and Solutions
+P0992`t[Normal]`tA major issue was that phone-only background execution could not guarantee threshold processing after the app was closed. This was addressed by moving authoritative evaluation to a 15-minute Supabase Cron worker while retaining WorkManager for local reminders. Duplicate SMS risk was reduced through persisted stages, idempotency keys and delivery outboxes; provider hangs and interrupted work were addressed with a 12-second timeout, retry states and five-minute stale-job recovery. Rapid Oren actions that could overwrite local state were serialized, and dashboard requests now discard stale overlapping results and refresh on app resume. OAuth users missing public profile rows were addressed with profile bootstrap logic. Private Legacy files were protected with RLS, private Storage and short-lived signed URLs. Repeated biometric prompts were addressed through asynchronous request coalescing and lifecycle-aware gating.
+P0993`t[Normal]`tExternal delivery and platform behaviour remain the most important unresolved acceptance risks. The project therefore distinguishes a successful provider request from confirmed receipt and labels physical SMS, email, GPS, Android lifecycle and biometric-sensor tests separately from automated evidence.
+P0994`t[Heading 2]`tConclusion
+P0995`t[Normal]`tThe completed prototype demonstrates that a friendly check-in experience can be combined with explicit safety rules, server scheduling and privacy-conscious Legacy controls. EthernaCare provides useful support and earlier notification, but it must be presented honestly as a supplementary well-being system rather than a guaranteed emergency or medical service. Within those boundaries, the project satisfies its main academic objectives and provides a maintainable foundation for further validation and development.
+P0997`t[Heading 1]`tReferences
+P0999`t[Normal]`tReferences
+P1000`t[Normal]`tAnderson, J. E., Ross, A. J., Macrae, C., & Wiig, S. (2020, April 20). Defining adaptive capacity in healthcare: A new framework for researching resilient performance. ScienceDirect. Retrieved February 24, 2026, from https://www.sciencedirect.com/science/article/abs/pii/S0003687020300727?via%3Dihub
+P1001`t[Normal]`tApple Inc. (n.d.). Use Emergency SOS via satellite on your iPhone. Apple Support. Retrieved February 24, 2026, from https://support.apple.com/en-us/101573
+P1002`t[Normal]`tAzizan, A. H. (2025, August 26). Malaysia To Become Aged Nation By 2048. Portal Rasmi Kementerian Kewangan. https://mof.gov.my/portal/en/news/press-citations/malaysia-to-become-aged-nation-by-2048-amir-hamzah#:~:text=KUALA%20LUMPUR%2C%20Aug%2026%20(Bernama,Seri%20Amir%20Hamzah%20Azizan%20said.
+P1003`t[Normal]`tCarePredict. (n.d.). Senior Living - Fall Detection, Wander Management, Resident Safety, Care Plan Optimization. Retrieved February 24, 2026, from https://www.carepredict.com/
+P1004`t[Normal]`tCurrent Population Estimates, Malaysia, 2023. (2023). Department of Statistics Malaysia Official Portal. Retrieved February 11, 2026, from https://www.dosm.gov.my
+P1005`t[Normal]`tCzaja, S. J. (2006). Factors predicting the use of technology. Psychology and Aging. Retrieved February 11, 2026, from https://doi.org/10.1037/0882-7974.21.2.333
+P1006`t[Normal]`tDavis, F. D. (1989). Perceived usefulness, perceived ease of use, and user acceptance of information technology. MIS Quarterly. Retrieved February 11, 2026, from https://doi.org/10.2307/249008
+P1007`t[Normal]`tDepartment of Statistics Malaysia. (2024, November 21). Department of Statistics Malaysia. Retrieved February 7, 2026, from https://www.dosm.gov.my/portal-main/release-content/marriage-and-divorce-2024?
+P1008`t[Normal]`tDusseljee-Peute, L. W.P., Jaspers, M. W.M., & Wildenbos, G.A. (2018, March 27). ScienceDirect. Aging barriers influencing mobile health usability for older adults: A literature based framework (MOLD-US). Retrieved February 24, 2026, from https://www.sciencedirect.com/science/article/abs/pii/S1386505618302454?via%3Dihub
+P1009`t[Normal]`tGeeksforgeeks. (2025, April 7). Types of Software Architecture Patterns. GeeksforGeeks. Retrieved April 1, 2026, from https://www.geeksforgeeks.org/software-engineering/types-of-software-architecture-patterns/#1-layered-pattern
+P1010`t[Normal]`tHasan, M. J. (2026, January 17). Business Case Study: Duolingo — Gamifying Education and Building a Habit-Forming Empire. Medium. Retrieved March 31, 2026, from https://muhammadjubairhasan.medium.com/business-case-study-duolingo-gamifying-education-and-building-a-habit-forming-empire-ba1d81411848
+P1011`t[Normal]`tInternational Journal Of Academic Research In Business & Social Sciences. (2024, October 12). The detrimental impact of low birth rates on Malaysia’s accelerated transition to an aged society. International Journal of Academic Research in Business and Social Sciences. Retrieved February 7, 2026, from https://kwpublications.com/papers_submitted/12479/the-detrimental-impact-of-low-birth-rates-on-malaysias-accelerated-transition-to-an-aged-society.pdf
+P1012`t[Normal]`tLee, C.-W., & Chuang, H.-M. (2016, November 16). BMC Med Inform Decis Mak . 2021 Nov 16;21(Suppl 10):273. doi: 10.1186/s12911-021-01626-3. Design of a seniors and Alzheimer's disease caring service platform. PubMed. Retrieved March 10, 2026, from https://pubmed.ncbi.nlm.nih.gov/34781953/
+P1013`t[Normal]`tMalaysia Population Research Hub. (n.d.). Malaysia Will become an Ageing Nation by 2029 Earlier than Predicted. Malaysia Poppulation Research Hub. https://mprh.lppkn.gov.my/malaysia-will-become-an-ageing-nation-by-2029-earlier-than-predicted/
+P1014`t[Normal]`tMelchiorre, M. G., D’Amen, B., Quattrini, S., Lamura, G., Socci, M., & Tchounwou, P. B. (2022, November 10). Health Emergencies, Falls, and Use of Communication Technologies by Older People with Functional and Social Frailty: Ageing in Place in Deprived Areas of Italy. PMC. Retrieved March 10, 2026, from https://pmc.ncbi.nlm.nih.gov/articles/PMC9691100/?
+P1015`t[Normal]`tMigration Survey Report, Malaysia, 2024. (2025, December 18). Department of Statistics Malaysia. Retrieved February 7, 2026, from https://www.dosm.gov.my/portal-main/release-content/migration-survey-report-malaysia-2024
+P1016`t[Normal]`tPatel, S., Hyung Park, Paolo Bonato, Leighton Chan, & Mary Rodgers. (2012, April 20). A review of wearable sensors and systems with application in rehabilitation. Journal of NeuroEngineering and Rehabilitation. Retrieved February 11, 2026, from https://jneuroengrehab.biomedcentral.com/articles/10.1186/1743-0003-9-21
+P1017`t[Normal]`tPew Research Center. (2025, November 20). Demographics of Mobile Device Ownership and Adoption in the United States. Pew Research Center. Retrieved February 24, 2026, from https://www.pewresearch.org/internet/fact-sheet/mobile/
+P1018`t[Normal]`tRashidi, P., & Mihailidis, A. (2013, May). A Survey on Ambient-Assisted Living Tools for Older Adults. IEEE.org. Retrieved March 7, 2026, from https://ieeexplore.ieee.org/document/6399501
+P1019`t[Normal]`tStatista. (2025, November 29). Share of children in total population in Malaysia from 2015 to 2024. Statista. Retrieved February 7, 2026, from https://www.statista.com/statistics/678083/malaysia-children-as-a-percentage-of-the-population/#:~:text=Table_title:%20Share%20of%20children%20in%20total%20population,%7C%20Share%20of%20total%20population:%2024.9%25%20%7C
+P1020`t[Normal]`tVenkatesh, V. (2003). User acceptance of information technology: Toward a unified view Website title: MIS Quarterly. MIS Quarterly. Retrieved February 11, 2026, from https://doi.org/10.2307/30036540
+P1021`t[Normal]`tVlaev, I., King, D., Dazil, A., & Dolan, P. (2019, August 7). Changing health behaviors using financial incentives: a review from behavioral economics. PMC. Retrieved March 10, 2026, from https://pmc.ncbi.nlm.nih.gov/articles/PMC6686221/
+P1022`t[Normal]`tWang, R. (2014, September 13). StudentLife: Assessing mental health, academic performance and behavioral trends of college students using smartphones. UbiComp '14: Proceedings of the 2014 ACM International Joint Conference on Pervasive and Ubiquitous Computing. Retrieved February 11, 2026, from https://dl.acm.org/doi/10.1145/2632048.2632054
+P1023`t[Normal]`tWang, Z., Wang, Y., Zeng, Y., Su, J., & Li, Z. (2025, May 23). An investigation into the acceptance of intelligent care systems: an extended technology acceptance model (TAM). Scientific Reports. Retrieved March 10, 2026, from https://www.nature.com/articles/s41598-025-02746-w?
+P1024`t[Normal]`tWorld Health Organization. (2015). World Health Organization. World report on ageing and health. Retrieved February 24, 2026, from https://iris.who.int/server/api/core/bitstreams/9d69518e-21e4-48c4-980d-8f6125d13aa9/content
+P1025`t[Normal]`tWorld Population Prospects 2022: Summary of Results. (2022). the United Nations. Retrieved February 11, 2026, from https://www.un.org/development/desa/pd/
+P1026`t[Normal]`tStanley, S., Hayes, J. A., Mogan, C., Lloyd-Williams, M., Nwosu, A. C., Vasilica, C. M., & Higginbotham, K. (2026). Digital Legacy in Palliative Care and End-of-Life Care Planning: A Scoping Review. BMJ Supportive & Palliative Care, spcare–2026-006205. https://doi.org/10.1136/spcare-2026-006205
+P1027`t[Normal]`tSupabase. (2026, July 31). Serving Assets from Storage | Supabase Docs. Supabase Docs. Supabase. https://supabase.com/docs/guides/storage/serving/downloads?
+P1028`t[Normal]`tMalaysian Meteorological Department Web Service API. (n.d.). In api.met.gov.my. Retrieved August 2, 2026, from https://api.met.gov.my/
+P1029`t[Normal]`tOpen-Meteo.com. (2026). In Open-meteo.com. https://open-meteo.com/en/docs?
+P1033`t[Normal]`tAndroid Developers. (n.d.). WorkManager overview. Retrieved August 3, 2026, from https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started
+P1034`t[Normal]`tBrevo. (n.d.). Send a transactional email. Retrieved August 3, 2026, from https://developers.brevo.com/docs/send-a-transactional-email
+P1035`t[Normal]`tFlutter. (n.d.). Guide to app architecture. Retrieved August 3, 2026, from https://docs.flutter.dev/app-architecture/guide
+P1036`t[Normal]`tFlutter. (n.d.). local_auth package. Retrieved August 3, 2026, from https://pub.dev/packages/local_auth
+P1037`t[Normal]`tGovernment of Malaysia. (n.d.). Weather API. Retrieved August 3, 2026, from https://developer.data.gov.my/realtime-api/weather
+P1038`t[Normal]`tSupabase. (n.d.). Auth. Retrieved August 3, 2026, from https://supabase.com/docs/guides/auth
+P1039`t[Normal]`tSupabase. (n.d.). Edge Functions. Retrieved August 3, 2026, from https://supabase.com/docs/guides/functions
+P1040`t[Normal]`tSupabase. (n.d.). Row Level Security. Retrieved August 3, 2026, from https://supabase.com/docs/guides/database/postgres/row-level-security
+P1041`t[Normal]`tSupabase. (n.d.). Scheduling Edge Functions. Retrieved August 3, 2026, from https://supabase.com/docs/guides/functions/schedule-functions
+P1042`t[Normal]`tTwilio. (n.d.). Message resource. Retrieved August 3, 2026, from https://www.twilio.com/docs/messaging/api/message-resource
+P1043`t[Normal]`tFlutter. (2026). Accessibility. Retrieved August 5, 2026, from https://docs.flutter.dev/ui/accessibility
+P1044`t[Normal]`tOWASP Foundation. (n.d.). MASWE-0006: Sensitive data stored unencrypted in private storage locations. Retrieved August 5, 2026, from https://mas.owasp.org/MASWE-0006/
+P1045`t[Normal]`tGoogle Play. (n.d.). Use of SMS or Call Log permission groups. Retrieved August 5, 2026, from https://support.google.com/googleplay/android-developer/answer/10208820?hl=en
+P1046`t[Normal]`tAppendices
+P1047`t[Heading 1]`tAppendix A: User Guide
+P1048`t[Heading 2]`tAccount and Setup
+P1049`t[Normal]`tInstall or launch EthernaCare, create an account or continue with Google, complete email confirmation where required, accept the Terms and Conditions, complete the profile, verify the user phone and add a verified primary trusted contact. The first completed setup opens an eight-step guide covering Home, History, Contacts, Rewards, AI Guidance, Legacy Planning, Profile and safety boundaries. The guide can be skipped and replayed later from Profile or Settings. No shared demonstration password is embedded in the application.
+P1050`t[Heading 2]`tDaily Operation
+P1051`t[Normal]`tOpen Home and review Oren's status and the Safety Monitor. Tap Oren when the rolling threshold allows a check-in. Feed and Play change Oren care state but do not count as a safety heartbeat. Use History to inspect successful timestamps, Contacts to manage the verified safety network, Rewards to collect virtual items and Profile to change threshold, escalation and biometric settings. Open Profile > Settings to control local reminders, Oren sounds, text size and reduced motion, replay the feature guide or restore defaults.
+P1052`t[Heading 2]`tEmergency and Legacy Functions
+P1053`t[Normal]`tUse SOS only when a trusted contact should be notified; location is included only when permission and coordinates are available. Use the 999 action only for a real emergency because it opens an explicit call flow. In Legacy Planning, save funeral preferences, safe notes and supported private files, choose the authorised existing primary contact and enable release consent. Never store passwords, PINs, OTPs, recovery phrases or account credentials in Legacy Notes.
+P1054`t[Heading 1]`tAppendix B: Developer Guide
+P1055`t[Heading 2]`tRequired Software
+P1056`t[Normal]`tFlutter/Dart compatible with the project SDK constraint, Android Studio or Visual Studio Code, Android SDK for mobile builds, Visual Studio with Desktop development with C++ for Windows builds, Git, Node.js/npx for the Supabase CLI, and access to the configured Supabase project.
+P1057`t[Heading 2]`tBackend Setup
+P1058`t[Normal]`tApply SQL migrations in supabase/migrations in filename order. Deploy all functions in supabase/functions, configure encrypted Twilio, email, AI and OTP secrets, verify authentication redirect URLs and providers, confirm private Storage policies, and inspect the 15-minute threshold and midnight Legacy Cron jobs. Confirm that production builds omit ENABLE_SAFETY_TESTS, set the final Android application identifier and include only approved platform permissions. Do not commit secret values or include them in screenshots.
+P1059`t[Heading 2]`tVerification
+P1060`t[Normal]`tRun flutter analyze, flutter test --coverage and the required release builds. The latest recorded automated run contains 138 passing tests with 2,515 of 8,208 executable lines covered (30.64 percent). Confirm database migration parity and Edge Function health. Complete physical Android checks for notification permission, background/resume behaviour, biometric success/cancel/retry, GPS capture and real SMS/email receipt. Record provider message IDs and errors without exposing tokens.
+
+TABLE 1 ROWS=13 COLS=3
+R001`tTechnology | Use in EthernaCare | Reason for selection
+R002`tFlutter 3.38.5 / Dart 3.10.4 | Responsive Android, Windows, and web client | One typed codebase with reusable Material widgets and mature test support
+R003`tSupabase Auth | Email/password, 8-digit email confirmation, password recovery, and configured OAuth | Managed sessions integrated with PostgreSQL user identities
+R004`tSupabase PostgreSQL | Profiles, contacts, check-ins, rewards, emergency records, OTPs, and Legacy access state | Relational integrity, constraints, triggers, RPCs, and auditable SQL migrations
+R005`tRow Level Security | Restricts authenticated rows to their owner and protects admin-only reward operations | Database-enforced authorization even when a client request is modified
+R006`tSupabase Storage | Private PDF/JPEG/PNG Legacy documents up to 10 MB | Private buckets, owner folders, and short-lived signed URLs
+R007`tDeno / TypeScript Edge Functions | SMS OTP, emergency SMS, AI guidance, threshold processing, Legacy access/cancellation and daily Legacy processing | Server-side secrets and narrow privileged operations outside the Flutter client
+R008`tSupabase Cron / pg_cron | Runs the threshold worker every 15 minutes and the Legacy worker daily at midnight MYT | Cloud execution continues when the phone is closed or offline
+R009`tPython FastAPI reference worker (non-production) | Readable reference implementation in server/python_legacy_server | Documents the 90-day domain workflow; Supabase Edge Functions are the deployed production workers
+R010`tTwilio and Brevo | SMS delivery and transactional email | Provider APIs with server-side credentials and delivery logs
+R011`tWorkManager and local notifications | Best-effort Android local reminders and notification presentation | Improves local responsiveness without acting as the authoritative SMS scheduler
+R012`tdata.gov.my and Open-Meteo | Malaysia regional weather with coordinate fallback | Official source first, then a resilient public fallback
+R013`tFlutter Test / lints / coverage | Logic, service-boundary, widget, responsive, and regression verification | Repeatable evidence before release builds
+
+TABLE 2 ROWS=9 COLS=3
+R001`tFigure | Current screen to capture | Evidence to show
+R002`t5.2 | Home - Oren and weather | Oren status above the scene, token/shop controls, Feed and Play row, selected toy, and Safety Monitor lower on the page
+R003`t5.3 | Check-in History | Threshold-aware current status and timestamp list without the removed check-in-rate percentage
+R004`t5.4 | Trusted Contacts | Primary-contact indicator, call action, verified phone, and Oren phone-call pose
+R005`t5.5 | Virtual Rewards | Badge and voucher catalogue, Check Reward action, My Badge List, and voucher redeem code
+R006`t5.6 | Profile | Editable threshold, escalation target, phone verification state, copyable Legacy UID, biometrics, feature-guide replay, Settings, and Terms link
+R007`t5.7 | Legacy Planning | Funeral preference selections, authorized existing contact, safe notes warning, secure documents, and owner enable switch
+R008`t5.8 | Legacy Check | UID and primary phone verification, SMS code, preferences access, protected-content status, days remaining or seven-day expiry
+R009`t5.9 | Reward Admin catalogue | Separate admin authentication, create/edit controls, Realtime/manual refresh, and eligible delete action
+
+TABLE 3 ROWS=7 COLS=5
+R001`tID | Context and precondition | Action / data | Expected outcome | Evidence / status
+R002`tAUTH-01 | A first-time user has an unused email address and accepts the current Terms. | Create an account with a valid name, email, and strong password; enter the 8-digit email code. | One auth identity and one public profile are created; setup continues only after confirmation. | Automated boundaries PASS; live email depends on configured SMTP.
+R003`tAUTH-02 | An account already exists for the same normalized email. | Attempt a second registration. | The system does not create a second account and shows a safe existing-account message. | Repository/auth handling PASS.
+R004`tAUTH-03 | A registered user forgot the password. | Request recovery, use the 8-digit recovery code or link, and set a compliant new password. | The recovery session is verified and the new password can be used to sign in. | Automated flow PASS; live email depends on SMTP.
+R005`tAUTH-04 | A user signed in through a configured OAuth provider for the first time. | Complete the provider redirect. | The auth UUID receives a public.users row and Supabase-backed modules load for the same user. | Bootstrap logic and diagnostics PASS.
+R006`tAUTH-05 | A signed-in user enabled biometric session unlock on a supported device. | Close and reopen the app; authenticate or cancel at the biometric prompt. | Successful local authentication unlocks the restored session; cancellation keeps the app locked. | Service tests PASS; physical sensor PENDING PHYSICAL.
+R007`tAUTH-06 | A first-time user has completed the required profile and primary-contact setup. | Step through or skip the guide, reopen it from Profile/Settings, then change reminder, sound, text-size, or reduced-motion settings. | The guide is offered once per account, remains replayable, and device settings persist and apply after navigation or restart. | Guide/settings widget and persistence tests PASS.
+
+TABLE 4 ROWS=7 COLS=5
+R001`tID | Context and precondition | Action / data | Expected outcome | Evidence / status
+R002`tSAFE-01 | The user checked in less than one configured threshold ago. | Tap Oren again. | No duplicate heartbeat is created; status remains current and UI data refreshes. | RPC/fallback logic PASS.
+R003`tSAFE-02 | The threshold has elapsed since the latest heartbeat. | Tap Oren. | One new active check-in is inserted atomically and the rolling inactivity period restarts. | Automated threshold tests PASS.
+R004`tSAFE-03 | One full threshold window has been missed. | Allow the 15-minute server worker and the Android local monitor to evaluate inactivity. | The persisted status becomes not current; a local reminder is shown and no contact escalation occurs. | Logic and worker tests PASS; exact local timing PENDING PHYSICAL.
+R005`tSAFE-04 | Two full threshold windows have been missed and the user phone is verified. | Allow the next server worker evaluation. | One user-reminder SMS is queued/attempted, delivery state is recorded and no check-in is created. | Worker/orchestration PASS; carrier receipt PENDING PHYSICAL.
+R006`tSAFE-05 | Three full threshold windows have been missed and a verified primary contact exists. | Allow the third-stage server evaluation more than once. | One inactivity alert and one primary-contact SMS are queued/attempted; idempotency suppresses duplicate escalation. | Worker/idempotency PASS; carrier receipt PENDING PHYSICAL.
+R007`tSAFE-06 | The user presses manual SOS and grants location. | Confirm the SOS action. | The alert may include a Maps URL and may open the 999 dialer only through explicit user action. | Service/build PASS; GPS and SMS PENDING PHYSICAL.
+
+TABLE 5 ROWS=5 COLS=5
+R001`tID | Context and precondition | Action / data | Expected outcome | Evidence / status
+R002`tCONTACT-01 | A user has fewer than five contacts and enters a new international number. | Request and enter the 6-digit contact OTP, then save. | A recent contact_phone verification allows the owner-scoped insert. | Validation/service tests PASS; SMS PENDING PHYSICAL.
+R003`tCONTACT-02 | The number duplicates an existing contact or the user already has five contacts. | Attempt to save another contact. | The operation is rejected with a meaningful validation message. | Automated validation PASS.
+R004`tCONTACT-03 | A non-primary or unverified phone is entered on Legacy Check. | Submit the Legacy UID and phone. | No protected access is issued and the screen states that the phone is not the verified primary contact. | Legacy response/widget tests PASS.
+R005`tCONTACT-04 | Two contacts exist and ownership of the primary role changes. | Set the second contact as primary. | The atomic database operation leaves exactly one primary contact. | RPC/schema logic PASS.
+
+TABLE 6 ROWS=9 COLS=5
+R001`tID | Context and precondition | Action / data | Expected outcome | Evidence / status
+R002`tOREN-01 | Oren has 65 energy and no action occurs for three complete hours. | Reload Oren state after 3.5 hours. | Energy becomes 62, mood is recalculated, and partial hours are preserved for later decay. | Automated energy tests PASS.
+R003`tOREN-02 | Oren has 15 or less energy and the user owns a toy. | Press Play. | Oren refuses play, remains tired, and does not consume more energy. | Automated service tests PASS.
+R004`tOREN-03 | The user has enough tokens for an unowned toy. | Buy, select, sign out, sign in, and play with the toy. | Tokens decrease once; ownership and selection persist for that user on the device; the correct reaction is shown. | Service/cache tests PASS.
+R005`tREWARD-01 | A user meets a badge goal but has not opened the badge before. | Open the badge and select Collect Badge. | The badge is recorded in My Badge List once. | Service/migration tests PASS.
+R006`tREWARD-02 | A user meets a voucher goal. | Open Check Reward. | Reward details display a user-specific redeem code that remains stable for the earned voucher. | Service-boundary tests PASS.
+R007`tADMIN-01 | An authorized reward admin is signed into the separate admin route. | Create or edit a reward, then observe another catalogue session. | Realtime updates the catalogue; manual refresh retrieves it if the subscription is delayed. | Admin tests PASS; live Realtime should be observed during acceptance.
+R008`tADMIN-02 | A catalogue reward has no earned-user records, then another reward is already earned. | Delete each reward. | The unearned reward can be deleted; the earned reward is preserved or deactivated to protect history. | Admin deletion rules PASS.
+R009`tOREN-04 | Two Oren care or shop actions are initiated almost simultaneously. | Start overlapping Feed/Play or purchase/select operations. | Actions execute serially and both valid energy, token, ownership, and selection changes remain without a lost update. | Automated concurrency regression tests PASS.
+
+TABLE 7 ROWS=8 COLS=5
+R001`tID | Context and precondition | Action / data | Expected outcome | Evidence / status
+R002`tLEGACY-01 | The owner enabled Legacy Checking and the verified primary contact knows the UID and phone. | Verify with the 6-digit SMS code before day 90. | Funeral preferences are available; Legacy Notes and documents remain locked with clear remaining-day information. | Payload/widget tests PASS; SMS PENDING PHYSICAL.
+R003`tLEGACY-02 | The latest check-in reaches 90 days and no release is already active. | Allow the midnight cloud worker to run. | The owner receives a warning email and a 24-hour grace period; the primary contact does not yet receive protected access. | Worker/domain tests PASS; live email acceptance required.
+R004`tLEGACY-03 | The owner is inside the 24-hour grace period. | Check in or use the one-time Cancel Legacy Release link. | The pending release is revoked and protected content stays locked. | Cancellation function/tests PASS.
+R005`tLEGACY-04 | The owner does not cancel within 24 hours and all primary-contact eligibility rules still hold. | Run the next daily worker cycle. | The primary contact receives an email and the seven-day Notes/document window opens. | Worker logic PASS; live email acceptance required.
+R006`tLEGACY-05 | A seven-day window is open and the primary contact completes SMS verification. | View preferences, notes, and a secure document. | Only allowed owner data is returned; the document link is signed and short-lived. | Access filtering/signing tests PASS; end-to-end SMS PENDING PHYSICAL.
+R007`tLEGACY-06 | The seven-day window expires or the owner checks in. | Attempt another verification or document open. | Protected access is denied and stale release state is revoked. | Domain/access tests PASS.
+R008`tLEGACY-07 | The owner uploads a supported or unsupported file. | Try valid PDF/JPEG/PNG, oversized data, and mismatched extension/signature. | Only matching supported files at or below 10 MB are stored privately. | Document validation tests PASS.
+
+TABLE 8 ROWS=5 COLS=5
+R001`tID | Context and precondition | Action / data | Expected outcome | Evidence / status
+R002`tNFR-01 | A mobile web user opens the release build at 390 x 844. | Load and scroll authentication and responsive content. | Viewport metadata is correct, content remains reachable, and no horizontal overflow occurs. | Release/mobile viewport PASS.
+R003`tNFR-02 | A different authenticated user modifies a client request with another user_id. | Attempt to read contacts, check-ins, rewards, notes, or documents. | RLS denies cross-user access. | Policy review and repository boundaries PASS; penetration testing remains future work.
+R004`tNFR-03 | Weather or AI provider is unavailable. | Open Home or AI Guidance. | Cached/fallback state is shown without blocking safety functions. | Automated fallback tests PASS.
+R005`tNFR-04 | An SMS provider stalls or a worker stops while a delivery is marked as processing. | Allow the provider call to exceed its limit or rerun the worker after the stale interval. | The request fails within 12 seconds, records a retryable state, can be reclaimed after five minutes, and rejects unverified recipients or unapproved messages. | Function logic/deployment PASS; live provider failure injection remains an acceptance test.

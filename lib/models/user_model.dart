@@ -10,6 +10,10 @@ class UserModel {
     this.address,
     this.addressState,
     this.addressRegion,
+    this.addressLatitude,
+    this.addressLongitude,
+    this.addressVerifiedAt,
+    this.addressValidationProvider,
     this.bloodType,
     this.inactivityThreshold = 24,
     this.emergencyEscalationTarget = EmergencyEscalationTarget.primaryContact,
@@ -24,6 +28,10 @@ class UserModel {
   final String? address;
   final String? addressState;
   final String? addressRegion;
+  final double? addressLatitude;
+  final double? addressLongitude;
+  final DateTime? addressVerifiedAt;
+  final String? addressValidationProvider;
   final String? bloodType;
   final int inactivityThreshold;
   final String emergencyEscalationTarget;
@@ -41,6 +49,13 @@ class UserModel {
       address: json['address']?.toString(),
       addressState: json['address_state']?.toString(),
       addressRegion: json['address_region']?.toString(),
+      addressLatitude: _asDouble(json['address_latitude']),
+      addressLongitude: _asDouble(json['address_longitude']),
+      addressVerifiedAt: DateTime.tryParse(
+        json['address_verified_at']?.toString() ?? '',
+      ),
+      addressValidationProvider: json['address_validation_provider']
+          ?.toString(),
       bloodType: json['blood_type']?.toString(),
       inactivityThreshold:
           int.tryParse(json['inactivity_threshold']?.toString() ?? '') ?? 24,
@@ -63,10 +78,21 @@ class UserModel {
     if (address != null) 'address': address,
     if (addressState != null) 'address_state': addressState,
     if (addressRegion != null) 'address_region': addressRegion,
+    if (addressLatitude != null) 'address_latitude': addressLatitude,
+    if (addressLongitude != null) 'address_longitude': addressLongitude,
+    if (addressVerifiedAt != null)
+      'address_verified_at': addressVerifiedAt!.toUtc().toIso8601String(),
+    if (addressValidationProvider != null)
+      'address_validation_provider': addressValidationProvider,
     if (bloodType != null) 'blood_type': bloodType,
     'inactivity_threshold': inactivityThreshold,
     'emergency_escalation_target': emergencyEscalationTarget,
     if (termsAcceptedAt != null)
       'terms_accepted_at': termsAcceptedAt!.toIso8601String(),
   };
+
+  static double? _asDouble(Object? value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
 }

@@ -74,6 +74,19 @@ class RewardSnapshot {
   bool isBadgeClaimed(String rewardCode) =>
       claimedBadgeCodes.contains(rewardCode);
 
+  bool isInCollection(RewardCatalogItem item) {
+    if (!earnedCodes.contains(item.code)) return false;
+    return item.isVoucher || isBadgeClaimed(item.code);
+  }
+
+  List<RewardCatalogItem> get collectionItems => catalog
+      .where(isInCollection)
+      .toList(growable: false);
+
+  List<RewardCatalogItem> get goalItems => catalog
+      .where((item) => !isInCollection(item))
+      .toList(growable: false);
+
   RewardCatalogItem? nextReward(int streak) {
     final available =
         catalog

@@ -217,6 +217,7 @@ class InactivityService {
         lastCheckIn: clock(),
         thresholdHours: thresholdHours,
         testMode: true,
+        allowDirectSms: false,
       );
       return InactivityReminderTestResult(
         reminderCount: reminderCount,
@@ -231,6 +232,7 @@ class InactivityService {
     final emergencyResult = await emergencyService.triggerEmergencyDetailed(
       allow999Dialer: false,
       sendAutomatedSms: true,
+      allowDirectSms: false,
       escalationTarget: EmergencyEscalationTarget.primaryContact,
       testMode: true,
     );
@@ -247,12 +249,10 @@ class InactivityService {
     final results = await Future.wait([
       checkinRepository.getLatestCheckin(user.id),
       userRepository.getProfile(user.id),
-      emergencyRepository.getLatestInactivityAlert(user.id),
     ]);
     final checkin = results[0];
     if (checkin == null) return;
     final profile = results[1];
-    final inactivityAlert = results[2];
     final configuredThreshold =
         int.tryParse(profile?['inactivity_threshold']?.toString() ?? '') ?? 24;
     final threshold = configuredThreshold.clamp(1, 168).toInt();
@@ -272,28 +272,12 @@ class InactivityService {
       now: now,
       thresholdHours: threshold,
     );
-    final lastAlert = inactivityAlert == null
-        ? null
-        : DateTime.tryParse(inactivityAlert['triggered_time'].toString());
-    final alertAlreadyRecordedForThisCheckIn =
-        lastAlert != null && !lastAlert.isBefore(lastCheckin);
     final warning = await cache.readMap(_warningCacheKey(user.id));
     final warningForCheckin =
         warning?['last_checkin_at'] == checkin['checkin_time'];
     final lastNotifiedMiss = warningForCheckin
         ? int.tryParse(warning?['last_notified_miss']?.toString() ?? '') ?? 0
         : 0;
-    final escalated = warningForCheckin && warning?['escalated'] == true;
-    var userSmsAccepted =
-        warningForCheckin && warning?['user_sms_accepted'] == true;
-    String? userSmsError;
-    DateTime? userSmsLastAttempt;
-    if (warningForCheckin) {
-      userSmsError = warning?['user_sms_error']?.toString();
-      userSmsLastAttempt = DateTime.tryParse(
-        warning?['user_sms_last_attempt_at']?.toString() ?? '',
-      );
-    }
     var currentNotifiedMiss = lastNotifiedMiss;
     final reminderMiss = missedCheckIns
         .clamp(1, missedCheckInsBeforeEscalation)
@@ -307,78 +291,15 @@ class InactivityService {
       currentNotifiedMiss = reminderMiss;
     }
 
-    if (shouldAttemptUserSms(
-      missedCheckIns: missedCheckIns,
-      userSmsAccepted: userSmsAccepted,
-      now: now,
-      lastAttemptAt: userSmsLastAttempt,
-    )) {
-      userSmsLastAttempt = now;
-      await _saveWarning(
-        userId: user.id,
-        checkInValue: checkin['checkin_time'],
-        lastNotifiedMiss: currentNotifiedMiss,
-        escalated: escalated,
-        userSmsAccepted: false,
-        userSmsError: userSmsError,
-        userSmsLastAttemptAt: now,
-      );
-      final smsResult = await emergencyService.sendUserInactivityReminder(
-        lastCheckIn: lastCheckin,
-        thresholdHours: threshold,
-        allowDirectSms: false,
-      );
-      userSmsAccepted = smsResult.accepted;
-      userSmsError = smsResult.error;
-    }
-
-    if (missedCheckIns < missedCheckInsBeforeEscalation) {
-      await _saveWarning(
-        userId: user.id,
-        checkInValue: checkin['checkin_time'],
-        lastNotifiedMiss: currentNotifiedMiss,
-        escalated: false,
-        userSmsAccepted: userSmsAccepted,
-        userSmsError: userSmsError,
-        userSmsLastAttemptAt: userSmsLastAttempt,
-      );
-      return;
-    }
-
-    if (!shouldEscalateToTrustedContact(
-      missedCheckIns: missedCheckIns,
-      alreadyEscalated: escalated,
-      alertAlreadyRecordedForCheckIn: alertAlreadyRecordedForThisCheckIn,
-    )) {
-      await _saveWarning(
-        userId: user.id,
-        checkInValue: checkin['checkin_time'],
-        lastNotifiedMiss: currentNotifiedMiss,
-        escalated: true,
-        userSmsAccepted: userSmsAccepted,
-        userSmsError: userSmsError,
-        userSmsLastAttemptAt: userSmsLastAttempt,
-      );
-      return;
-    }
-
-    final result = await emergencyService.triggerEmergencyDetailed(
-      allow999Dialer: false,
-      sendAutomatedSms: true,
-      alertStatus: 'inactivity_triggered',
-    );
+    // The scheduled Supabase worker owns all automatic SMS and trusted-contact
+    // escalation. The phone only displays the local reminder when it is awake.
     await _saveWarning(
       userId: user.id,
       checkInValue: checkin['checkin_time'],
       lastNotifiedMiss: currentNotifiedMiss,
-      escalated: result.alertRecorded,
-      userSmsAccepted: userSmsAccepted,
-      userSmsError: userSmsError,
-      userSmsLastAttemptAt: userSmsLastAttempt,
+      escalated: false,
+      userSmsAccepted: false,
     );
-    if (result.official999Selected) {
-      await notificationService.showOfficial999EscalationNotice();
-    }
   }
 
   Future<int> _currentThresholdHours() async {

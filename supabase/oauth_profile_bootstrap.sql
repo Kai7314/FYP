@@ -39,8 +39,8 @@ begin
     display_name := 'EthernaCare User';
   end if;
 
-  if char_length(display_name) > 50 then
-    display_name := btrim(substring(display_name from 1 for 50));
+  if char_length(display_name) > 100 then
+    display_name := 'EthernaCare User';
   end if;
 
   return display_name;

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fyp/main.dart' as app;
+import 'package:fyp/core/constants/colors.dart';
 import 'package:fyp/core/routes/app_routes.dart';
 import 'package:fyp/core/theme/app_theme.dart';
 import 'package:fyp/models/ai_chat_message.dart';
@@ -23,7 +24,6 @@ import 'package:fyp/businessLogicLayer/providers/auth_provider.dart';
 import 'package:fyp/presentation/screen/admin/admin_auth_gate.dart';
 import 'package:fyp/presentation/screen/admin/admin_reward_catalog_screen.dart';
 import 'package:fyp/presentation/screen/auth/login_screen.dart';
-import 'package:fyp/presentation/screen/auth/tutorial_screen.dart';
 import 'package:fyp/presentation/screen/contacts/add_contact_dialog.dart';
 import 'package:fyp/presentation/screen/home/home_screen.dart';
 import 'package:fyp/presentation/screen/home/pet_button.dart';
@@ -31,8 +31,10 @@ import 'package:fyp/presentation/screen/home/virtual_pet_widget.dart';
 import 'package:fyp/presentation/screen/legal/terms_and_conditions_screen.dart';
 import 'package:fyp/presentation/screen/planning/legacy_check_screen.dart';
 import 'package:fyp/presentation/screen/profile/profile_screen.dart';
+import 'package:fyp/presentation/screen/rewards/reward_collection_screen.dart';
 import 'package:fyp/presentation/widgets/custom_button.dart';
 import 'package:fyp/presentation/widgets/error_dialog.dart';
+import 'package:fyp/presentation/widgets/feature_guide_overlay.dart';
 import 'package:fyp/presentation/widgets/guidance_sheet.dart';
 import 'package:fyp/presentation/widgets/loading_indicator.dart';
 import 'package:fyp/presentation/widgets/premium_shell.dart';
@@ -198,11 +200,13 @@ void main() {
     expect(decayed.mood, 'Tired');
   });
 
-  test('tutorial screen is available for first login guidance', () {
-    expect(TutorialScreen, isNotNull);
+  test('live feature guide is available for first login guidance', () {
+    expect(FeatureGuideOverlay, isNotNull);
   });
 
-  testWidgets('tutorial screen renders the first login guide', (tester) async {
+  testWidgets('feature guide keeps the current app screen visible', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -210,14 +214,57 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(
-      MaterialApp(home: TutorialScreen(onComplete: () {})),
-    );
+    const steps = [
+      FeatureGuideStep(
+        pageIndex: 0,
+        pageLabel: 'Home',
+        title: 'Meet Oren',
+        description: 'Use the real Home screen.',
+        icon: Icons.pets_outlined,
+        color: AppColors.primary,
+      ),
+      FeatureGuideStep(
+        pageIndex: 1,
+        pageLabel: 'History',
+        title: 'Review check-ins',
+        description: 'Use the real History screen.',
+        icon: Icons.history,
+        color: AppColors.blue,
+      ),
+    ];
+    var currentStep = 0;
+
+    await tester.pumpWidget(MaterialApp(
+      home: StatefulBuilder(
+        builder: (context, setState) => Stack(
+          children: [
+            const Scaffold(body: Text('Current live app content')),
+            FeatureGuideOverlay(
+              steps: steps,
+              currentStep: currentStep,
+              onNext: () => setState(() => currentStep += 1),
+              onBack: currentStep == 0
+                  ? null
+                  : () => setState(() => currentStep -= 1),
+              onSkip: () {},
+            ),
+          ],
+        ),
+      ),
+    ));
     await tester.pump();
 
-    expect(find.text('Quick Guide'), findsOneWidget);
+    expect(find.text('Current live app content'), findsOneWidget);
+    expect(find.text('Live Home screen'), findsOneWidget);
     expect(find.text('Meet Oren'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('feature-guide-next')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Current live app content'), findsOneWidget);
+    expect(find.text('Live History screen'), findsOneWidget);
+    expect(find.text('Review check-ins'), findsOneWidget);
   });
 
   testWidgets('Terms document can be reviewed and explicitly accepted', (
@@ -698,6 +745,13 @@ void main() {
           body: EditProfileDialog(
             profile: {
               'name': 'Kai Heng',
+              'address': '12 Jalan Sutera 1',
+              'address_state': 'Johor',
+              'address_region': 'Johor Bahru',
+              'address_latitude': 1.4927,
+              'address_longitude': 103.7414,
+              'address_verified_at': '2026-08-05T04:30:00.000Z',
+              'address_validation_provider': 'platform_geocoder',
               'blood_type': 'O+',
               'inactivity_threshold': 24,
             },
@@ -709,6 +763,68 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.byType(EditProfileDialog), findsNothing);
+  });
+
+  testWidgets('profile dialog preserves an unchanged legacy address', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: EditProfileDialog(
+            profile: {
+              'name': 'Kai Heng',
+              'address': '12 Jalan Sutera 1',
+              'address_state': 'Johor',
+              'address_region': 'Johor Bahru',
+              'blood_type': 'O+',
+              'inactivity_threshold': 24,
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EditProfileDialog), findsNothing);
+  });
+
+  testWidgets('profile name shows an error without truncating long input', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: EditProfileDialog(
+            profile: {
+              'name': 'Kai Heng',
+              'address': '12 Jalan Sutera 1',
+              'address_state': 'Johor',
+              'address_region': 'Johor Bahru',
+              'blood_type': 'O+',
+              'inactivity_threshold': 24,
+            },
+          ),
+        ),
+      ),
+    );
+
+    final nameField = find.byType(TextFormField).first;
+    final oversizedName = List.filled(101, 'A').join();
+    await tester.enterText(nameField, oversizedName);
+    await tester.pump();
+
+    final field = tester.widget<TextFormField>(nameField);
+    expect(field.controller?.text, oversizedName);
+    expect(
+      find.text('Name must not exceed 100 characters.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    expect(find.byType(EditProfileDialog), findsOneWidget);
   });
 
   test('streak calculation counts consecutive unique days', () {
@@ -745,6 +861,100 @@ void main() {
       'EC-1234ABCD-5678EF90',
     );
     expect(restored.nextReward(3)?.code, 'oren_companion_badge');
+  });
+
+  test('claimed badges and earned vouchers move into reward collection', () {
+    const badge = RewardCatalogItem(
+      code: 'badge-one',
+      title: 'First Badge',
+      sponsor: 'EthernaCare',
+      description: 'A collected badge.',
+      milestoneDays: 1,
+      rewardKind: 'virtual',
+      catalogVersion: 1,
+    );
+    const voucher = RewardCatalogItem(
+      code: 'voucher-one',
+      title: 'Wellness Voucher',
+      sponsor: 'EthernaCare',
+      description: 'A virtual voucher.',
+      milestoneDays: 2,
+      rewardKind: 'voucher',
+      catalogVersion: 1,
+      voucherValue: 'RM 5',
+    );
+    const pendingBadge = RewardCatalogItem(
+      code: 'badge-pending',
+      title: 'Pending Badge',
+      sponsor: 'EthernaCare',
+      description: 'An earned badge waiting to be collected.',
+      milestoneDays: 3,
+      rewardKind: 'virtual',
+      catalogVersion: 1,
+    );
+    final snapshot = RewardSnapshot(
+      catalog: const [badge, voucher, pendingBadge],
+      earnedCodes: const {'badge-one', 'voucher-one', 'badge-pending'},
+      claimedBadgeCodes: const {'badge-one'},
+      redemptionCodes: const {'voucher-one': 'EC-1234ABCD-5678EF90'},
+      catalogVersion: 1,
+      syncedAt: DateTime(2026, 8, 5),
+    );
+
+    expect(
+      snapshot.collectionItems.map((item) => item.code),
+      orderedEquals(['badge-one', 'voucher-one']),
+    );
+    expect(
+      snapshot.goalItems.map((item) => item.code),
+      orderedEquals(['badge-pending']),
+    );
+  });
+
+  testWidgets('reward collection shows badge and voucher details', (
+    tester,
+  ) async {
+    const badge = RewardCatalogItem(
+      code: 'badge-one',
+      title: 'First Badge',
+      sponsor: 'EthernaCare',
+      description: 'A collected badge.',
+      milestoneDays: 1,
+      rewardKind: 'virtual',
+      catalogVersion: 1,
+    );
+    const voucher = RewardCatalogItem(
+      code: 'voucher-one',
+      title: 'Wellness Voucher',
+      sponsor: 'EthernaCare',
+      description: 'A virtual voucher.',
+      milestoneDays: 2,
+      rewardKind: 'voucher',
+      catalogVersion: 1,
+      voucherValue: 'RM 5',
+    );
+    final snapshot = RewardSnapshot(
+      catalog: const [badge, voucher],
+      earnedCodes: const {'badge-one', 'voucher-one'},
+      claimedBadgeCodes: const {'badge-one'},
+      redemptionCodes: const {'voucher-one': 'EC-1234ABCD-5678EF90'},
+      catalogVersion: 1,
+      syncedAt: DateTime(2026, 8, 5),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: RewardCollectionScreen(snapshot: snapshot),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reward Collection'), findsOneWidget);
+    expect(find.text('Vouchers'), findsOneWidget);
+    expect(find.text('Badges'), findsOneWidget);
+    expect(find.text('Wellness Voucher'), findsOneWidget);
+    expect(find.text('First Badge'), findsOneWidget);
   });
 
   test('fallback rewards remain automatic virtual badge unlocks', () {
@@ -833,6 +1043,14 @@ void main() {
   test('validation rules enforce account and contact limits', () {
     expect(ContactRepository.maxContacts, 5);
     expect(AppValidators.displayName('A'), isNotNull);
+    expect(
+      AppValidators.displayName(List.filled(100, 'A').join()),
+      isNull,
+    );
+    expect(
+      AppValidators.displayName(List.filled(101, 'A').join()),
+      'Name must not exceed 100 characters.',
+    );
     expect(
       AppValidators.registrationPassword(
         'weakpass',

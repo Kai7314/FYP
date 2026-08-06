@@ -9,8 +9,16 @@ class LocationService {
   }
 
   Future<Position?> getCurrentPosition() async {
-    if (!await _canAccessLocation()) return null;
-    return _requestCurrentPosition();
+    try {
+      if (!await _canAccessLocation()) return null;
+      try {
+        return await _requestCurrentPosition();
+      } catch (_) {
+        return await Geolocator.getLastKnownPosition();
+      }
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<bool> _canAccessLocation() async {

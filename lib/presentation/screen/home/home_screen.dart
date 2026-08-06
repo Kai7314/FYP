@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -21,17 +22,97 @@ import '../contacts/contacts_screen.dart';
 import '../profile/profile_screen.dart';
 import '../rewards/rewards_screen.dart';
 import '../../widgets/premium_shell.dart';
+import '../../widgets/feature_guide_overlay.dart';
 import 'virtual_pet_widget.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({
+    super.key,
+    this.startFeatureGuide = false,
+    this.onFeatureGuideComplete,
+  });
+
+  final bool startFeatureGuide;
+  final Future<void> Function()? onFeatureGuideComplete;
+
+  static const showSafetyTestTools = bool.fromEnvironment(
+    'ENABLE_SAFETY_TESTS',
+    defaultValue: kDebugMode,
+  );
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  static const featureGuideSteps = [
+    FeatureGuideStep(
+      pageIndex: 0,
+      pageLabel: 'Home',
+      title: 'Meet Oren',
+      description:
+          'Tap Oren on this page when your check-in is due. Feed Oren or play with an owned item between check-ins.',
+      icon: Icons.pets_outlined,
+      color: AppColors.primary,
+    ),
+    FeatureGuideStep(
+      pageIndex: 0,
+      pageLabel: 'Home',
+      title: 'Your safety heartbeat',
+      description:
+          'The live status follows your inactivity threshold. Missed windows can remind you and later alert your primary contact.',
+      icon: Icons.health_and_safety_outlined,
+      color: AppColors.accent,
+    ),
+    FeatureGuideStep(
+      pageIndex: 1,
+      pageLabel: 'History',
+      title: 'Review check-ins',
+      description:
+          'History shows your recorded check-ins. The newest successful check-in starts a new safety window.',
+      icon: Icons.history,
+      color: AppColors.blue,
+    ),
+    FeatureGuideStep(
+      pageIndex: 2,
+      pageLabel: 'Contacts',
+      title: 'Manage trusted contacts',
+      description:
+          'Add verified contacts and choose one primary contact for SOS, inactivity alerts, and protected Legacy access.',
+      icon: Icons.people_outline,
+      color: AppColors.purple,
+    ),
+    FeatureGuideStep(
+      pageIndex: 3,
+      pageLabel: 'Rewards',
+      title: 'Collect virtual rewards',
+      description:
+          'Check streak goals, collect badges or vouchers, and open earned rewards to view their details and redeem codes.',
+      icon: Icons.card_giftcard_outlined,
+      color: AppColors.blue,
+    ),
+    FeatureGuideStep(
+      pageIndex: 4,
+      pageLabel: 'Profile',
+      title: 'Profile and Legacy Planning',
+      description:
+          'Manage safety details, your Legacy UID, funeral preferences, protected notes, documents, and biometric security here.',
+      icon: Icons.person_outline,
+      color: AppColors.purple,
+    ),
+    FeatureGuideStep(
+      pageIndex: 4,
+      pageLabel: 'Profile',
+      title: 'Settings and help',
+      description:
+          'Open Settings for reminders, Oren sounds, accessibility, and security. You can restart this live guide from Profile anytime.',
+      icon: Icons.settings_outlined,
+      color: AppColors.primary,
+    ),
+  ];
+
   final dashboardService = DashboardService();
+  final checkinService = CheckinService();
   final rewardService = RewardService();
   final weatherService = WeatherService();
   final orenCareService = OrenCareService();
@@ -53,8 +134,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? orenResetTimer;
   String? activeToyId;
   String? activeToyAsset;
-  bool testReminderBusy = false;
-  int testReminderCount = 0;
   int inactivityNotificationCount = 0;
   bool inactivityEscalated = false;
   bool inactivityUserSmsAccepted = false;
@@ -62,15 +141,26 @@ class _HomeScreenState extends State<HomeScreen> {
   int inactivityThresholdHours = 24;
   Timer? thresholdRefreshTimer;
   DateTime? lastInactivityRefreshAt;
-  int dataRefreshTick = 0;
+  int contactsRefreshTick = 0;
+  int rewardsRefreshTick = 0;
+  int profileRefreshTick = 0;
   int historyRefreshTick = 0;
+  int dashboardRequestId = 0;
+  bool featureGuideActive = false;
+  int featureGuideStep = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadDashboard();
     _loadOrenCare();
     unawaited(_refreshInactivityMonitor());
+    if (widget.startFeatureGuide) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startFeatureGuide();
+      });
+    }
     thresholdRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (!mounted) return;
       setState(() {});
@@ -86,6 +176,24 @@ class _HomeScreenState extends State<HomeScreen> {
         unawaited(_refreshInactivityMonitor());
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.startFeatureGuide && widget.startFeatureGuide) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startFeatureGuide();
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    unawaited(_loadDashboard());
+    unawaited(_refreshOrenEnergy());
+    unawaited(_refreshInactivityMonitor());
   }
 
   Future<void> _refreshInactivityMonitor() async {
@@ -104,11 +212,16 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => orenCare = state);
   }
 
-  Future<void> _loadInactivityStatus(DateTime? latestCheckIn) async {
+  Future<void> _loadInactivityStatus(
+    DateTime? latestCheckIn, {
+    int? requestId,
+  }) async {
     final status = await inactivityService.getCurrentStatus(
       latestCheckIn: latestCheckIn,
     );
-    if (!mounted) return;
+    if (!mounted || (requestId != null && requestId != dashboardRequestId)) {
+      return;
+    }
     setState(() {
       inactivityNotificationCount = status.notificationCount;
       inactivityEscalated = status.escalated;
@@ -133,12 +246,27 @@ class _HomeScreenState extends State<HomeScreen> {
       final careState = await orenCareService.pet();
       if (mounted) setState(() => orenCare = careState);
       unawaited(orenSoundService.playPet());
-      final created = await CheckinService().addCheckin();
+      final checkedAt = DateTime.now();
+      final created = await checkinService.addCheckin();
+      if (created && mounted) {
+        setState(() {
+          lastCheckin = checkedAt;
+          inactivityNotificationCount = 0;
+          inactivityEscalated = false;
+          inactivityUserSmsAccepted = false;
+          inactivityUserSmsError = null;
+          historyRefreshTick += 1;
+        });
+      }
       final rewardedState = await orenCareService.awardDailyCheckInTokens();
       final tokenAwarded = rewardedState.tokens > careState.tokens;
       _showTemporaryOrenState(rewardedState);
       if (created) {
-        await RewardService().checkReward();
+        try {
+          await RewardService().checkReward();
+        } catch (_) {
+          // The safety check-in succeeded; rewards can synchronize later.
+        }
       }
       await _loadDashboard();
       if (!mounted) return;
@@ -223,6 +351,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _startFeatureGuide() {
+    _showFeatureGuideStep(0, activate: true);
+  }
+
+  void _showFeatureGuideStep(int step, {bool activate = false}) {
+    final nextStep = step.clamp(0, featureGuideSteps.length - 1).toInt();
+    final pageIndex = featureGuideSteps[nextStep].pageIndex;
+    setState(() {
+      featureGuideActive = activate || featureGuideActive;
+      featureGuideStep = nextStep;
+      selectedIndex = pageIndex;
+      if (pageIndex == 1) historyRefreshTick += 1;
+      if (pageIndex == 2) contactsRefreshTick += 1;
+      if (pageIndex == 3) rewardsRefreshTick += 1;
+      if (pageIndex == 4) profileRefreshTick += 1;
+    });
+    if (pageIndex == 0) unawaited(_loadDashboard());
+  }
+
+  Future<void> _finishFeatureGuide() async {
+    if (!featureGuideActive) return;
+    setState(() => featureGuideActive = false);
+    try {
+      await widget.onFeatureGuideComplete?.call();
+    } catch (error) {
+      if (mounted) _showMessage('Could not save guide progress: $error');
+    }
+  }
+
+  void _nextFeatureGuideStep() {
+    if (featureGuideStep == featureGuideSteps.length - 1) {
+      unawaited(_finishFeatureGuide());
+      return;
+    }
+    _showFeatureGuideStep(featureGuideStep + 1);
+  }
+
   Future<void> _showOrenShop() async {
     var sheetState = orenCare;
     await showModalBottomSheet<void>(
@@ -287,17 +452,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadDashboard() async {
+    final requestId = ++dashboardRequestId;
     final cachedResults = await Future.wait([
       dashboardService.loadCached(),
       rewardService.loadCached(),
       weatherService.loadCached(),
+      checkinService.getLatestCachedCheckinTime(),
     ]);
-    if (!mounted) return;
+    if (!mounted || requestId != dashboardRequestId) return;
     final cachedDashboard = cachedResults[0] as DashboardSnapshot?;
     if (cachedDashboard != null) {
       _applyDashboard(cachedDashboard);
-      await _loadInactivityStatus(cachedDashboard.lastCheckin);
     }
+    final cachedCheckIn = cachedResults[3] as DateTime?;
+    if (cachedCheckIn != null &&
+        (lastCheckin == null || cachedCheckIn.isAfter(lastCheckin!))) {
+      setState(() => lastCheckin = cachedCheckIn);
+    }
+    if (cachedDashboard != null || cachedCheckIn != null) {
+      await _loadInactivityStatus(
+        lastCheckin,
+        requestId: requestId,
+      );
+    }
+    if (!mounted || requestId != dashboardRequestId) return;
     setState(() {
       rewardSnapshot = cachedResults[1] as RewardSnapshot?;
       weather = cachedResults[2] as WeatherSnapshot?;
@@ -309,17 +487,18 @@ class _HomeScreenState extends State<HomeScreen> {
         rewardService.synchronize(),
         weatherService.getCurrentWeather(),
       ]);
-      if (!mounted) return;
+      if (!mounted || requestId != dashboardRequestId) return;
       final dashboard = results[0] as DashboardSnapshot;
       _applyDashboard(dashboard);
-      await _loadInactivityStatus(dashboard.lastCheckin);
+      await _loadInactivityStatus(lastCheckin, requestId: requestId);
+      if (!mounted || requestId != dashboardRequestId) return;
       setState(() {
         rewardSnapshot = results[1] as RewardSnapshot;
         weather = results[2] as WeatherSnapshot?;
         loadError = null;
       });
     } catch (_) {
-      if (mounted) {
+      if (mounted && requestId == dashboardRequestId) {
         setState(() => loadError = 'Unable to refresh dashboard data.');
       }
     }
@@ -329,7 +508,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() {
       userName = snapshot.userName;
-      lastCheckin = snapshot.lastCheckin;
+      final refreshedCheckIn = snapshot.lastCheckin;
+      if (refreshedCheckIn != null &&
+          (lastCheckin == null || refreshedCheckIn.isAfter(lastCheckin!))) {
+        lastCheckin = refreshedCheckIn;
+      }
       streak = snapshot.streak;
       emergencyStatus = snapshot.emergencyStatus;
       latestEmergencyAlertTime = snapshot.latestEmergencyAlertTime;
@@ -341,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final action = await showDialog<_SosAction>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         backgroundColor: AppColors.glassStrong,
         icon: const Icon(Icons.sos, color: AppColors.danger, size: 40),
         title: const Text('Emergency help'),
@@ -362,7 +545,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: AppColors.danger,
                   minimumSize: const Size.fromHeight(50),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ),
@@ -376,7 +559,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   minimumSize: const Size.fromHeight(50),
                   side: const BorderSide(color: AppColors.danger),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ),
@@ -405,6 +588,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final result = await EmergencyService().triggerEmergencyDetailed(
         openPrimarySmsComposer: false,
         sendAutomatedSms: true,
+        allowDirectSms: false,
         allow999Dialer: true,
       );
       if (!mounted) return;
@@ -443,61 +627,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _triggerInactivityReminderTest() async {
-    if (testReminderBusy) return;
-    setState(() => testReminderBusy = true);
-    try {
-      final result = await InactivityService().triggerReminderTest(
-        currentCount: testReminderCount,
-      );
-      if (!mounted) return;
-      setState(() => testReminderCount = result.reminderCount);
-      final userSmsResult = result.userSmsResult;
-      if (userSmsResult != null) {
-        if (userSmsResult.sent) {
-          _showMessage(
-            'Second test reminder triggered. TEST SMS sent to your verified phone.',
-          );
-        } else if (userSmsResult.queued) {
-          _showMessage(
-            'Second test reminder triggered. TEST SMS queued for your verified phone.',
-          );
-        } else {
-          _showMessage(
-            'Second test reminder triggered, but the user SMS failed: ${userSmsResult.error ?? 'Verify your profile phone and try again.'}',
-          );
-        }
-        return;
-      }
-      final emergencyResult = result.emergencyResult;
-      if (emergencyResult == null) {
-        _showMessage('First test reminder triggered. No SMS sent yet.');
-        return;
-      }
-      _showMessage(_testReminderResultMessage(emergencyResult));
-    } catch (error) {
-      if (mounted) {
-        _showMessage('Could not run reminder test: $error');
-      }
-    } finally {
-      if (mounted) setState(() => testReminderBusy = false);
-    }
-  }
-
-  String _testReminderResultMessage(EmergencyTriggerResult result) {
-    if (!result.alertRecorded) {
-      return 'Third test reminder triggered, but no SMS was sent. Add a primary emergency contact and try again.';
-    }
-    if (result.autoSmsSent > 0) {
-      return 'Third test reminder triggered. Automated TEST SMS sent to your primary contact.';
-    }
-    final error = result.autoSmsError;
-    if (error != null && error.trim().isNotEmpty) {
-      return 'Third test reminder triggered, but the TEST SMS failed: $error';
-    }
-    return 'Third test reminder triggered. The TEST SMS is queued for delivery.';
-  }
-
   String _emergencyResultMessage(EmergencyTriggerResult result) {
     if (result.official999Selected) {
       return result.dialerOpened
@@ -505,14 +634,18 @@ class _HomeScreenState extends State<HomeScreen> {
           : 'Emergency alert recorded. Call 999 directly for immediate help.';
     }
     if (result.autoSmsSent > 0) {
-      return 'Emergency alert recorded. Automated SMS sent to your primary contact.';
+      return result.locationIncluded
+          ? 'Emergency alert recorded. Automated SMS and location link sent to your primary contact.'
+          : 'Emergency alert recorded and SMS sent, but GPS location was unavailable.';
     }
     if (result.autoSmsAttempted) {
       final error = result.autoSmsError;
       if (error != null && error.trim().isNotEmpty) {
         return 'Emergency alert recorded, but automated SMS did not send: $error';
       }
-      return 'Emergency alert recorded. SMS is queued for automated delivery.';
+      return result.locationIncluded
+          ? 'Emergency alert recorded. SMS with the location link is queued for automated delivery.'
+          : 'Emergency alert recorded. SMS is queued, but GPS location was unavailable.';
     }
     if (result.primarySmsComposerOpened) {
       return 'Emergency alert recorded. SMS composer opened for your primary contact.';
@@ -555,6 +688,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     orenResetTimer?.cancel();
     thresholdRefreshTimer?.cancel();
     unawaited(orenSoundService.dispose());
@@ -586,9 +720,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onOrenInfo: _showOrenHelp,
         onSos: _triggerSos,
         onTestSms: _testPrimarySms,
-        onTestInactivityAlarm: _triggerInactivityReminderTest,
-        testReminderBusy: testReminderBusy,
-        testReminderCount: testReminderCount,
+        showSafetyTestTools: HomeScreen.showSafetyTestTools,
         inactivityNotificationCount: inactivityNotificationCount,
         inactivityEscalated: inactivityEscalated,
         inactivityUserSmsAccepted: inactivityUserSmsAccepted,
@@ -597,60 +729,81 @@ class _HomeScreenState extends State<HomeScreen> {
         onRefresh: _loadDashboard,
       ),
       CheckinHistoryScreen(refreshVersion: historyRefreshTick),
-      ContactsScreen(key: ValueKey('contacts-$dataRefreshTick')),
-      RewardsScreen(key: ValueKey('rewards-$dataRefreshTick')),
-      ProfileScreen(key: ValueKey('profile-$dataRefreshTick')),
+      ContactsScreen(key: ValueKey('contacts-$contactsRefreshTick')),
+      RewardsScreen(key: ValueKey('rewards-$rewardsRefreshTick')),
+      ProfileScreen(
+        key: ValueKey('profile-$profileRefreshTick'),
+        onOpenFeatureGuide: _startFeatureGuide,
+      ),
     ];
 
-    return PremiumScaffold(
-      padding: EdgeInsets.zero,
-      safeAreaBottom: false,
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-        child: GlassPanel(
+    return Stack(
+      children: [
+        PremiumScaffold(
           padding: EdgeInsets.zero,
-          color: Colors.white.withValues(alpha: .84),
-          child: NavigationBar(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: (value) {
-              setState(() {
-                selectedIndex = value;
-                dataRefreshTick += 1;
-                if (value == 1) historyRefreshTick += 1;
-              });
-              if (value == 0) _loadDashboard();
-            },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'Home',
+          safeAreaBottom: false,
+          bottomNavigationBar: SafeArea(
+            minimum: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+            child: GlassPanel(
+              padding: EdgeInsets.zero,
+              color: Colors.white.withValues(alpha: .84),
+              child: NavigationBar(
+                selectedIndex: selectedIndex,
+                onDestinationSelected: (value) {
+                  setState(() {
+                    selectedIndex = value;
+                    if (value == 1) historyRefreshTick += 1;
+                    if (value == 2) contactsRefreshTick += 1;
+                    if (value == 3) rewardsRefreshTick += 1;
+                    if (value == 4) profileRefreshTick += 1;
+                  });
+                  if (value == 0) _loadDashboard();
+                },
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.home_outlined),
+                    selectedIcon: Icon(Icons.home_rounded),
+                    label: 'Home',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.check_circle_outline),
+                    selectedIcon: Icon(Icons.check_circle),
+                    label: 'History',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.people_outline),
+                    selectedIcon: Icon(Icons.people),
+                    label: 'Contacts',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.card_giftcard_outlined),
+                    selectedIcon: Icon(Icons.card_giftcard),
+                    label: 'Rewards',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.person_outline),
+                    selectedIcon: Icon(Icons.person),
+                    label: 'Profile',
+                  ),
+                ],
               ),
-              NavigationDestination(
-                icon: Icon(Icons.check_circle_outline),
-                selectedIcon: Icon(Icons.check_circle),
-                label: 'History',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.people_outline),
-                selectedIcon: Icon(Icons.people),
-                label: 'Contacts',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.card_giftcard_outlined),
-                selectedIcon: Icon(Icons.card_giftcard),
-                label: 'Rewards',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'Profile',
-              ),
-            ],
+            ),
           ),
+          child: IndexedStack(index: selectedIndex, children: pages),
         ),
-      ),
-      child: IndexedStack(index: selectedIndex, children: pages),
+        if (featureGuideActive)
+          Positioned.fill(
+            child: FeatureGuideOverlay(
+              steps: featureGuideSteps,
+              currentStep: featureGuideStep,
+              onNext: _nextFeatureGuideStep,
+              onBack: featureGuideStep == 0
+                  ? null
+                  : () => _showFeatureGuideStep(featureGuideStep - 1),
+              onSkip: () => unawaited(_finishFeatureGuide()),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -680,9 +833,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.onOrenInfo,
     required this.onSos,
     required this.onTestSms,
-    required this.onTestInactivityAlarm,
-    required this.testReminderBusy,
-    required this.testReminderCount,
+    required this.showSafetyTestTools,
     required this.inactivityNotificationCount,
     required this.inactivityEscalated,
     required this.inactivityUserSmsAccepted,
@@ -712,9 +863,7 @@ class _HomeDashboard extends StatelessWidget {
   final VoidCallback onOrenInfo;
   final VoidCallback onSos;
   final VoidCallback onTestSms;
-  final VoidCallback onTestInactivityAlarm;
-  final bool testReminderBusy;
-  final int testReminderCount;
+  final bool showSafetyTestTools;
   final int inactivityNotificationCount;
   final bool inactivityEscalated;
   final bool inactivityUserSmsAccepted;
@@ -854,146 +1003,221 @@ class _HomeDashboard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: Colors.white,
-                    child: Icon(Icons.workspace_premium_outlined),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          _CenteredHomeSection(
+            child: Column(
+              children: [
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                nextReward?.title ?? 'All rewards earned',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
+                        const CircleAvatar(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.white,
+                          child: Icon(Icons.workspace_premium_outlined),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      nextReward?.title ??
+                                          'All rewards earned',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    nextReward == null
+                                        ? '$streak days'
+                                        : '$streak/${nextReward.milestoneDays} days',
+                                    style: const TextStyle(
+                                      color: AppColors.muted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              LinearProgressIndicator(
+                                value: rewardProgress,
+                                minHeight: 8,
+                                borderRadius: BorderRadius.circular(8),
+                                backgroundColor: AppColors.surface,
+                                color: AppColors.primary,
+                              ),
+                              if (nextReward != null) ...[
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Virtual badge unlocks automatically',
+                                  style: TextStyle(
+                                    color: AppColors.muted,
+                                    fontSize: 11,
+                                  ),
                                 ),
-                              ),
-                            ),
-                            Text(
-                              nextReward == null
-                                  ? '$streak days'
-                                  : '$streak/${nextReward.milestoneDays} days',
-                              style: const TextStyle(
-                                color: AppColors.muted,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: rewardProgress,
-                          minHeight: 8,
-                          borderRadius: BorderRadius.circular(8),
-                          backgroundColor: AppColors.surface,
-                          color: AppColors.primary,
-                        ),
-                        if (nextReward != null) ...[
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Virtual badge unlocks automatically',
-                            style: TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 11,
-                            ),
+                              ],
+                            ],
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          const _ScrollCue(),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: checkInCurrent
-                  ? AppColors.primarySoft
-                  : AppColors.warningSoft,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: checkInCurrent
-                    ? AppColors.primary.withValues(alpha: .35)
-                    : AppColors.accent.withValues(alpha: .45),
-              ),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: checkInCurrent
-                      ? AppColors.primary
-                      : AppColors.accent,
-                  foregroundColor: Colors.white,
-                  child: Icon(
-                    checkInCurrent
-                        ? Icons.check_rounded
-                        : Icons.warning_amber_rounded,
-                  ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        checkInCurrent
-                            ? 'Check-in is current'
-                            : 'Oren is waiting for you!',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      Text(
-                        checkInCurrent
-                            ? 'Current until ${DateFormat('MMM d, h:mm a').format(nextDueAt!.toLocal())}'
-                            : lastCheckin == null
-                            ? 'Tap Oren to start your safety heartbeat'
-                            : '${inactivityThresholdHours}h window ended. Tap Oren to renew it.',
-                        style: TextStyle(
-                          color: checkInCurrent
-                              ? AppColors.primaryDark
-                              : const Color(0xFFC66D00),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 14),
+                _CheckInStatusBanner(
+                  isCurrent: checkInCurrent,
+                  lastCheckIn: lastCheckin,
+                  nextDueAt: nextDueAt,
+                  thresholdHours: inactivityThresholdHours,
+                ),
+                const SizedBox(height: 18),
+                _SafetyActionPanel(
+                  onSos: onSos,
+                  onTestSms: onTestSms,
+                  showTestTools: showSafetyTestTools,
+                ),
+                const SizedBox(height: 14),
+                _InactivityReminderCard(
+                  count: inactivityNotificationCount,
+                  escalated: inactivityEscalated,
+                  userSmsAccepted: inactivityUserSmsAccepted,
+                  userSmsError: inactivityUserSmsError,
+                ),
+                const SizedBox(height: 14),
+                _EmergencyStatusCard(
+                  status: emergencyStatus,
+                  latestAlertTime: latestEmergencyAlertTime,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          _SafetyActionPanel(onSos: onSos, onTestSms: onTestSms),
-          const SizedBox(height: 12),
-          _InactivityReminderCard(
-            count: inactivityNotificationCount,
-            escalated: inactivityEscalated,
-            userSmsAccepted: inactivityUserSmsAccepted,
-            userSmsError: inactivityUserSmsError,
-            testCount: testReminderCount,
-            testBusy: testReminderBusy,
-            onTriggerTest: onTestInactivityAlarm,
-          ),
-          const SizedBox(height: 12),
-          _EmergencyStatusCard(
-            status: emergencyStatus,
-            latestAlertTime: latestEmergencyAlertTime,
-          ),
         ],
+      ),
+    );
+  }
+}
+
+class _CenteredHomeSection extends StatelessWidget {
+  const _CenteredHomeSection({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: SizedBox(width: double.infinity, child: child),
+      ),
+    );
+  }
+}
+
+class _CheckInStatusBanner extends StatelessWidget {
+  const _CheckInStatusBanner({
+    required this.isCurrent,
+    required this.lastCheckIn,
+    required this.nextDueAt,
+    required this.thresholdHours,
+  });
+
+  final bool isCurrent;
+  final DateTime? lastCheckIn;
+  final DateTime? nextDueAt;
+  final int thresholdHours;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = isCurrent
+        ? 'Check-in is current'
+        : 'Oren is waiting for you!';
+    final detail = isCurrent && nextDueAt != null
+        ? 'Current until ${DateFormat('MMM d, h:mm a').format(nextDueAt!.toLocal())}'
+        : lastCheckIn == null
+        ? 'Tap Oren to start your safety heartbeat.'
+        : '${thresholdHours}h window ended. Tap Oren to renew it.';
+    final color = isCurrent ? AppColors.primary : AppColors.accent;
+    final detailColor = isCurrent
+        ? AppColors.primaryDark
+        : const Color(0xFFC66D00);
+
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: '$title. $detail',
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SizeTransition(sizeFactor: animation, child: child),
+        ),
+        child: Container(
+          key: ValueKey(isCurrent),
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 78),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isCurrent ? AppColors.primarySoft : AppColors.warningSoft,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withValues(alpha: .38)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isCurrent
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.warning_amber_rounded,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      detail,
+                      style: TextStyle(
+                        color: detailColor,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1005,33 +1229,23 @@ class _InactivityReminderCard extends StatelessWidget {
     required this.escalated,
     required this.userSmsAccepted,
     required this.userSmsError,
-    required this.testCount,
-    required this.testBusy,
-    required this.onTriggerTest,
   });
 
   final int count;
   final bool escalated;
   final bool userSmsAccepted;
   final String? userSmsError;
-  final int testCount;
-  final bool testBusy;
-  final VoidCallback onTriggerTest;
 
   @override
   Widget build(BuildContext context) {
     const requiredCount = InactivityService.missedCheckInsBeforeEscalation;
     final safeCount = count.clamp(0, requiredCount).toInt();
-    final safeTestCount = testCount.clamp(0, requiredCount).toInt();
-    final nextTestCount = safeTestCount >= requiredCount
-        ? 1
-        : safeTestCount + 1;
     final reachedLimit = safeCount >= requiredCount;
     final color = reachedLimit ? AppColors.danger : AppColors.accent;
     final detail = escalated
-        ? 'Your configured emergency escalation started after reminder 3.'
+        ? 'Your configured emergency escalation started after reminder 3. Tap Oren to check in and reset this cycle.'
         : reachedLimit
-        ? 'Reminder 3 reached. Your primary contact receives the same emergency SMS used by SOS.'
+        ? 'Reminder 3 reached. Your primary contact receives the emergency SMS. Tap Oren to check in and reset this cycle.'
         : safeCount >= InactivityService.userSmsReminderMiss && userSmsAccepted
         ? 'Reminder 2 reached. An SMS reminder was sent or queued for your verified phone.'
         : safeCount >= InactivityService.userSmsReminderMiss
@@ -1089,12 +1303,16 @@ class _InactivityReminderCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            LinearProgressIndicator(
-              value: safeCount / requiredCount,
-              minHeight: 7,
-              borderRadius: BorderRadius.circular(8),
-              color: color,
-              backgroundColor: AppColors.surface,
+            Semantics(
+              label: 'Inactivity reminders',
+              value: '$safeCount of $requiredCount reminders reached',
+              child: LinearProgressIndicator(
+                value: safeCount / requiredCount,
+                minHeight: 7,
+                borderRadius: BorderRadius.circular(8),
+                color: color,
+                backgroundColor: AppColors.surface,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1104,44 +1322,6 @@ class _InactivityReminderCard extends StatelessWidget {
                 fontSize: 12,
                 height: 1.35,
               ),
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Safe reminder test  $safeTestCount/$requiredCount',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Test 2 sends a TEST SMS to you. Test 3 sends the TEST SOS message to your primary contact.',
-                        style: TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 11,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                FilledButton.icon(
-                  onPressed: testBusy ? null : onTriggerTest,
-                  icon: testBusy
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.notifications_active_outlined),
-                  label: Text(testBusy ? 'Testing' : 'Test $nextTestCount/3'),
-                ),
-              ],
             ),
           ],
         ),
@@ -1253,58 +1433,32 @@ class _EmergencyStatusCard extends StatelessWidget {
   }
 }
 
-class _ScrollCue extends StatelessWidget {
-  const _ScrollCue();
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.center,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .72),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-            SizedBox(width: 4),
-            Text(
-              'More tools below',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SafetyActionPanel extends StatelessWidget {
-  const _SafetyActionPanel({required this.onSos, required this.onTestSms});
+  const _SafetyActionPanel({
+    required this.onSos,
+    required this.onTestSms,
+    required this.showTestTools,
+  });
 
   final VoidCallback onSos;
   final VoidCallback onTestSms;
+  final bool showTestTools;
 
   @override
   Widget build(BuildContext context) {
-    return GlassPanel(
-      color: AppColors.glassStrong,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Row(
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: AppColors.danger.withValues(alpha: .10),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.health_and_safety_outlined,
@@ -1312,31 +1466,38 @@ class _SafetyActionPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Safety Actions',
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                     Text(
-                      'Emergency and testing controls',
-                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                      showTestTools
+                          ? 'Emergency and testing controls'
+                          : 'Emergency contact controls',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          _SafetyActionTile(
-            icon: Icons.sos,
-            color: AppColors.danger,
-            title: 'SOS emergency',
-            subtitle: 'Record an alert and notify your primary contact.',
-            onTap: onSos,
-          ),
+        ),
+        const SizedBox(height: 10),
+        _SafetyActionTile(
+          icon: Icons.sos,
+          color: AppColors.danger,
+          title: 'SOS emergency',
+          subtitle: 'Record an alert and notify your primary contact.',
+          onTap: onSos,
+        ),
+        if (showTestTools) ...[
           const SizedBox(height: 10),
           _SafetyActionTile(
             icon: Icons.sms_outlined,
@@ -1346,7 +1507,7 @@ class _SafetyActionPanel extends StatelessWidget {
             onTap: onTestSms,
           ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -1369,73 +1530,77 @@ class _SafetyActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: enabled
-                ? color.withValues(alpha: .07)
-                : AppColors.surface.withValues(alpha: .72),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 78),
+      child: Material(
+        color: Colors.white.withValues(alpha: .82),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
               color: enabled
-                  ? color.withValues(alpha: .22)
-                  : AppColors.border.withValues(alpha: .8),
+                  ? color.withValues(alpha: .07)
+                  : AppColors.surface.withValues(alpha: .72),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: enabled
+                    ? color.withValues(alpha: .22)
+                    : AppColors.border.withValues(alpha: .8),
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: enabled ? .14 : .08),
-                  borderRadius: BorderRadius.circular(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: enabled ? .14 : .08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: enabled ? color : AppColors.muted,
+                    size: 22,
+                  ),
                 ),
-                child: Icon(
-                  icon,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: enabled ? AppColors.ink : AppColors.muted,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  Icons.chevron_right_rounded,
                   color: enabled ? color : AppColors.muted,
-                  size: 22,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: enabled ? AppColors.ink : AppColors.muted,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 12,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: enabled ? color : AppColors.muted,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

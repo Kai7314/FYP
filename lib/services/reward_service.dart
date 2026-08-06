@@ -211,7 +211,21 @@ class RewardService {
     }
 
     await rewardRepository.claimBadge(rewardCode);
-    return synchronize();
+    final synchronized = await synchronize();
+    if (synchronized.isBadgeClaimed(rewardCode)) return synchronized;
+
+    // The claim RPC already succeeded. Keep the UI responsive if the
+    // immediate follow-up read is briefly stale or unavailable.
+    final optimistic = RewardSnapshot(
+      catalog: synchronized.catalog,
+      earnedCodes: {...synchronized.earnedCodes, rewardCode},
+      claimedBadgeCodes: {...synchronized.claimedBadgeCodes, rewardCode},
+      redemptionCodes: synchronized.redemptionCodes,
+      catalogVersion: synchronized.catalogVersion,
+      syncedAt: DateTime.now(),
+    );
+    await cache.writeMap(_cacheKey(user.id), optimistic.toJson());
+    return optimistic;
   }
 
   static int calculateStreak(List<DateTime> times) {

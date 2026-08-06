@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../services/contact_service.dart';
@@ -322,6 +323,8 @@ class _NewPrimaryContactForm extends StatelessWidget {
           TextFormField(
             controller: nameController,
             maxLength: AppValidators.maxDisplayNameLength,
+            maxLengthEnforcement: MaxLengthEnforcement.none,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             textCapitalization: TextCapitalization.words,
             validator: (value) => AppValidators.displayName(value ?? ''),
             decoration: const InputDecoration(labelText: 'Full name'),
@@ -330,6 +333,8 @@ class _NewPrimaryContactForm extends StatelessWidget {
           TextFormField(
             controller: relationshipController,
             maxLength: 30,
+            maxLengthEnforcement: MaxLengthEnforcement.none,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             textCapitalization: TextCapitalization.words,
             validator: (value) =>
                 AppValidators.relationship(value ?? '', required: true),

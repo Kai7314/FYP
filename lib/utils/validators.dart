@@ -21,7 +21,7 @@ class PhoneCountry {
 class AppValidators {
   static const minPasswordLength = 8;
   static const maxPasswordLength = 64;
-  static const maxDisplayNameLength = 50;
+  static const maxDisplayNameLength = 100;
   static const maxPhoneDigits = 15;
   static const maxAddressLength = 200;
   static const emailVerificationCodeLength = 8;
@@ -198,11 +198,11 @@ class AppValidators {
   }
 
   static String? displayName(String value) {
-    final name = normalizeSpaces(value);
-    if (name.length < 2) return 'Name must contain at least 2 characters.';
-    if (name.length > maxDisplayNameLength) {
+    if (value.trim().length > maxDisplayNameLength) {
       return 'Name must not exceed $maxDisplayNameLength characters.';
     }
+    final name = normalizeSpaces(value);
+    if (name.length < 2) return 'Name must contain at least 2 characters.';
     if (!RegExp(r"^[A-Za-z][A-Za-z .'-]*$").hasMatch(name)) {
       return 'Use letters, spaces, apostrophes, hyphens, or periods only.';
     }
@@ -306,6 +306,9 @@ class AppValidators {
   }
 
   static String? relationship(String value, {bool required = false}) {
+    if (value.trim().length > 30) {
+      return 'Relationship must not exceed 30 characters.';
+    }
     final relationship = normalizeSpaces(value);
     if (relationship.isEmpty) {
       return required ? 'Relationship is required.' : null;
@@ -317,11 +320,11 @@ class AppValidators {
   }
 
   static String? address(String value, {bool required = false}) {
-    final address = normalizeSpaces(value);
-    if (address.isEmpty) return required ? 'Address is required.' : null;
-    if (address.length > maxAddressLength) {
+    if (value.trim().length > maxAddressLength) {
       return 'Address must not exceed $maxAddressLength characters.';
     }
+    final address = normalizeSpaces(value);
+    if (address.isEmpty) return required ? 'Address is required.' : null;
     return null;
   }
 

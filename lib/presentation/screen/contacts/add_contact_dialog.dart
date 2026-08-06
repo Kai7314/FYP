@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../utils/validators.dart';
@@ -141,6 +142,8 @@ class _AddContactPageState extends State<AddContactPage> {
                 child: TextFormField(
                   controller: nameController,
                   maxLength: AppValidators.maxDisplayNameLength,
+                  maxLengthEnforcement: MaxLengthEnforcement.none,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
                   textCapitalization: TextCapitalization.words,
                   validator: (value) => AppValidators.displayName(value ?? ''),
                   decoration: const InputDecoration(hintText: 'Full name'),
@@ -152,6 +155,8 @@ class _AddContactPageState extends State<AddContactPage> {
                 child: TextFormField(
                   controller: relationshipController,
                   maxLength: 30,
+                  maxLengthEnforcement: MaxLengthEnforcement.none,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
                   textCapitalization: TextCapitalization.words,
                   validator: (value) =>
                       AppValidators.relationship(value ?? '', required: true),

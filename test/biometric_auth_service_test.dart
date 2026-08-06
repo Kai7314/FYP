@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:local_auth/local_auth.dart';
@@ -76,6 +78,23 @@ void main() {
     expect(availability.available, isFalse);
   });
 
+  test('concurrent biometric requests share one device prompt', () async {
+    final device = _PendingBiometricDevice();
+    final service = BiometricAuthService(
+      device: device,
+      platform: TargetPlatform.android,
+      isWeb: false,
+    );
+
+    final first = service.authenticate();
+    final second = service.authenticate();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(device.authenticationCalls, 1);
+    device.complete(true);
+    expect(await Future.wait([first, second]), [isTrue, isTrue]);
+  });
+
   testWidgets('saved biometric setting unlocks a persisted session', (
     tester,
   ) async {
@@ -134,7 +153,7 @@ void main() {
   });
 
   testWidgets(
-    'an enabled account locks whenever the app leaves the foreground',
+    'brief app interruptions do not immediately relock an enabled account',
     (tester) async {
       final device = _FakeBiometricDevice();
       final service = BiometricAuthService(
@@ -165,14 +184,88 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Protected account content'), findsOneWidget);
-      expect(device.authenticationCalls, 2);
+      expect(device.authenticationCalls, 1);
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump(const Duration(seconds: 29));
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
 
       expect(find.text('Protected account content'), findsOneWidget);
-      expect(device.authenticationCalls, 3);
+      expect(device.authenticationCalls, 1);
+    },
+  );
+
+  testWidgets(
+    'an enabled account relocks after the background grace period',
+    (tester) async {
+      final device = _FakeBiometricDevice();
+      final service = BiometricAuthService(
+        device: device,
+        platform: TargetPlatform.android,
+        isWeb: false,
+      );
+      await service.setEnabledForUser('user-a', true);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BiometricUnlockGate(
+            userId: 'user-a',
+            service: service,
+            onUsePassword: () async {},
+            unlockedBuilder: (_) =>
+                const Scaffold(body: Text('Protected account content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(device.authenticationCalls, 1);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump(const Duration(seconds: 30));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Protected account content'), findsOneWidget);
+      expect(device.authenticationCalls, 2);
+    },
+  );
+
+  testWidgets(
+    'biometric prompt lifecycle does not immediately open another prompt',
+    (tester) async {
+      final device = _PendingBiometricDevice();
+      final service = BiometricAuthService(
+        device: device,
+        platform: TargetPlatform.android,
+        isWeb: false,
+      );
+      await service.setEnabledForUser('user-a', true);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BiometricUnlockGate(
+            userId: 'user-a',
+            service: service,
+            onUsePassword: () async {},
+            unlockedBuilder: (_) =>
+                const Scaffold(body: Text('Protected account content')),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(device.authenticationCalls, 1);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      device.complete(false);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      expect(device.authenticationCalls, 1);
+      expect(find.text('Unlock EthernaCare'), findsOneWidget);
     },
   );
 }
@@ -206,6 +299,35 @@ class _FakeBiometricDevice implements BiometricDevice {
 
   @override
   Future<List<BiometricType>> getAvailableBiometrics() async => biometrics;
+
+  @override
+  Future<bool> isDeviceSupported() async => true;
+}
+
+class _PendingBiometricDevice implements BiometricDevice {
+  final Completer<bool> _authentication = Completer<bool>();
+  int authenticationCalls = 0;
+
+  void complete(bool authenticated) {
+    _authentication.complete(authenticated);
+  }
+
+  @override
+  Future<bool> authenticate({
+    required String reason,
+    required bool biometricOnly,
+  }) {
+    authenticationCalls += 1;
+    return _authentication.future;
+  }
+
+  @override
+  Future<bool> canCheckBiometrics() async => true;
+
+  @override
+  Future<List<BiometricType>> getAvailableBiometrics() async => const [
+    BiometricType.fingerprint,
+  ];
 
   @override
   Future<bool> isDeviceSupported() async => true;
