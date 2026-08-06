@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../core/constants/inactivity_rules.dart';
 import '../../../models/location_model.dart';
 import '../../../models/oren_care_model.dart';
 import '../../../models/reward_model.dart';
@@ -649,7 +650,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (tokenAwarded) {
       return 'Your check-in is still current. +${OrenCareService.dailyCheckInTokenReward} daily Oren tokens added.';
     }
-    return 'Your check-in is still current for the $inactivityThresholdHours-hour window. Oren token bonus is once per day.';
+    final thresholdLabel = InactivityRules.dayLabelFromHours(
+      inactivityThresholdHours,
+    );
+    return 'Your check-in is still current for the $thresholdLabel window. Oren token bonus is once per day.';
   }
 
   Future<void> _testPrimarySms() async {
@@ -1134,7 +1138,9 @@ class _HomeDashboard extends StatelessWidget {
                   isCurrent: checkInCurrent,
                   lastCheckIn: lastCheckin,
                   nextDueAt: nextDueAt,
-                  thresholdHours: inactivityThresholdHours,
+                  thresholdDays: InactivityRules.thresholdDaysFromHours(
+                    inactivityThresholdHours,
+                  ),
                 ),
                 const SizedBox(height: 18),
                 _SafetyActionPanel(
@@ -1185,13 +1191,13 @@ class _CheckInStatusBanner extends StatelessWidget {
     required this.isCurrent,
     required this.lastCheckIn,
     required this.nextDueAt,
-    required this.thresholdHours,
+    required this.thresholdDays,
   });
 
   final bool isCurrent;
   final DateTime? lastCheckIn;
   final DateTime? nextDueAt;
-  final int thresholdHours;
+  final int thresholdDays;
 
   @override
   Widget build(BuildContext context) {
@@ -1202,7 +1208,7 @@ class _CheckInStatusBanner extends StatelessWidget {
         ? 'Current until ${DateFormat('MMM d, h:mm a').format(nextDueAt!.toLocal())}'
         : lastCheckIn == null
         ? 'Tap Oren to start your safety heartbeat.'
-        : '${thresholdHours}h window ended. Tap Oren to renew it.';
+        : '$thresholdDays-${thresholdDays == 1 ? 'day' : 'days'} window ended at 12:00 AM. Tap Oren to renew it.';
     final color = isCurrent ? AppColors.primary : AppColors.accent;
     final detailColor = isCurrent
         ? AppColors.primaryDark

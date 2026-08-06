@@ -345,9 +345,9 @@ class AppValidators {
   }
 
   static String? inactivityThreshold(String value) {
-    final hours = int.tryParse(value.trim());
-    if (hours == null || !InactivityRules.isValidThresholdHours(hours)) {
-      return 'Threshold must be between 24 and 168 hours.';
+    final days = int.tryParse(value.trim());
+    if (days == null || !InactivityRules.isValidThresholdDays(days)) {
+      return 'Threshold must be between 1 and 7 days.';
     }
     return null;
   }

@@ -65,29 +65,29 @@ void main() {
     expect(AdminRewardCatalogScreen, isNotNull);
   });
 
-  test('inactivity escalates only after three missed threshold windows', () {
+  test('inactivity escalates after three Malaysia calendar-day windows', () {
     final lastCheckIn = DateTime.utc(2026, 7, 1, 8);
 
-    int missesAfter(Duration elapsed) =>
+    int missesAt(DateTime now) =>
         InactivityService.calculateMissedCheckIns(
           lastCheckIn: lastCheckIn,
-          now: lastCheckIn.add(elapsed),
+          now: now,
           thresholdHours: 24,
         );
 
-    expect(missesAfter(const Duration(hours: 23, minutes: 59)), 0);
-    expect(missesAfter(const Duration(hours: 24)), 1);
-    expect(missesAfter(const Duration(hours: 48)), 2);
-    expect(missesAfter(const Duration(hours: 72)), 3);
+    expect(missesAt(DateTime.utc(2026, 7, 1, 15, 59, 59)), 0);
+    expect(missesAt(DateTime.utc(2026, 7, 1, 16)), 1);
+    expect(missesAt(DateTime.utc(2026, 7, 2, 16)), 2);
+    expect(missesAt(DateTime.utc(2026, 7, 3, 16)), 3);
   });
 
-  test('sub-day inactivity values normalize to the 24-hour minimum', () {
+  test('obsolete sub-day values normalize to one calendar day', () {
     final lastCheckIn = DateTime.utc(2026, 8, 1, 8);
 
     expect(
       InactivityService.calculateMissedCheckIns(
         lastCheckIn: lastCheckIn,
-        now: lastCheckIn.add(const Duration(hours: 23, minutes: 59)),
+        now: DateTime.utc(2026, 8, 1, 15, 59, 59),
         thresholdHours: 1,
       ),
       0,
@@ -95,7 +95,7 @@ void main() {
     expect(
       InactivityService.calculateMissedCheckIns(
         lastCheckIn: lastCheckIn,
-        now: lastCheckIn.add(const Duration(hours: 24)),
+        now: DateTime.utc(2026, 8, 1, 16),
         thresholdHours: 1,
       ),
       1,
@@ -103,20 +103,20 @@ void main() {
     expect(
       InactivityService.calculateMissedCheckIns(
         lastCheckIn: lastCheckIn,
-        now: lastCheckIn.add(const Duration(hours: 48)),
+        now: DateTime.utc(2026, 8, 2, 16),
         thresholdHours: 1,
       ),
       InactivityService.userSmsReminderMiss,
     );
   });
 
-  test('check-in current state follows the rolling threshold', () {
+  test('check-in current state follows Malaysia midnight', () {
     final lastCheckIn = DateTime.utc(2026, 8, 1, 8);
 
     expect(
       InactivityService.isCheckInCurrent(
         lastCheckIn: lastCheckIn,
-        now: lastCheckIn.add(const Duration(hours: 23, minutes: 59)),
+        now: DateTime.utc(2026, 8, 1, 15, 59, 59),
         thresholdHours: 24,
       ),
       isTrue,
@@ -124,7 +124,7 @@ void main() {
     expect(
       InactivityService.isCheckInCurrent(
         lastCheckIn: lastCheckIn,
-        now: lastCheckIn.add(const Duration(hours: 24)),
+        now: DateTime.utc(2026, 8, 1, 16),
         thresholdHours: 24,
       ),
       isFalse,
@@ -134,7 +134,7 @@ void main() {
         lastCheckIn: lastCheckIn,
         thresholdHours: 24,
       ),
-      lastCheckIn.add(const Duration(hours: 24)),
+      DateTime.utc(2026, 8, 1, 16),
     );
   });
 
@@ -155,7 +155,7 @@ void main() {
       thresholdHours: 1,
     );
 
-    expect(message, contains('missed two 24-hour check-in windows'));
+    expect(message, contains('missed two 1-day check-in windows'));
     expect(message, contains('primary trusted contact'));
   });
 
@@ -1071,9 +1071,9 @@ void main() {
       ),
       isNull,
     );
-    expect(AppValidators.inactivityThreshold('23'), isNotNull);
-    expect(AppValidators.inactivityThreshold('24'), isNull);
-    expect(AppValidators.inactivityThreshold('169'), isNotNull);
+    expect(AppValidators.inactivityThreshold('0'), isNotNull);
+    expect(AppValidators.inactivityThreshold('1'), isNull);
+    expect(AppValidators.inactivityThreshold('8'), isNotNull);
     expect(AppValidators.bloodType('AB+'), isNull);
     expect(
       AppValidators.normalizePhoneWithCountry('0123456789', '+60'),

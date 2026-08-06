@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/colors.dart';
@@ -15,6 +14,7 @@ import '../../../utils/validators.dart';
 import '../../widgets/error_dialog.dart';
 import '../../widgets/guidance_sheet.dart';
 import 'funeral_preferences_editor_screen.dart';
+import 'legacy_note_editor_screen.dart';
 
 class LegacyPlanningScreen extends StatefulWidget {
   const LegacyPlanningScreen({super.key});
@@ -168,9 +168,8 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
   }
 
   Future<void> _addNote() async {
-    final result = await showDialog<_LegacyNoteDraft>(
-      context: context,
-      builder: (_) => const _LegacyNoteDialog(),
+    final result = await Navigator.of(context).push<LegacyNoteDraft>(
+      MaterialPageRoute(builder: (_) => const LegacyNoteEditorScreen()),
     );
     if (result == null) return;
     try {
@@ -188,9 +187,8 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
   }
 
   Future<void> _editNote(LegacyNote note) async {
-    final result = await showDialog<_LegacyNoteDraft>(
-      context: context,
-      builder: (_) => _LegacyNoteDialog(note: note),
+    final result = await Navigator.of(context).push<LegacyNoteDraft>(
+      MaterialPageRoute(builder: (_) => LegacyNoteEditorScreen(note: note)),
     );
     if (result == null) return;
     try {
@@ -979,127 +977,6 @@ class _LegacyNoteCardState extends State<_LegacyNoteCard>
           ],
         ),
       ),
-    );
-  }
-}
-
-class _LegacyNoteDraft {
-  const _LegacyNoteDraft({required this.title, required this.content});
-
-  final String title;
-  final String content;
-}
-
-class _LegacyNoteDialog extends StatefulWidget {
-  const _LegacyNoteDialog({this.note});
-
-  final LegacyNote? note;
-
-  @override
-  State<_LegacyNoteDialog> createState() => _LegacyNoteDialogState();
-}
-
-class _LegacyNoteDialogState extends State<_LegacyNoteDialog> {
-  final formKey = GlobalKey<FormState>();
-  late final TextEditingController titleController;
-  late final TextEditingController contentController;
-
-  @override
-  void initState() {
-    super.initState();
-    titleController = TextEditingController(text: widget.note?.title ?? '');
-    contentController = TextEditingController(text: widget.note?.content ?? '');
-  }
-
-  @override
-  void dispose() {
-    titleController.dispose();
-    contentController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.note == null ? 'Add Legacy Note' : 'Edit Legacy Note'),
-      content: Form(
-        key: formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: titleController,
-                maxLength: 80,
-                maxLengthEnforcement: MaxLengthEnforcement.none,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                decoration: const InputDecoration(labelText: 'Title'),
-                validator: (value) {
-                  final text = value?.trim() ?? '';
-                  if (text.length < 2) return 'Enter at least 2 characters.';
-                  if (text.length > 80) {
-                    return 'Title must not exceed 80 characters.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: contentController,
-                maxLength: 1000,
-                maxLengthEnforcement: MaxLengthEnforcement.none,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                maxLines: 6,
-                decoration: const InputDecoration(labelText: 'Note'),
-                validator: (value) {
-                  final text = value?.trim() ?? '';
-                  if (text.length < 2) return 'Enter at least 2 characters.';
-                  if (text.length > 1000) {
-                    return 'Note must not exceed 1000 characters.';
-                  }
-                  return DocumentService.legacyNoteSecurityWarning(
-                    title: titleController.text.trim(),
-                    content: text,
-                  );
-                },
-              ),
-              const SizedBox(height: 4),
-              const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.lock_outline, size: 17, color: AppColors.muted),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Never store passwords, PINs, OTPs, recovery phrases, API keys, or security codes here.',
-                      style: TextStyle(color: AppColors.muted, fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (!formKey.currentState!.validate()) return;
-            Navigator.pop(
-              context,
-              _LegacyNoteDraft(
-                title: titleController.text.trim(),
-                content: contentController.text.trim(),
-              ),
-            );
-          },
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 }

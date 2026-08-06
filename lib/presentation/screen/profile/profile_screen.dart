@@ -361,8 +361,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _InfoTile(
                   icon: Icons.timer_outlined,
                   label: 'Inactivity Threshold',
-                  value:
-                      '${InactivityRules.normalizeThresholdHours(profile['inactivity_threshold'])} hours',
+                  value: InactivityRules.dayLabelFromHours(
+                    profile['inactivity_threshold'],
+                  ),
                 ),
                 _InfoTile(
                   icon: Icons.emergency_share_outlined,
@@ -636,7 +637,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     );
     selectedBloodType = _initialBloodType();
     thresholdController = TextEditingController(
-      text: InactivityRules.normalizeThresholdHours(
+      text: InactivityRules.thresholdDaysFromHours(
         widget.profile['inactivity_threshold'],
       ).toString(),
     );
@@ -690,7 +691,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     if (!(formKey.currentState?.validate() ?? false)) return;
 
     final name = AppValidators.normalizeSpaces(nameController.text);
-    final threshold = int.tryParse(thresholdController.text.trim());
+    final thresholdDays = int.tryParse(thresholdController.text.trim());
     final phone = _normalizedPhone();
     if (phone.isNotEmpty && phone != initialPhone && verifiedPhone != phone) {
       _showMessage('Please verify your new phone number first.');
@@ -706,7 +707,9 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       'phone': phone,
       if (_isAddressVerified) ...verifiedAddress!.toProfileValues(),
       'blood_type': selectedBloodType,
-      'inactivity_threshold': threshold,
+      'inactivity_threshold': InactivityRules.thresholdHoursFromDays(
+        thresholdDays,
+      ),
       'emergency_escalation_target': escalationTarget,
     });
   }
@@ -905,7 +908,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
               ),
               const SizedBox(height: 12),
               _ProfileFieldShell(
-                label: 'Inactivity threshold (hours)',
+                label: 'Inactivity threshold (days)',
                 child: TextFormField(
                   controller: thresholdController,
                   keyboardType: TextInputType.number,
@@ -917,8 +920,8 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                   validator: (value) =>
                       AppValidators.inactivityThreshold(value ?? ''),
                   decoration: const InputDecoration(
-                    hintText: '24',
-                    helperText: '24-168 hours for each missed check-in',
+                    hintText: '1',
+                    helperText: '1-7 days; renews at 12:00 AM MYT',
                   ),
                 ),
               ),

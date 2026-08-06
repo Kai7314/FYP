@@ -66,18 +66,30 @@ class InactivityService {
   static const missedCheckInsBeforeEscalation = 3;
   static const userSmsReminderMiss = 2;
   static const userSmsRetryDelay = Duration(minutes: 30);
+  static const malaysiaUtcOffset = Duration(hours: 8);
+
+  static DateTime _malaysiaCalendarDate(DateTime value) {
+    final malaysiaTime = value.toUtc().add(malaysiaUtcOffset);
+    return DateTime.utc(
+      malaysiaTime.year,
+      malaysiaTime.month,
+      malaysiaTime.day,
+    );
+  }
 
   static int calculateMissedCheckIns({
     required DateTime lastCheckIn,
     required DateTime now,
     required int thresholdHours,
   }) {
-    final safeThreshold = InactivityRules.normalizeThresholdHours(
+    if (now.isBefore(lastCheckIn)) return 0;
+    final thresholdDays = InactivityRules.thresholdDaysFromHours(
       thresholdHours,
     );
-    final elapsed = now.difference(lastCheckIn);
-    if (elapsed.isNegative) return 0;
-    return elapsed.inSeconds ~/ Duration(hours: safeThreshold).inSeconds;
+    final lastDate = _malaysiaCalendarDate(lastCheckIn);
+    final currentDate = _malaysiaCalendarDate(now);
+    final elapsedCalendarDays = currentDate.difference(lastDate).inDays;
+    return elapsedCalendarDays ~/ thresholdDays;
   }
 
   static bool isCheckInCurrent({
@@ -99,10 +111,13 @@ class InactivityService {
     required int thresholdHours,
   }) {
     if (lastCheckIn == null) return null;
-    final safeThreshold = InactivityRules.normalizeThresholdHours(
+    final thresholdDays = InactivityRules.thresholdDaysFromHours(
       thresholdHours,
     );
-    return lastCheckIn.add(Duration(hours: safeThreshold));
+    final dueMalaysiaDate = _malaysiaCalendarDate(
+      lastCheckIn,
+    ).add(Duration(days: thresholdDays));
+    return dueMalaysiaDate.subtract(malaysiaUtcOffset);
   }
 
   static bool shouldAttemptUserSms({
@@ -217,7 +232,7 @@ class InactivityService {
     );
 
     if (reminderCount == userSmsReminderMiss) {
-      final thresholdHours = await _currentThresholdHours();
+      final thresholdHours = await getCurrentThresholdHours();
       final userSmsResult = await emergencyService.sendUserInactivityReminder(
         lastCheckIn: clock(),
         thresholdHours: thresholdHours,
@@ -261,22 +276,19 @@ class InactivityService {
     final threshold = InactivityRules.normalizeThresholdHours(
       profile?['inactivity_threshold'],
     );
-    final thresholdDuration = Duration(hours: threshold);
     final lastCheckin = DateTime.tryParse(checkin['checkin_time'].toString());
     final now = clock();
     if (lastCheckin == null) return;
-
-    final elapsed = now.difference(lastCheckin);
-    if (elapsed.isNegative || elapsed.compareTo(thresholdDuration) < 0) {
-      await cache.remove(_warningCacheKey(user.id));
-      return;
-    }
 
     final missedCheckIns = calculateMissedCheckIns(
       lastCheckIn: lastCheckin,
       now: now,
       thresholdHours: threshold,
     );
+    if (missedCheckIns == 0) {
+      await cache.remove(_warningCacheKey(user.id));
+      return;
+    }
     final warning = await cache.readMap(_warningCacheKey(user.id));
     final warningForCheckin =
         warning?['last_checkin_at'] == checkin['checkin_time'];
@@ -307,7 +319,7 @@ class InactivityService {
     );
   }
 
-  Future<int> _currentThresholdHours() async {
+  Future<int> getCurrentThresholdHours() async {
     final user = authRepository.currentUser;
     if (user == null) return InactivityRules.defaultThresholdHours;
     final profile = await userRepository.getProfile(user.id);

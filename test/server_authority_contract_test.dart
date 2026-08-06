@@ -18,6 +18,9 @@ void main() {
     final privilegeRepair = source(
       'supabase/migrations/202608070003_fix_record_threshold_checkin_privileges.sql',
     );
+    final calendarThresholds = source(
+      'supabase/migrations/202608070004_calendar_day_inactivity_thresholds.sql',
+    );
 
     expect(checkins, contains("client.rpc('record_threshold_checkin')"));
     expect(checkins, isNot(contains("from('checkins').insert")));
@@ -44,6 +47,15 @@ void main() {
         'to authenticated',
       ),
     );
+    expect(
+      calendarThresholds,
+      contains("at time zone 'Asia/Kuala_Lumpur'"),
+    );
+    expect(
+      calendarThresholds,
+      contains("'ethernacare-inactivity-threshold-midnight-myt'"),
+    );
+    expect(calendarThresholds, contains("'0 16 * * *'"));
   });
 
   test('Oren progression uses authenticated server actions in production', () {

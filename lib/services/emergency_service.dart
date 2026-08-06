@@ -58,12 +58,13 @@ class EmergencyService {
     required int thresholdHours,
     bool testMode = false,
   }) {
-    final safeThreshold = InactivityRules.normalizeThresholdHours(
+    final thresholdDays = InactivityRules.thresholdDaysFromHours(
       thresholdHours,
     );
     final prefix = testMode ? 'TEST - ' : '';
     return '${prefix}EthernaCare check-in reminder: you have missed two '
-        '$safeThreshold-hour check-in windows. Open EthernaCare and tap '
+        '$thresholdDays-${thresholdDays == 1 ? 'day' : 'days'} check-in '
+        'windows. Open EthernaCare and tap '
         'Oren now. If inactivity continues, your configured emergency '
         'escalation may notify your primary trusted contact.';
   }

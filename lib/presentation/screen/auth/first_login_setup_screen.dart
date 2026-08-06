@@ -69,7 +69,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     );
     selectedBloodType = _initialBloodType();
     thresholdController = TextEditingController(
-      text: InactivityRules.normalizeThresholdHours(
+      text: InactivityRules.thresholdDaysFromHours(
         widget.profile['inactivity_threshold'],
       ).toString(),
     );
@@ -135,7 +135,9 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
         'phone': phone,
         ...verifiedAddress!.toProfileValues(),
         'blood_type': selectedBloodType,
-        'inactivity_threshold': int.parse(thresholdController.text.trim()),
+        'inactivity_threshold': InactivityRules.thresholdHoursFromDays(
+          thresholdController.text,
+        ),
         'emergency_escalation_target': escalationTarget,
       });
       if (mounted) widget.onComplete();
@@ -346,8 +348,8 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                     validator: (value) =>
                         AppValidators.inactivityThreshold(value ?? ''),
                     decoration: const InputDecoration(
-                      labelText: 'Inactivity threshold (hours)',
-                      helperText: '24-168 hours for each missed check-in',
+                      labelText: 'Inactivity threshold (days)',
+                      helperText: '1-7 days; renews at 12:00 AM MYT',
                     ),
                   ),
                   const SizedBox(height: 10),

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../services/checkin_service.dart';
+import '../../../services/inactivity_service.dart';
 import '../../widgets/premium_shell.dart';
 
 class CheckinHistoryScreen extends StatefulWidget {
@@ -23,8 +24,10 @@ class CheckinHistoryScreen extends StatefulWidget {
 
 class _CheckinHistoryScreenState extends State<CheckinHistoryScreen> {
   final checkinService = CheckinService();
+  final inactivityService = InactivityService();
   late Future<List<Map<String, dynamic>>> checkinsFuture;
   StreamSubscription<void>? checkinSubscription;
+  int inactivityThresholdHours = 24;
 
   @override
   void initState() {
@@ -51,6 +54,12 @@ class _CheckinHistoryScreenState extends State<CheckinHistoryScreen> {
 
   Future<List<Map<String, dynamic>>> _loadCheckins() async {
     final cached = await checkinService.getCachedCheckins();
+    try {
+      inactivityThresholdHours = await inactivityService
+          .getCurrentThresholdHours();
+    } catch (_) {
+      // Keep the safe one-day fallback while the profile is unavailable.
+    }
     try {
       return await checkinService.getCheckins(forceRefresh: true);
     } catch (_) {
@@ -95,8 +104,11 @@ class _CheckinHistoryScreenState extends State<CheckinHistoryScreen> {
                   date.year == DateTime.now().year,
             )
             .length;
-        final checkedToday = checkedDates.any(
-          (date) => DateUtils.isSameDay(date, DateTime.now()),
+        final latestCheckIn = checkedDates.isEmpty ? null : checkedDates.first;
+        final checkInCurrent = InactivityService.isCheckInCurrent(
+          lastCheckIn: latestCheckIn,
+          now: DateTime.now(),
+          thresholdHours: inactivityThresholdHours,
         );
 
         return RefreshIndicator(
@@ -164,20 +176,20 @@ class _CheckinHistoryScreenState extends State<CheckinHistoryScreen> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: checkedToday
+                    color: checkInCurrent
                         ? AppColors.primarySoft
                         : AppColors.warningSoft,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color:
-                          (checkedToday ? AppColors.primary : AppColors.accent)
+                          (checkInCurrent ? AppColors.primary : AppColors.accent)
                               .withValues(alpha: .4),
                     ),
                   ),
                   child: Row(
                     children: [
                       CircleAvatar(
-                        backgroundColor: checkedToday
+                        backgroundColor: checkInCurrent
                             ? AppColors.primary
                             : AppColors.accent,
                         foregroundColor: Colors.white,
@@ -189,16 +201,16 @@ class _CheckinHistoryScreenState extends State<CheckinHistoryScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              checkedToday
-                                  ? 'Checked in today'
+                              checkInCurrent
+                                  ? 'Check-in is current'
                                   : 'Not checked in yet',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                             Text(
-                              checkedToday
-                                  ? 'Your daily safety heartbeat is complete.'
+                              checkInCurrent
+                                  ? 'Your safety heartbeat remains active.'
                                   : 'Go home and pet Oren to check in!',
                               style: const TextStyle(
                                 color: AppColors.muted,

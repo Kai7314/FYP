@@ -1,6 +1,7 @@
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/user_repository.dart';
 import '../core/constants/app_terms.dart';
+import '../core/constants/inactivity_rules.dart';
 import '../utils/validators.dart';
 import 'home_address_service.dart';
 import 'local_cache_service.dart';
@@ -126,7 +127,10 @@ class AppProfileRules {
     if (AppValidators.bloodType(bloodType, required: true) != null) {
       missing.add('Blood type');
     }
-    if (AppValidators.inactivityThreshold(threshold) != null) {
+    if (AppValidators.inactivityThreshold(
+          InactivityRules.thresholdDaysFromHours(threshold).toString(),
+        ) !=
+        null) {
       missing.add('Inactivity threshold');
     }
     if (termsAccepted.trim().isEmpty) {

@@ -6,14 +6,14 @@ import 'package:fyp/services/inactivity_service.dart';
 import 'package:fyp/services/oren_care_service.dart';
 
 void main() {
-  group('rolling inactivity thresholds', () {
+  group('calendar-day inactivity thresholds', () {
     final lastCheckIn = DateTime.utc(2026, 8, 1, 8);
 
-    test('thresholds below 24 hours normalize to one full day', () {
+    test('one-day windows renew at midnight Malaysia time', () {
       expect(
         InactivityService.calculateMissedCheckIns(
           lastCheckIn: lastCheckIn,
-          now: lastCheckIn.add(const Duration(hours: 23, minutes: 59)),
+          now: DateTime.utc(2026, 8, 1, 15, 59, 59),
           thresholdHours: 1,
         ),
         0,
@@ -21,7 +21,7 @@ void main() {
       expect(
         InactivityService.calculateMissedCheckIns(
           lastCheckIn: lastCheckIn,
-          now: lastCheckIn.add(const Duration(hours: 24)),
+          now: DateTime.utc(2026, 8, 1, 16),
           thresholdHours: 1,
         ),
         1,
@@ -29,27 +29,27 @@ void main() {
       expect(
         InactivityService.calculateMissedCheckIns(
           lastCheckIn: lastCheckIn,
-          now: lastCheckIn.add(const Duration(hours: 48)),
+          now: DateTime.utc(2026, 8, 2, 16),
           thresholdHours: 1,
         ),
         InactivityService.userSmsReminderMiss,
       );
     });
 
-    test('24-hour threshold expires exactly after 24 hours', () {
+    test('a two-day threshold renews after the second midnight', () {
       expect(
         InactivityService.isCheckInCurrent(
           lastCheckIn: lastCheckIn,
-          now: lastCheckIn.add(const Duration(hours: 23, minutes: 59)),
-          thresholdHours: 24,
+          now: DateTime.utc(2026, 8, 2, 15, 59, 59),
+          thresholdHours: 48,
         ),
         isTrue,
       );
       expect(
         InactivityService.isCheckInCurrent(
           lastCheckIn: lastCheckIn,
-          now: lastCheckIn.add(const Duration(hours: 24)),
-          thresholdHours: 24,
+          now: DateTime.utc(2026, 8, 2, 16),
+          thresholdHours: 48,
         ),
         isFalse,
       );
@@ -60,7 +60,7 @@ void main() {
         thresholdHours: 1,
       );
 
-      expect(message, contains('missed two 24-hour check-in windows'));
+      expect(message, contains('missed two 1-day check-in windows'));
       expect(message, contains('primary trusted contact'));
     });
 
