@@ -327,6 +327,10 @@ class AppValidators {
     }
     final address = normalizeSpaces(value);
     if (address.isEmpty) return required ? 'Address is required.' : null;
+    final letterCount = RegExp(r'[A-Za-z]').allMatches(address).length;
+    if (address.length < 5 || letterCount < 2) {
+      return 'Enter a complete address with a street, building, or landmark.';
+    }
     return null;
   }
 

@@ -63,7 +63,9 @@ class _BiometricSettingTileState extends State<BiometricSettingTile> {
 
       await biometricAuthService.setEnabledForUser(userId, enabled);
       if (!mounted) return;
-      setState(() => settingFuture = _loadSetting());
+      setState(() {
+        settingFuture = _loadSetting();
+      });
       _showMessage(
         enabled
             ? 'Biometric unlock enabled on this device.'

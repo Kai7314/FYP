@@ -765,7 +765,7 @@ void main() {
     expect(find.byType(EditProfileDialog), findsNothing);
   });
 
-  testWidgets('profile dialog preserves an unchanged legacy address', (
+  testWidgets('profile dialog requires legacy addresses to be revalidated', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -787,7 +787,11 @@ void main() {
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    expect(find.byType(EditProfileDialog), findsNothing);
+    expect(find.byType(EditProfileDialog), findsOneWidget);
+    expect(
+      find.text('Validate your home address before saving.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('profile name shows an error without truncating long input', (

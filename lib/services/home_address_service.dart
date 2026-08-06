@@ -19,6 +19,7 @@ class HomeAddressCandidate {
     required this.countryCode,
     required this.administrativeArea,
     required this.regionParts,
+    required this.addressParts,
   });
 
   final double latitude;
@@ -26,6 +27,7 @@ class HomeAddressCandidate {
   final String countryCode;
   final String administrativeArea;
   final List<String> regionParts;
+  final List<String> addressParts;
 }
 
 class HomeAddressValidationResult {
@@ -150,7 +152,8 @@ class HomeAddressService {
           _looselyMatches(candidate.administrativeArea, normalizedState) &&
           candidate.regionParts.any(
             (part) => _looselyMatches(part, normalizedRegion),
-          );
+          ) &&
+          _matchesAddress(normalizedAddress, candidate.addressParts);
     }).toList();
     if (valid.isEmpty) {
       throw const HomeAddressValidationException(
@@ -204,8 +207,11 @@ class HomeAddressService {
               placemark.subAdministrativeArea ?? '',
               placemark.locality ?? '',
               placemark.subLocality ?? '',
+            ],
+            addressParts: [
               placemark.street ?? '',
               placemark.name ?? '',
+              placemark.subLocality ?? '',
             ],
           ),
         );
@@ -237,6 +243,37 @@ class HomeAddressService {
     if (actualTokens.isEmpty || expectedTokens.isEmpty) return false;
     return expectedTokens.every(actualTokens.contains) ||
         actualTokens.every(expectedTokens.contains);
+  }
+
+  static bool _matchesAddress(String expected, List<String> actualParts) {
+    final expectedTokens = _specificAddressTokens(expected);
+    if (expectedTokens.isEmpty) return false;
+    final actualTokens = actualParts
+        .expand(_specificAddressTokens)
+        .toSet();
+    return expectedTokens.intersection(actualTokens).isNotEmpty;
+  }
+
+  static Set<String> _specificAddressTokens(String value) {
+    const genericAddressTokens = {
+      'jalan',
+      'jln',
+      'lorong',
+      'taman',
+      'kampung',
+      'unit',
+      'nombor',
+      'building',
+      'bangunan',
+      'road',
+      'street',
+      'malaysia',
+    };
+    return _tokens(value).where((token) {
+      return token.length >= 3 &&
+          int.tryParse(token) == null &&
+          !genericAddressTokens.contains(token);
+    }).toSet();
   }
 
   static Set<String> _tokens(String value) {

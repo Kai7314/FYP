@@ -14,6 +14,7 @@ import '../../../services/legacy_server_test_service.dart';
 import '../../../utils/validators.dart';
 import '../../widgets/error_dialog.dart';
 import '../../widgets/guidance_sheet.dart';
+import 'funeral_preferences_editor_screen.dart';
 
 class LegacyPlanningScreen extends StatefulWidget {
   const LegacyPlanningScreen({super.key});
@@ -63,10 +64,13 @@ class _LegacyPlanningScreenState extends State<LegacyPlanningScreen> {
     }
     if (!mounted) return;
 
-    final result = await showDialog<FuneralPreferences>(
-      context: context,
-      builder: (_) =>
-          _PreferencesDialog(preferences: preferences, contacts: contacts),
+    final result = await Navigator.of(context).push<FuneralPreferences>(
+      MaterialPageRoute(
+        builder: (_) => FuneralPreferencesEditorScreen(
+          preferences: preferences,
+          contacts: contacts,
+        ),
+      ),
     );
     if (result == null) return;
     try {
@@ -979,16 +983,6 @@ class _LegacyNoteCardState extends State<_LegacyNoteCard>
   }
 }
 
-class _PreferencesDialog extends StatefulWidget {
-  const _PreferencesDialog({required this.preferences, required this.contacts});
-
-  final FuneralPreferences preferences;
-  final List<Map<String, dynamic>> contacts;
-
-  @override
-  State<_PreferencesDialog> createState() => _PreferencesDialogState();
-}
-
 class _LegacyNoteDraft {
   const _LegacyNoteDraft({required this.title, required this.content});
 
@@ -1100,250 +1094,6 @@ class _LegacyNoteDialogState extends State<_LegacyNoteDialog> {
               _LegacyNoteDraft(
                 title: titleController.text.trim(),
                 content: contentController.text.trim(),
-              ),
-            );
-          },
-          child: const Text('Save'),
-        ),
-      ],
-    );
-  }
-}
-
-class _PreferencesDialogState extends State<_PreferencesDialog> {
-  final formKey = GlobalKey<FormState>();
-  late final TextEditingController venueController;
-  late final TextEditingController notesController;
-  late final List<String> religionOptions;
-  late final List<String> serviceTypeOptions;
-  late final List<String> contactOptions;
-  String? selectedReligion;
-  String? selectedServiceType;
-  String? selectedAuthorizedContact;
-
-  @override
-  void initState() {
-    super.initState();
-    venueController = TextEditingController(text: widget.preferences.venue);
-    notesController = TextEditingController(text: widget.preferences.notes);
-
-    religionOptions = _withExistingValue(
-      FuneralPreferenceOptions.religions,
-      widget.preferences.religion,
-    );
-    serviceTypeOptions = _withExistingValue(
-      FuneralPreferenceOptions.serviceTypes,
-      widget.preferences.serviceType,
-    );
-    selectedReligion = _selectedValue(
-      religionOptions,
-      widget.preferences.religion,
-    );
-    selectedServiceType = _selectedValue(
-      serviceTypeOptions,
-      widget.preferences.serviceType,
-    );
-
-    contactOptions = widget.contacts.map(_contactLabel).toSet().toList();
-    selectedAuthorizedContact = _initialContactSelection();
-  }
-
-  @override
-  void dispose() {
-    venueController.dispose();
-    notesController.dispose();
-    super.dispose();
-  }
-
-  List<String> _withExistingValue(List<String> options, String existing) {
-    final values = [...options];
-    final trimmed = existing.trim();
-    if (trimmed.isNotEmpty && !values.contains(trimmed)) values.add(trimmed);
-    return values;
-  }
-
-  String? _selectedValue(List<String> options, String existing) {
-    final trimmed = existing.trim();
-    return options.contains(trimmed) ? trimmed : null;
-  }
-
-  String _contactLabel(Map<String, dynamic> contact) {
-    final name = contact['name']?.toString().trim() ?? '';
-    final phone = contact['phone']?.toString().trim() ?? '';
-    if (phone.isEmpty) return name;
-    return '$name - $phone';
-  }
-
-  String? _initialContactSelection() {
-    if (contactOptions.isEmpty) return null;
-    final saved = widget.preferences.authorizedContact.trim();
-    if (contactOptions.contains(saved)) return saved;
-
-    for (final contact in widget.contacts) {
-      final name = contact['name']?.toString().trim() ?? '';
-      if (name == saved) return _contactLabel(contact);
-    }
-    for (final contact in widget.contacts) {
-      if (contact['is_primary'] == true) return _contactLabel(contact);
-    }
-    return null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      title: const Text('Edit Funeral Preferences'),
-      content: Form(
-        key: formKey,
-        child: SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: selectedReligion,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Religion',
-                    hintText: 'Select religion',
-                  ),
-                  items: religionOptions
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(
-                            value,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => selectedReligion = value,
-                  validator: (value) =>
-                      value == null ? 'Select a religion or preference.' : null,
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedServiceType,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Service type',
-                    hintText: 'Select service type',
-                  ),
-                  items: serviceTypeOptions
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(
-                            value,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => selectedServiceType = value,
-                  validator: (value) => value == null
-                      ? 'Select a service type or Not decided.'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: venueController,
-                  maxLength: 100,
-                  maxLengthEnforcement: MaxLengthEnforcement.none,
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Preferred venue',
-                  ),
-                  validator: (value) => (value?.trim().length ?? 0) > 100
-                      ? 'Preferred venue must not exceed 100 characters.'
-                      : null,
-                ),
-                const SizedBox(height: 4),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedAuthorizedContact,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: 'Authorized contact',
-                    hintText: contactOptions.isEmpty
-                        ? 'No trusted contacts available'
-                        : 'Select a trusted contact',
-                    helperText: contactOptions.isEmpty
-                        ? 'Add a contact from the Contacts page first.'
-                        : null,
-                  ),
-                  selectedItemBuilder: (context) => contactOptions
-                      .map(
-                        (value) => Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            value,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  items: contactOptions
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(
-                            value,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: contactOptions.isEmpty
-                      ? null
-                      : (value) => selectedAuthorizedContact = value,
-                  validator: contactOptions.isEmpty
-                      ? null
-                      : (value) => value == null
-                            ? 'Select an authorized contact.'
-                            : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: notesController,
-                  maxLength: 500,
-                  maxLengthEnforcement: MaxLengthEnforcement.none,
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                  maxLines: 4,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(labelText: 'Notes'),
-                  validator: (value) => (value?.trim().length ?? 0) > 500
-                      ? 'Notes must not exceed 500 characters.'
-                      : null,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (!formKey.currentState!.validate()) return;
-            Navigator.pop(
-              context,
-              FuneralPreferences(
-                religion: selectedReligion!,
-                serviceType: selectedServiceType!,
-                venue: venueController.text.trim(),
-                authorizedContact: selectedAuthorizedContact ?? '',
-                notes: notesController.text.trim(),
               ),
             );
           },

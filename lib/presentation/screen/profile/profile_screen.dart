@@ -616,7 +616,6 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   late final HomeAddressService addressService;
   HomeAddressValidationResult? verifiedAddress;
   String? verifiedAddressSignature;
-  late final String initialAddressSignature;
   bool validatingAddress = false;
 
   @override
@@ -646,7 +645,6 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     );
     selectedState = _initialState();
     selectedRegion = _initialRegion(selectedState);
-    initialAddressSignature = _currentAddressSignature();
     _restoreAddressVerification();
   }
 
@@ -698,7 +696,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       _showMessage('Please verify your new phone number first.');
       return;
     }
-    if (!_isAddressVerified && _addressChanged) {
+    if (!_isAddressVerified) {
       _showMessage('Validate your home address before saving.');
       return;
     }
@@ -716,9 +714,6 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   bool get _isAddressVerified =>
       verifiedAddress != null &&
       verifiedAddressSignature == _currentAddressSignature();
-
-  bool get _addressChanged =>
-      initialAddressSignature != _currentAddressSignature();
 
   String _currentAddressSignature() => HomeAddressService.signature(
     address: addressController.text,

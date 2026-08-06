@@ -15,6 +15,9 @@ void main() {
     final migration = source(
       'supabase/migrations/202608050004_server_authoritative_feature_logic.sql',
     );
+    final privilegeRepair = source(
+      'supabase/migrations/202608070003_fix_record_threshold_checkin_privileges.sql',
+    );
 
     expect(checkins, contains("client.rpc('record_threshold_checkin')"));
     expect(checkins, isNot(contains("from('checkins').insert")));
@@ -28,6 +31,19 @@ void main() {
     );
     expect(migration, contains('drop policy if exists "checkins_insert_own"'));
     expect(migration, contains('drop policy if exists "outbox_insert_own"'));
+    expect(
+      privilegeRepair,
+      contains(
+        'alter function public.record_threshold_checkin() security definer',
+      ),
+    );
+    expect(
+      privilegeRepair,
+      contains(
+        'grant execute on function public.record_threshold_checkin()\n'
+        'to authenticated',
+      ),
+    );
   });
 
   test('Oren progression uses authenticated server actions in production', () {

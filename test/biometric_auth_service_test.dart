@@ -6,6 +6,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fyp/presentation/screen/auth/biometric_unlock_gate.dart';
+import 'package:fyp/presentation/widgets/biometric_setting_tile.dart';
 import 'package:fyp/services/biometric_auth_service.dart';
 
 void main() {
@@ -169,6 +170,48 @@ void main() {
     expect(find.text('Protected account content'), findsNothing);
     expect(find.textContaining('cancelled'), findsOneWidget);
   });
+
+  testWidgets(
+    'biometric setting can be enabled and disabled without an async setState callback',
+    (tester) async {
+      final service = BiometricAuthService(
+        device: _FakeBiometricDevice(),
+        platform: TargetPlatform.android,
+        isWeb: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BiometricSettingTile(
+              userId: 'user-a',
+              biometricAuthService: service,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final switchFinder = find.byKey(
+        const Key('biometric-unlock-switch'),
+      );
+      expect(tester.widget<SwitchListTile>(switchFinder).value, isFalse);
+
+      await tester.tap(switchFinder);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(await service.isEnabledForUser('user-a'), isTrue);
+      expect(tester.widget<SwitchListTile>(switchFinder).value, isTrue);
+
+      await tester.tap(switchFinder);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(await service.isEnabledForUser('user-a'), isFalse);
+      expect(tester.widget<SwitchListTile>(switchFinder).value, isFalse);
+    },
+  );
 
   testWidgets(
     'brief app interruptions do not immediately relock an enabled account',
