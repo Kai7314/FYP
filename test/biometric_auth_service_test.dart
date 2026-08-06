@@ -95,6 +95,24 @@ void main() {
     expect(await Future.wait([first, second]), [isTrue, isTrue]);
   });
 
+  test(
+    'stale native authentication is stopped and retried asynchronously',
+    () async {
+      final device = _RetryBiometricDevice();
+      final service = BiometricAuthService(
+        device: device,
+        platform: TargetPlatform.android,
+        isWeb: false,
+      );
+
+      final authenticated = await service.authenticate();
+
+      expect(authenticated, isTrue);
+      expect(device.authenticationCalls, 2);
+      expect(device.stopCalls, 1);
+    },
+  );
+
   testWidgets('saved biometric setting unlocks a persisted session', (
     tester,
   ) async {
@@ -302,6 +320,9 @@ class _FakeBiometricDevice implements BiometricDevice {
 
   @override
   Future<bool> isDeviceSupported() async => true;
+
+  @override
+  Future<bool> stopAuthentication() async => true;
 }
 
 class _PendingBiometricDevice implements BiometricDevice {
@@ -331,4 +352,43 @@ class _PendingBiometricDevice implements BiometricDevice {
 
   @override
   Future<bool> isDeviceSupported() async => true;
+
+  @override
+  Future<bool> stopAuthentication() async => true;
+}
+
+class _RetryBiometricDevice implements BiometricDevice {
+  int authenticationCalls = 0;
+  int stopCalls = 0;
+
+  @override
+  Future<bool> authenticate({
+    required String reason,
+    required bool biometricOnly,
+  }) async {
+    authenticationCalls += 1;
+    if (authenticationCalls == 1) {
+      throw const LocalAuthException(
+        code: LocalAuthExceptionCode.authInProgress,
+      );
+    }
+    return true;
+  }
+
+  @override
+  Future<bool> canCheckBiometrics() async => true;
+
+  @override
+  Future<List<BiometricType>> getAvailableBiometrics() async => const [
+    BiometricType.fingerprint,
+  ];
+
+  @override
+  Future<bool> isDeviceSupported() async => true;
+
+  @override
+  Future<bool> stopAuthentication() async {
+    stopCalls += 1;
+    return true;
+  }
 }

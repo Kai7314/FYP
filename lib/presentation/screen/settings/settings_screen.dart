@@ -96,11 +96,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  void _openFeatureGuide() {
+  Future<void> _openFeatureGuide() async {
     final openGuide = widget.onOpenFeatureGuide;
     if (openGuide == null) return;
     Navigator.of(context).pop();
-    WidgetsBinding.instance.addPostFrameCallback((_) => openGuide());
+    await Future<void>.delayed(const Duration(milliseconds: 360));
+    openGuide();
   }
 
   @override

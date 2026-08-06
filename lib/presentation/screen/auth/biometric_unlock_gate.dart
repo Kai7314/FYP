@@ -152,7 +152,7 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
       if (!unlocked && nextAvailability.available) {
         await WidgetsBinding.instance.endOfFrame;
         if (_isCurrentPreferenceLoad(generation, userId)) {
-          await _unlock();
+          await _unlock(knownAvailability: nextAvailability);
         }
       }
     } catch (error) {
@@ -172,7 +172,7 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
         userId == widget.userId;
   }
 
-  Future<void> _unlock() async {
+  Future<void> _unlock({BiometricAvailability? knownAvailability}) async {
     if (authenticating || unlocked) return;
     final generation = ++authenticationGeneration;
     final userId = widget.userId;
@@ -183,6 +183,7 @@ class _BiometricUnlockGateState extends State<BiometricUnlockGate>
     try {
       final authenticated = await service.authenticate(
         reason: 'Unlock your signed-in EthernaCare account.',
+        knownAvailability: knownAvailability ?? availability,
       );
       if (!_isCurrentAuthentication(generation, userId)) return;
       setState(() {

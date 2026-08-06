@@ -40,6 +40,7 @@ abstract interface class BiometricDevice {
   Future<bool> isDeviceSupported();
   Future<bool> canCheckBiometrics();
   Future<List<BiometricType>> getAvailableBiometrics();
+  Future<bool> stopAuthentication();
   Future<bool> authenticate({
     required String reason,
     required bool biometricOnly,
@@ -62,6 +63,9 @@ class LocalAuthBiometricDevice implements BiometricDevice {
   @override
   Future<List<BiometricType>> getAvailableBiometrics() =>
       authentication.getAvailableBiometrics();
+
+  @override
+  Future<bool> stopAuthentication() => authentication.stopAuthentication();
 
   @override
   Future<bool> authenticate({
@@ -187,13 +191,17 @@ class BiometricAuthService {
 
   Future<bool> authenticate({
     String reason = 'Unlock your EthernaCare account.',
+    BiometricAvailability? knownAvailability,
   }) async {
     final activeAuthentication = _authenticationInProgress;
     if (activeAuthentication != null) {
       return await activeAuthentication;
     }
 
-    final authenticationOperation = _authenticate(reason: reason);
+    final authenticationOperation = _authenticate(
+      reason: reason,
+      knownAvailability: knownAvailability,
+    );
     _authenticationInProgress = authenticationOperation;
     try {
       return await authenticationOperation;
@@ -204,8 +212,11 @@ class BiometricAuthService {
     }
   }
 
-  Future<bool> _authenticate({required String reason}) async {
-    final availability = await checkAvailability();
+  Future<bool> _authenticate({
+    required String reason,
+    BiometricAvailability? knownAvailability,
+  }) async {
+    final availability = knownAvailability ?? await checkAvailability();
     if (!availability.available) {
       throw BiometricAuthException(
         availability.platformSupported
@@ -215,10 +226,7 @@ class BiometricAuthService {
     }
 
     try {
-      return await device.authenticate(
-        reason: reason,
-        biometricOnly: platform != TargetPlatform.windows,
-      );
+      return await _authenticateOnDevice(reason);
     } on LocalAuthException catch (error) {
       if (error.code == LocalAuthExceptionCode.userCanceled ||
           error.code == LocalAuthExceptionCode.systemCanceled ||
@@ -229,6 +237,31 @@ class BiometricAuthService {
     } on PlatformException {
       throw const BiometricAuthException(
         'Device authentication could not start. Please try again.',
+      );
+    }
+  }
+
+  Future<bool> _authenticateOnDevice(String reason) async {
+    final biometricOnly = platform != TargetPlatform.windows;
+    try {
+      return await device.authenticate(
+        reason: reason,
+        biometricOnly: biometricOnly,
+      );
+    } on LocalAuthException catch (error) {
+      if (error.code != LocalAuthExceptionCode.authInProgress) rethrow;
+
+      // Android can briefly retain a completed prompt while its activity is
+      // resuming. Clear that stale native session, yield, and retry once.
+      try {
+        await device.stopAuthentication();
+      } on Object {
+        // The retry below will provide the useful platform result.
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      return await device.authenticate(
+        reason: reason,
+        biometricOnly: biometricOnly,
       );
     }
   }

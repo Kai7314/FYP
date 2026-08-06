@@ -11,7 +11,9 @@ import 'reward_collection_screen.dart';
 import 'reward_detail_screen.dart';
 
 class RewardsScreen extends StatefulWidget {
-  const RewardsScreen({super.key});
+  const RewardsScreen({super.key, this.scrollController});
+
+  final ScrollController? scrollController;
 
   @override
   State<RewardsScreen> createState() => _RewardsScreenState();
@@ -182,6 +184,7 @@ class _RewardsScreenState extends State<RewardsScreen>
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
+        controller: widget.scrollController,
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         children: [
           PremiumHeader(

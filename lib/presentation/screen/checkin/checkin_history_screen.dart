@@ -8,9 +8,14 @@ import '../../../services/checkin_service.dart';
 import '../../widgets/premium_shell.dart';
 
 class CheckinHistoryScreen extends StatefulWidget {
-  const CheckinHistoryScreen({super.key, this.refreshVersion = 0});
+  const CheckinHistoryScreen({
+    super.key,
+    this.refreshVersion = 0,
+    this.scrollController,
+  });
 
   final int refreshVersion;
+  final ScrollController? scrollController;
 
   @override
   State<CheckinHistoryScreen> createState() => _CheckinHistoryScreenState();
@@ -97,6 +102,7 @@ class _CheckinHistoryScreenState extends State<CheckinHistoryScreen> {
         return RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
+            controller: widget.scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,

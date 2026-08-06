@@ -22,9 +22,14 @@ import '../planning/legacy_planning_screen.dart';
 import '../settings/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, this.onOpenFeatureGuide});
+  const ProfileScreen({
+    super.key,
+    this.onOpenFeatureGuide,
+    this.scrollController,
+  });
 
   final VoidCallback? onOpenFeatureGuide;
+  final ScrollController? scrollController;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -169,6 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final hasVerifiedAddress =
             HomeAddressService.fromProfile(profile) != null;
         return ListView(
+          controller: widget.scrollController,
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
             PremiumHeader(

@@ -119,6 +119,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final orenSoundService = OrenSoundService();
   final userService = UserService();
   final inactivityService = InactivityService();
+  final pageScrollControllers = List<ScrollController>.generate(
+    5,
+    (_) => ScrollController(),
+  );
 
   int selectedIndex = 0;
   bool loading = false;
@@ -148,6 +152,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int dashboardRequestId = 0;
   bool featureGuideActive = false;
   int featureGuideStep = 0;
+  int featureGuideScrollRequest = 0;
 
   @override
   void initState() {
@@ -368,6 +373,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (pageIndex == 4) profileRefreshTick += 1;
     });
     if (pageIndex == 0) unawaited(_loadDashboard());
+    unawaited(_scrollFeatureGuidePageToTop(pageIndex));
+  }
+
+  Future<void> _scrollFeatureGuidePageToTop(int pageIndex) async {
+    final request = ++featureGuideScrollRequest;
+    const attempts = [
+      Duration.zero,
+      Duration(milliseconds: 60),
+      Duration(milliseconds: 360),
+    ];
+
+    for (final delay in attempts) {
+      if (delay > Duration.zero) await Future<void>.delayed(delay);
+      if (!mounted ||
+          request != featureGuideScrollRequest ||
+          selectedIndex != pageIndex) {
+        return;
+      }
+
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted ||
+          request != featureGuideScrollRequest ||
+          selectedIndex != pageIndex) {
+        return;
+      }
+
+      final controller = pageScrollControllers[pageIndex];
+      if (!controller.hasClients) continue;
+      try {
+        controller.jumpTo(controller.position.minScrollExtent);
+      } on StateError {
+        // A tab can detach its old ScrollPosition while rebuilding.
+      }
+    }
   }
 
   Future<void> _finishFeatureGuide() async {
@@ -689,8 +728,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    featureGuideScrollRequest += 1;
     orenResetTimer?.cancel();
     thresholdRefreshTimer?.cancel();
+    for (final controller in pageScrollControllers) {
+      controller.dispose();
+    }
     unawaited(orenSoundService.dispose());
     super.dispose();
   }
@@ -699,6 +742,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final pages = [
       _HomeDashboard(
+        scrollController: pageScrollControllers[0],
         loading: loading,
         streak: streak,
         lastCheckin: lastCheckin,
@@ -728,12 +772,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onSignOut: _signOut,
         onRefresh: _loadDashboard,
       ),
-      CheckinHistoryScreen(refreshVersion: historyRefreshTick),
-      ContactsScreen(key: ValueKey('contacts-$contactsRefreshTick')),
-      RewardsScreen(key: ValueKey('rewards-$rewardsRefreshTick')),
+      CheckinHistoryScreen(
+        refreshVersion: historyRefreshTick,
+        scrollController: pageScrollControllers[1],
+      ),
+      ContactsScreen(
+        key: ValueKey('contacts-$contactsRefreshTick'),
+        scrollController: pageScrollControllers[2],
+      ),
+      RewardsScreen(
+        key: ValueKey('rewards-$rewardsRefreshTick'),
+        scrollController: pageScrollControllers[3],
+      ),
       ProfileScreen(
         key: ValueKey('profile-$profileRefreshTick'),
         onOpenFeatureGuide: _startFeatureGuide,
+        scrollController: pageScrollControllers[4],
       ),
     ];
 
@@ -812,6 +866,7 @@ enum _SosAction { call999, sendAlert }
 
 class _HomeDashboard extends StatelessWidget {
   const _HomeDashboard({
+    required this.scrollController,
     required this.loading,
     required this.streak,
     required this.lastCheckin,
@@ -842,6 +897,7 @@ class _HomeDashboard extends StatelessWidget {
     required this.onRefresh,
   });
 
+  final ScrollController scrollController;
   final bool loading;
   final int streak;
   final DateTime? lastCheckin;
@@ -900,6 +956,7 @@ class _HomeDashboard extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
+        controller: scrollController,
         padding: EdgeInsets.fromLTRB(
           horizontalPadding,
           18,

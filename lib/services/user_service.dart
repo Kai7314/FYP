@@ -4,6 +4,7 @@ import '../core/constants/app_terms.dart';
 import '../utils/validators.dart';
 import 'home_address_service.dart';
 import 'local_cache_service.dart';
+import 'onboarding_service.dart';
 import 'oren_care_service.dart';
 
 class UserService {
@@ -85,7 +86,10 @@ class UserService {
     if (userId != null) {
       await cache.removeUserData(
         userId,
-        preservedKeys: {OrenCareService.cacheKeyForUser(userId)},
+        preservedKeys: {
+          OrenCareService.cacheKeyForUser(userId),
+          ...OnboardingService.preservedCacheKeysForUser(userId),
+        },
       );
     }
   }

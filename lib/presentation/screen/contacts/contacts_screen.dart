@@ -8,7 +8,9 @@ import '../../../services/contact_service.dart';
 import 'add_contact_dialog.dart';
 
 class ContactsScreen extends StatefulWidget {
-  const ContactsScreen({super.key});
+  const ContactsScreen({super.key, this.scrollController});
+
+  final ScrollController? scrollController;
 
   @override
   State<ContactsScreen> createState() => _ContactsScreenState();
@@ -283,6 +285,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       builder: (context, snapshot) {
         final rows = snapshot.data ?? [];
         return ListView(
+          controller: widget.scrollController,
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
             20,

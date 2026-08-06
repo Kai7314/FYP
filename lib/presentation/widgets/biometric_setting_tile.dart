@@ -53,6 +53,7 @@ class _BiometricSettingTileState extends State<BiometricSettingTile> {
         }
         final authenticated = await biometricAuthService.authenticate(
           reason: 'Confirm ${availability.methodLabel} for EthernaCare.',
+          knownAvailability: availability,
         );
         if (!authenticated) {
           if (mounted) _showMessage('Biometric unlock was not enabled.');
