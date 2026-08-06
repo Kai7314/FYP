@@ -1,3 +1,4 @@
+import '../core/constants/inactivity_rules.dart';
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/checkin_repository.dart';
 import '../dataAccessLayer/repositories/emergency_repository.dart';
@@ -40,9 +41,9 @@ class DashboardSnapshot {
       syncedAt:
           DateTime.tryParse(json['synced_at']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      inactivityThresholdHours:
-          int.tryParse(json['inactivity_threshold_hours']?.toString() ?? '') ??
-          24,
+      inactivityThresholdHours: InactivityRules.normalizeThresholdHours(
+        json['inactivity_threshold_hours'],
+      ),
     );
   }
 
@@ -115,9 +116,9 @@ class DashboardService {
           : alertStatus,
       latestEmergencyAlertTime: latestAlertTime,
       syncedAt: DateTime.now(),
-      inactivityThresholdHours:
-          int.tryParse(profile?['inactivity_threshold']?.toString() ?? '') ??
-          24,
+      inactivityThresholdHours: InactivityRules.normalizeThresholdHours(
+        profile?['inactivity_threshold'],
+      ),
     );
     await cache.writeMap(_cacheKey(user.id), snapshot.toJson());
     return snapshot;

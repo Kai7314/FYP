@@ -26,7 +26,7 @@ scheduled at the same time.
 
 ### Rolling check-ins
 
-The user's inactivity threshold can be 1 to 168 hours. A successful check-in
+The user's inactivity threshold can be 24 to 168 hours. A successful check-in
 starts a new rolling window. At two missed windows, EthernaCare queues an SMS to
 the user's verified phone. At three missed windows, the configured primary
 contact escalation is queued. Server-side processing is authoritative and does

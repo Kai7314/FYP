@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../core/constants/inactivity_rules.dart';
 import '../../../core/constants/malaysia_locations.dart';
 import '../../../models/emergency_escalation_target.dart';
 import '../../../services/home_address_service.dart';
@@ -360,7 +361,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _InfoTile(
                   icon: Icons.timer_outlined,
                   label: 'Inactivity Threshold',
-                  value: '${profile['inactivity_threshold'] ?? 24} hours',
+                  value:
+                      '${InactivityRules.normalizeThresholdHours(profile['inactivity_threshold'])} hours',
                 ),
                 _InfoTile(
                   icon: Icons.emergency_share_outlined,
@@ -635,7 +637,9 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
     );
     selectedBloodType = _initialBloodType();
     thresholdController = TextEditingController(
-      text: widget.profile['inactivity_threshold']?.toString() ?? '24',
+      text: InactivityRules.normalizeThresholdHours(
+        widget.profile['inactivity_threshold'],
+      ).toString(),
     );
     escalationTarget = EmergencyEscalationTarget.normalize(
       widget.profile['emergency_escalation_target'],
@@ -919,7 +923,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                       AppValidators.inactivityThreshold(value ?? ''),
                   decoration: const InputDecoration(
                     hintText: '24',
-                    helperText: '1-168 hours for each missed check-in',
+                    helperText: '24-168 hours for each missed check-in',
                   ),
                 ),
               ),

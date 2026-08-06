@@ -81,13 +81,13 @@ void main() {
     expect(missesAfter(const Duration(hours: 72)), 3);
   });
 
-  test('one-hour inactivity reaches the user SMS stage after two hours', () {
+  test('sub-day inactivity values normalize to the 24-hour minimum', () {
     final lastCheckIn = DateTime.utc(2026, 8, 1, 8);
 
     expect(
       InactivityService.calculateMissedCheckIns(
         lastCheckIn: lastCheckIn,
-        now: lastCheckIn.add(const Duration(minutes: 59)),
+        now: lastCheckIn.add(const Duration(hours: 23, minutes: 59)),
         thresholdHours: 1,
       ),
       0,
@@ -95,7 +95,7 @@ void main() {
     expect(
       InactivityService.calculateMissedCheckIns(
         lastCheckIn: lastCheckIn,
-        now: lastCheckIn.add(const Duration(hours: 1)),
+        now: lastCheckIn.add(const Duration(hours: 24)),
         thresholdHours: 1,
       ),
       1,
@@ -103,7 +103,7 @@ void main() {
     expect(
       InactivityService.calculateMissedCheckIns(
         lastCheckIn: lastCheckIn,
-        now: lastCheckIn.add(const Duration(hours: 2)),
+        now: lastCheckIn.add(const Duration(hours: 48)),
         thresholdHours: 1,
       ),
       InactivityService.userSmsReminderMiss,
@@ -155,7 +155,7 @@ void main() {
       thresholdHours: 1,
     );
 
-    expect(message, contains('missed two 1-hour check-in windows'));
+    expect(message, contains('missed two 24-hour check-in windows'));
     expect(message, contains('primary trusted contact'));
   });
 
@@ -1067,6 +1067,8 @@ void main() {
       ),
       isNull,
     );
+    expect(AppValidators.inactivityThreshold('23'), isNotNull);
+    expect(AppValidators.inactivityThreshold('24'), isNull);
     expect(AppValidators.inactivityThreshold('169'), isNotNull);
     expect(AppValidators.bloodType('AB+'), isNull);
     expect(

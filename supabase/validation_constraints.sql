@@ -46,7 +46,7 @@ alter table public.users
   drop constraint if exists users_inactivity_threshold_range;
 alter table public.users
   add constraint users_inactivity_threshold_range
-  check (inactivity_threshold between 1 and 168) not valid;
+  check (inactivity_threshold between 24 and 168) not valid;
 
 alter table public.users
   drop constraint if exists users_emergency_escalation_target;

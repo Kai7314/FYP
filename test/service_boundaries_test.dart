@@ -84,6 +84,7 @@ void main() {
     user = _MockUser();
     when(() => user.id).thenReturn('user-1');
     when(() => user.email).thenReturn('kai@example.com');
+    when(() => user.userMetadata).thenReturn({});
     when(() => auth.currentUser).thenReturn(user);
   });
 
@@ -474,10 +475,33 @@ void main() {
       when(() => auth.currentUser).thenReturn(user);
       when(() => cache.readMap(any())).thenAnswer((_) async => null);
       when(() => cache.writeMap(any(), any())).thenAnswer((_) async {});
+      when(() => auth.updateUserMetadata(any())).thenAnswer((_) async {});
       final userService = OnboardingService(authRepository: auth, cache: cache);
       expect(await userService.hasCompletedTutorial(), isFalse);
       await userService.markTutorialComplete();
       verify(() => cache.writeMap(any(), any())).called(1);
+      final metadata =
+          verify(() => auth.updateUserMetadata(captureAny())).captured.single
+              as Map<String, dynamic>;
+      expect(metadata[OnboardingService.accountCompletionKey], isNotEmpty);
+    });
+
+    test('onboarding completion follows the account after login', () async {
+      final cache = _MockCache();
+      when(() => user.userMetadata).thenReturn({
+        OnboardingService.accountCompletionKey: '2026-08-07T00:00:00.000Z',
+      });
+      when(() => cache.writeMap(any(), any())).thenAnswer((_) async {});
+
+      final service = OnboardingService(authRepository: auth, cache: cache);
+
+      expect(await service.hasCompletedTutorial(), isTrue);
+      verify(
+        () => cache.writeMap(OnboardingService.cacheKeyForUser('user-1'), {
+          'completed': true,
+          'completed_at': '2026-08-07T00:00:00.000Z',
+        }),
+      ).called(1);
     });
 
     test('onboarding migrates the old versioned completion marker', () async {
@@ -486,24 +510,21 @@ void main() {
       when(
         () => cache.readMap(OnboardingService.cacheKeyForUser('user-1')),
       ).thenAnswer((_) async => null);
-      when(
-        () => cache.readMap('tutorial_completed_v2_user-1'),
-      ).thenAnswer(
+      when(() => cache.readMap('tutorial_completed_v2_user-1')).thenAnswer(
         (_) async => {
           'completed': true,
           'completed_at': '2026-08-01T00:00:00.000Z',
         },
       );
       when(() => cache.writeMap(any(), any())).thenAnswer((_) async {});
+      when(() => auth.updateUserMetadata(any())).thenAnswer((_) async {});
 
       final service = OnboardingService(authRepository: auth, cache: cache);
 
       expect(await service.hasCompletedTutorial(), isTrue);
       verify(
-        () => cache.writeMap(
-          OnboardingService.cacheKeyForUser('user-1'),
-          any(),
-        ),
+        () =>
+            cache.writeMap(OnboardingService.cacheKeyForUser('user-1'), any()),
       ).called(1);
     });
   });

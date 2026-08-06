@@ -1,3 +1,4 @@
+import '../core/constants/inactivity_rules.dart';
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/checkin_repository.dart';
 import '../dataAccessLayer/repositories/emergency_repository.dart';
@@ -71,7 +72,9 @@ class InactivityService {
     required DateTime now,
     required int thresholdHours,
   }) {
-    final safeThreshold = thresholdHours.clamp(1, 168).toInt();
+    final safeThreshold = InactivityRules.normalizeThresholdHours(
+      thresholdHours,
+    );
     final elapsed = now.difference(lastCheckIn);
     if (elapsed.isNegative) return 0;
     return elapsed.inSeconds ~/ Duration(hours: safeThreshold).inSeconds;
@@ -96,7 +99,9 @@ class InactivityService {
     required int thresholdHours,
   }) {
     if (lastCheckIn == null) return null;
-    final safeThreshold = thresholdHours.clamp(1, 168).toInt();
+    final safeThreshold = InactivityRules.normalizeThresholdHours(
+      thresholdHours,
+    );
     return lastCheckIn.add(Duration(hours: safeThreshold));
   }
 
@@ -253,9 +258,9 @@ class InactivityService {
     final checkin = results[0];
     if (checkin == null) return;
     final profile = results[1];
-    final configuredThreshold =
-        int.tryParse(profile?['inactivity_threshold']?.toString() ?? '') ?? 24;
-    final threshold = configuredThreshold.clamp(1, 168).toInt();
+    final threshold = InactivityRules.normalizeThresholdHours(
+      profile?['inactivity_threshold'],
+    );
     final thresholdDuration = Duration(hours: threshold);
     final lastCheckin = DateTime.tryParse(checkin['checkin_time'].toString());
     final now = clock();
@@ -304,11 +309,11 @@ class InactivityService {
 
   Future<int> _currentThresholdHours() async {
     final user = authRepository.currentUser;
-    if (user == null) return 24;
+    if (user == null) return InactivityRules.defaultThresholdHours;
     final profile = await userRepository.getProfile(user.id);
-    final configured =
-        int.tryParse(profile?['inactivity_threshold']?.toString() ?? '') ?? 24;
-    return configured.clamp(1, 168).toInt();
+    return InactivityRules.normalizeThresholdHours(
+      profile?['inactivity_threshold'],
+    );
   }
 
   Future<void> _saveWarning({

@@ -1,3 +1,5 @@
+import '../core/constants/inactivity_rules.dart';
+
 class PhoneCountry {
   const PhoneCountry({
     required this.name,
@@ -340,8 +342,8 @@ class AppValidators {
 
   static String? inactivityThreshold(String value) {
     final hours = int.tryParse(value.trim());
-    if (hours == null || hours < 1 || hours > 168) {
-      return 'Threshold must be between 1 and 168 hours.';
+    if (hours == null || !InactivityRules.isValidThresholdHours(hours)) {
+      return 'Threshold must be between 24 and 168 hours.';
     }
     return null;
   }

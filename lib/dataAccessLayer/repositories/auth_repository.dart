@@ -12,9 +12,7 @@ class AuthRepository {
 
   static bool isExistingAccountSignup(AuthResponse response) {
     final identities = response.user?.identities;
-    return response.session == null &&
-        identities != null &&
-        identities.isEmpty;
+    return response.session == null && identities != null && identities.isEmpty;
   }
 
   Future<AuthResponse> signIn({
@@ -92,14 +90,15 @@ class AuthRepository {
     return client.auth.updateUser(UserAttributes(password: password));
   }
 
+  Future<void> updateUserMetadata(Map<String, dynamic> data) async {
+    await client.auth.updateUser(UserAttributes(data: data));
+  }
+
   Future<bool> signInWithOAuth({
     required OAuthProvider provider,
     required String redirectTo,
   }) {
-    return client.auth.signInWithOAuth(
-      provider,
-      redirectTo: redirectTo,
-    );
+    return client.auth.signInWithOAuth(provider, redirectTo: redirectTo);
   }
 
   Future<void> signOut() => client.auth.signOut();

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../core/constants/inactivity_rules.dart';
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/checkin_repository.dart';
 import '../dataAccessLayer/repositories/user_repository.dart';
@@ -74,8 +75,9 @@ class CheckinService {
 
     final checkedAt = DateTime.now();
     final profile = await userRepository.getProfile(user.id);
-    final configuredThreshold =
-        int.tryParse(profile?['inactivity_threshold']?.toString() ?? '') ?? 24;
+    final configuredThreshold = InactivityRules.normalizeThresholdHours(
+      profile?['inactivity_threshold'],
+    );
     final created = await checkinRepository.addThresholdCheckin(
       userId: user.id,
       now: checkedAt,

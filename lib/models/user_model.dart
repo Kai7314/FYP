@@ -1,3 +1,4 @@
+import '../core/constants/inactivity_rules.dart';
 import 'emergency_escalation_target.dart';
 
 class UserModel {
@@ -57,8 +58,9 @@ class UserModel {
       addressValidationProvider: json['address_validation_provider']
           ?.toString(),
       bloodType: json['blood_type']?.toString(),
-      inactivityThreshold:
-          int.tryParse(json['inactivity_threshold']?.toString() ?? '') ?? 24,
+      inactivityThreshold: InactivityRules.normalizeThresholdHours(
+        json['inactivity_threshold'],
+      ),
       emergencyEscalationTarget: EmergencyEscalationTarget.normalize(
         json['emergency_escalation_target'],
       ),

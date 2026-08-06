@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../core/constants/inactivity_rules.dart';
 import '../../../core/constants/malaysia_locations.dart';
 import '../../../models/emergency_escalation_target.dart';
 import '../../../services/home_address_service.dart';
@@ -68,7 +69,9 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
     );
     selectedBloodType = _initialBloodType();
     thresholdController = TextEditingController(
-      text: widget.profile['inactivity_threshold']?.toString() ?? '24',
+      text: InactivityRules.normalizeThresholdHours(
+        widget.profile['inactivity_threshold'],
+      ).toString(),
     );
     escalationTarget = EmergencyEscalationTarget.normalize(
       widget.profile['emergency_escalation_target'],
@@ -344,7 +347,7 @@ class _FirstLoginSetupScreenState extends State<FirstLoginSetupScreen> {
                         AppValidators.inactivityThreshold(value ?? ''),
                     decoration: const InputDecoration(
                       labelText: 'Inactivity threshold (hours)',
-                      helperText: '1-168 hours for each missed check-in',
+                      helperText: '24-168 hours for each missed check-in',
                     ),
                   ),
                   const SizedBox(height: 10),

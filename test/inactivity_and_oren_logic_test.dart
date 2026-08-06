@@ -9,11 +9,11 @@ void main() {
   group('rolling inactivity thresholds', () {
     final lastCheckIn = DateTime.utc(2026, 8, 1, 8);
 
-    test('one-hour threshold reaches user SMS on the second window', () {
+    test('thresholds below 24 hours normalize to one full day', () {
       expect(
         InactivityService.calculateMissedCheckIns(
           lastCheckIn: lastCheckIn,
-          now: lastCheckIn.add(const Duration(minutes: 59)),
+          now: lastCheckIn.add(const Duration(hours: 23, minutes: 59)),
           thresholdHours: 1,
         ),
         0,
@@ -21,7 +21,7 @@ void main() {
       expect(
         InactivityService.calculateMissedCheckIns(
           lastCheckIn: lastCheckIn,
-          now: lastCheckIn.add(const Duration(hours: 1)),
+          now: lastCheckIn.add(const Duration(hours: 24)),
           thresholdHours: 1,
         ),
         1,
@@ -29,7 +29,7 @@ void main() {
       expect(
         InactivityService.calculateMissedCheckIns(
           lastCheckIn: lastCheckIn,
-          now: lastCheckIn.add(const Duration(hours: 2)),
+          now: lastCheckIn.add(const Duration(hours: 48)),
           thresholdHours: 1,
         ),
         InactivityService.userSmsReminderMiss,
@@ -60,7 +60,7 @@ void main() {
         thresholdHours: 1,
       );
 
-      expect(message, contains('missed two 1-hour check-in windows'));
+      expect(message, contains('missed two 24-hour check-in windows'));
       expect(message, contains('primary trusted contact'));
     });
 
@@ -146,7 +146,7 @@ void main() {
       );
     });
 
-    test('dashboard cache preserves the configured threshold', () {
+    test('dashboard cache upgrades an obsolete threshold', () {
       final snapshot = DashboardSnapshot(
         userName: 'Kai',
         checkinTimes: [lastCheckIn],
@@ -158,7 +158,7 @@ void main() {
 
       final restored = DashboardSnapshot.fromJson(snapshot.toJson());
 
-      expect(restored.inactivityThresholdHours, 1);
+      expect(restored.inactivityThresholdHours, 24);
       expect(restored.lastCheckin, lastCheckIn);
     });
   });

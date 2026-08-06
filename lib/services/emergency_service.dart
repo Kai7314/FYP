@@ -1,6 +1,7 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/constants/inactivity_rules.dart';
 import '../dataAccessLayer/repositories/auth_repository.dart';
 import '../dataAccessLayer/repositories/contact_repository.dart';
 import '../dataAccessLayer/repositories/emergency_repository.dart';
@@ -57,10 +58,12 @@ class EmergencyService {
     required int thresholdHours,
     bool testMode = false,
   }) {
+    final safeThreshold = InactivityRules.normalizeThresholdHours(
+      thresholdHours,
+    );
     final prefix = testMode ? 'TEST - ' : '';
-    final unit = thresholdHours == 1 ? 'hour' : 'hours';
     return '${prefix}EthernaCare check-in reminder: you have missed two '
-        '$thresholdHours-$unit check-in windows. Open EthernaCare and tap '
+        '$safeThreshold-hour check-in windows. Open EthernaCare and tap '
         'Oren now. If inactivity continues, your configured emergency '
         'escalation may notify your primary trusted contact.';
   }

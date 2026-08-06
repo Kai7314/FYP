@@ -105,7 +105,7 @@ void main() {
     });
 
     test(
-      'uses the configured rolling threshold and refreshes the cache',
+      'normalizes an obsolete threshold and refreshes the cache',
       () async {
         final checkins = _MockCheckinRepository();
         final users = _MockUserRepository();
@@ -117,7 +117,7 @@ void main() {
           () => checkins.addThresholdCheckin(
             userId: 'user-1',
             now: any(named: 'now'),
-            thresholdHours: 1,
+            thresholdHours: 24,
           ),
         ).thenAnswer((_) async => true);
         when(() => cache.readMap(any())).thenAnswer((_) async => null);
@@ -138,7 +138,7 @@ void main() {
           () => checkins.addThresholdCheckin(
             userId: 'user-1',
             now: any(named: 'now'),
-            thresholdHours: 1,
+            thresholdHours: 24,
           ),
         ).called(1);
         verify(() => checkins.getCheckins('user-1')).called(1);
@@ -211,7 +211,7 @@ void main() {
       when(() => cache.readMap(any())).thenAnswer((_) async => null);
 
       await serviceAt(
-        lastCheckIn.add(const Duration(hours: 1)),
+        lastCheckIn.add(const Duration(hours: 24)),
       ).checkInactivity();
 
       verify(
@@ -247,7 +247,7 @@ void main() {
         },
       );
       await serviceAt(
-        lastCheckIn.add(const Duration(hours: 2)),
+        lastCheckIn.add(const Duration(hours: 48)),
       ).checkInactivity();
 
       verify(
@@ -277,7 +277,7 @@ void main() {
           },
         );
         await serviceAt(
-          lastCheckIn.add(const Duration(hours: 3)),
+          lastCheckIn.add(const Duration(hours: 72)),
         ).checkInactivity();
 
         verifyNever(
@@ -940,7 +940,7 @@ void main() {
         ).refresh();
 
         expect(snapshot.userName, 'Kai');
-        expect(snapshot.inactivityThresholdHours, 1);
+        expect(snapshot.inactivityThresholdHours, 24);
         expect(snapshot.emergencyStatus, 'inactivity_triggered');
         expect(snapshot.lastCheckin, checkedAt);
         verify(() => cache.writeMap(any(), any())).called(1);
